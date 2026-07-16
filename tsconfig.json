@@ -1,0 +1,5 @@
+{
+  // Root tsconfig delegates to the Nuxt-generated config (created by `nuxt prepare`).
+  // Strictness (strict + noUncheckedIndexedAccess) is configured via nuxt.config.ts (ADR-015).
+  "extends": "./.nuxt/tsconfig.json"
+}

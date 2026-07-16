@@ -17,7 +17,7 @@ code is written this round.
 ```
                  ┌──────────────────────────── Browser (SSR-hydrated SPA) ────────────────────────────┐
                  │  Vue 3 components (dumb)  ← props ─ Pinia getters ← Pinia state ← Pinia actions      │
-                 │        │                                   │  ChartOptionFactory → BaseChartOption   │
+                 │        │              typed props + useChartContext → BaseChartOption                    │
                  │        │ intents (actions)                 │            │ Option                       │
                  │        ▼                                   ▼            ▼                              │
                  │  client Axios instance ───────────────► BaseChart.vue (<VChart>, client-only)         │
@@ -38,7 +38,8 @@ code is written this round.
 **Layer boundaries (strict):**
 - Components never fetch or hold data (ADR-003); they read Pinia and emit intents.
 - The store never talks to World Bank; only to our BFF via client Axios (ADR-004/008).
-- Chart-option classes are pure; data is injected via constructor by the factory (ADR-007/009).
+- Chart-option classes are pure; data is injected via constructor from a chart component's typed
+  props + the `useChartContext` bundle (ADR-007/009).
 - Services depend on the adapter *interface*, not a concrete adapter (ADR-008/009).
 - The statistics module is pure and isomorphic; it runs on the server (single authoritative
   derivation path, ADR-005).
@@ -54,13 +55,14 @@ code is written this round.
 ├─ app/
 │  ├─ components/
 │  │  ├─ shell/                    # AppHeader, ControlPanel, MainCanvas, MagnitudePanels, ...
-│  │  ├─ controls/                 # ScopeDomainSelect, AccountingToggle, RScenarioToggle, ...
+│  │  ├─ controls/                 # ScopeDomainSelect, HorizonSelect, RScenarioToggle, ...
 │  │  └─ charts/
-│  │     ├─ BaseChart.vue          # tier 1: dumb <VChart> wrapper (autoresize)
-│  │     ├─ MainStackedChart.vue   # tier 2: per-chart components
+│  │     ├─ BaseChart.vue          # tier 1: dumb <VChart> wrapper (autoresize, emits timeRange)
+│  │     ├─ MainStackedChart.vue   # tier 2: per-chart components (Pinia-unaware, typed props)
 │  │     ├─ GlobalStackedAreaChart.vue
 │  │     ├─ CrossingChart.vue
 │  │     ├─ RankingBumpChart.vue
+│  │     ├─ FossilComparisonChart.vue
 │  │     └─ FootprintDonut.vue
 │  ├─ charts/                      # tier 3: chart-option classes (pure)
 │  │  ├─ BaseChartOption.ts        # abstract base
@@ -69,9 +71,11 @@ code is written this round.
 │  │  ├─ CrossingOption.ts
 │  │  ├─ RankingBumpOption.ts
 │  │  ├─ FootprintDonutOption.ts
-│  │  └─ ChartOptionFactory.ts     # injects data (Pinia + i18n + theme) into option classes
+│  │  └─ FossilComparisonOption.ts
+│  ├─ composables/
+│  │  └─ useChartContext.ts        # Pinia-aware ChartContext bundle (i18n+theme+formatter+view)
 │  ├─ stores/                      # Pinia: single source of truth
-│  │  ├─ useViewStore.ts           # control/view state (scope, accounting, R, baseline, window)
+│  │  ├─ useViewStore.ts           # control/view state (scope, horizon, R, baseline, timeRange)
 │  │  ├─ useDataStore.ts           # fetched/derived DTOs + param-keyed cache + in-flight map
 │  │  └─ useUiStore.ts             # locale, theme, loading/error UI state
 │  ├─ services/
@@ -177,24 +181,42 @@ over the per-capita variant. Live-verified full 1990–2024 coverage, zero holes
 
 ### 2.3 Equivalence config (`equivalences.ts`)
 ```ts
+// The single time-horizon vocabulary, shared with DerivationParams (§3.2). 'today' = no projection
+// (measured data only); the others project forward from the calendar anchor (business §2.4a).
+type Horizon = 'today' | '20y' | '30y' | '50y' | '75y' | '100y';
+
+// Calendar anchor for "now" (business §2.4a): the year the horizon is measured FROM.
+const HORIZON_ANCHOR_YEAR = 2026;
+
+// Horizon → absolute target year for the projected series' upper bound.
+//   today → HORIZON_ANCHOR_YEAR (no projection past measured data) · 20y → 2046 · 30y → 2056
+//   50y → 2076 · 75y → 2101 · 100y → 2126
+function horizonTargetYear(h: Horizon): number;  // HORIZON_ANCHOR_YEAR + { today:0, 20y:20, ... }
+function horizonYears(h: Horizon): number;        // 0 | 20 | 30 | 50 | 75 | 100 (for equivalence)
+
+interface ReferenceCountry { iso3: string; labelKey: string; source: string }
 interface EquivalenceConfig {
-  defaultHorizon: 'annual' | '10y' | '30y' | '50y';   // = '30y' (business §4.4)
-  horizons: Array<'annual' | '10y' | '30y' | '50y'>;
-  semantics: 'forward-committed';   // horizon value = annualRate × horizon (business §4.4)
-  carAnnualTonsCO2: number;      // per average passenger car / yr (+ source)
-  referenceCountry: { iso3: string; labelKey: string; source: string };
+  carAnnualTonsCO2: number;      // 4.6 (EPA typical passenger vehicle; business §4.4)
+  // Reference country is LOCALE-DRIVEN (business §4.4): resolved from the active i18n locale.
+  referenceCountryByLocale: Record<string, ReferenceCountry>;   // e.g. { sk: SVK }
+  defaultReferenceCountry: ReferenceCountry;                    // fallback for any other locale (GBR)
   sourceRefs: string[];
 }
 ```
-**Preset semantics = forward committed:** `annual` = the annual rate at the reference year;
-`10/30/50y` = `annualRate × horizonYears` (the already-committed debt, holding cumulative loss
-constant — never an infinite total, business §2.4/§4.4). The concrete car factor and reference
-country remain open items (business §12); the panel is parameterized so final choices are config
-edits.
+**Equivalence is driven by the global time horizon (business §4.4):** it has **no own preset row**.
+The headline is always the annual rate at the reference year; when the horizon is pushed past
+`today`, equivalence additionally shows the **committed total = annualRate × `horizonYears(h)`** (the
+already-committed debt, holding cumulative loss constant — never an infinite total, business
+§2.4/§4.4). **Reference country resolves from the store locale**
+(`resolveReferenceCountry(cfg, locale)` → `referenceCountryByLocale[locale] ??
+defaultReferenceCountry`): `sk` → Slovakia, else → UK. The equivalence UX element is reactive to the
+current language (Pinia), re-resolving the country + `countryEquivalent.times` with no new fetch of
+the deforestation series. Car factor + countries are `revisable` config edits (business §4.4/§12).
 
 ### 2.4 Scope / Domain selector config (`scopeSelector.ts`)
 The scope and domain axes stay two independent state variables (`DerivationParams.scope` +
-`domainId`, §3.2) — **the data model is unchanged.** The merge is **purely a UI convenience**: one
+`domainId`, §3.2). The time horizon (§2.3, §3.2) is the third derivation axis that replaced the old
+official↔full accounting switch — **the data model otherwise unchanged.** The merge is **purely a UI convenience**: one
 dropdown (UI §3/§3.1) rendered from this constant, whose entries are the sole mapping from the
 single control back onto the two variables.
 ```ts
@@ -234,6 +256,7 @@ interface SeriesMeta {
   latestDataYear: number | null; // for the "always show the year" rule
   gaps: Array<{ geo: string; reason: string }>;  // partial coverage / holes (honesty)
   isEstimate: boolean;           // measured (false) vs derived, e.g. forgone sink (true)
+  projectedFrom: number | null;  // join year where linear-trend projection starts; null = measured only (§3.2, business §2.4a)
 }
 interface Series { id: string; points: DataPoint[]; meta: SeriesMeta; }
 interface BandSeries extends Series { lower: DataPoint[]; upper: DataPoint[]; }  // uncertainty band
@@ -244,67 +267,85 @@ interface BandSeries extends Series { lower: DataPoint[]; upper: DataPoint[]; } 
 interface DerivationParams {           // the cache key surface (ADR-005)
   scope: 'global' | 'local';
   domainId?: DomainConfig['id'];       // required if scope=local
-  accounting: 'official' | 'full';
+  horizon: Horizon;                    // 'today' | '20y' | '30y' | '50y' | '75y' | '100y' (§2.3) — replaced accounting
   rScenario: 'conservative' | 'mid' | 'high';
   baseline: number;                    // >= 1990
+}
+```
+**Projection metadata.** Every series that a chart may draw dashed carries, in addition to
+`SeriesMeta.isEstimate`, a `projectedFrom: number | null` field — the **join year** where measured
+data ends and the linear-trend projection begins (business §2.4a, §8). `null` = fully measured.
+`today` produces `projectedFrom = null` on all series (no projection); any other horizon sets it to
+the last measured year of the underlying cleared-area series. Charts split each metric into a
+**measured** segment and a **projected** segment at this year (§11.2/§11.5), rendering the projected
+one dashed-and-lighter; the join year also drives the divider `markLine`.
+```ts
+interface SeriesMeta {                 // (§3.1, extended) — projection honesty
+  // ...existing fields (indicatorId, seriesType, unit, latestDataYear, gaps, isEstimate)...
+  projectedFrom: number | null;        // join year where linear-trend projection starts; null = measured only
 }
 
 interface DomainResultDTO {            // GET /api/domain/{id}
   params: DerivationParams;
   referenceYear: number;               // min common data year for composite scalars (ADR-016)
   area: Series;                        // AG.LND.FRST.K2 (state)
-  cumulativeLoss: Series;              // cumulative area loss from baseline (state)
-  stock: Series;                       // WB .DF (flow, solid, measured)
-  forgoneSink?: BandSeries;            // R * cumulativeLoss (estimate, dashed+band) — full only
-  fullEmissions?: Series;             // stock + forgoneSink — full only
-  multiplier?: number;                 // full/official at referenceYear — full only (omitted in official; UI hides badge)
-  crossingYear?: number | null;        // stock × forgone-sink crossing — full only
+  cumulativeLoss: Series;              // cumulative area loss from baseline (state); projected past latest measured year
+  stock: Series;                       // WB .DF (flow, solid); measured then projected past latest year (projectedFrom)
+  forgoneSink: BandSeries;             // R * cumulativeLoss (estimate, dashed+band); extends into the projected range
+  fullEmissions: Series;               // stock + forgoneSink
+  multiplier: number;                  // fullEmissions ÷ WB stock at referenceYear (business §2.5/§4.2; measured data only)
+  crossingYear: number | null;         // annual stock impulse × cumulative forgone-sink crossing (may fall in projected range)
 }
 
 interface GlobalResultDTO {            // GET /api/global
   params: DerivationParams;
   referenceYear: number;
-  perDomainStock: Series[];            // stacked layers (official)
-  perDomainForgoneSink?: Series[];     // stacked layers (full)
-  aggregateForgoneSink?: BandSeries;   // sum + single aggregate band; lower/upper deviations combined separately (asymmetric-safe, §5)
-  aggregateFullEmissions?: Series;
-  multiplier?: number;                 // full only
-  crossingYear?: number | null;
+  perDomainStock: Series[];            // stacked layers; measured then projected (per-domain projectedFrom)
+  perDomainForgoneSink: Series[];      // stacked layers
+  aggregateStock: Series;              // Σ perDomainStock (denominator for multiplier + fossil comparison)
+  aggregateForgoneSink: BandSeries;    // sum + single aggregate band; lower/upper deviations combined separately (asymmetric-safe, §5)
+  aggregateFullEmissions: Series;
+  multiplier: number;
+  crossingYear: number | null;
 }
 
 interface RankingDTO {                 // GET /api/ranking (global/cross-domain)
   params: DerivationParams;
   referenceYear: number;
-  // values at referenceYear: official = annual stock per domain; full = annual full emissions per domain
-  official: Array<{ domainId: string; value: number; rank: number }>;
-  full: Array<{ domainId: string; value: number; rank: number }>;   // reshuffled
+  // Two-column bump chart (business §4.3): today = annual full emissions per domain on MEASURED data
+  // at referenceYear; atHorizon = per-domain full emissions read at the chosen horizon's target year
+  // (projected). The horizon reshuffles ranks because per-domain R + trend differ.
+  today: Array<{ domainId: string; value: number; rank: number }>;
+  atHorizon: Array<{ domainId: string; value: number; rank: number }>;   // reshuffled by horizon
 }
 
 interface ReferenceDTO {               // GET /api/reference (global fossil bar) — always fetched in global scope
   params: DerivationParams;
   referenceYear: number;
   fossilTotal: Series;                 // denominator = global fossil emissions (also the fossil bar in the side-by-side)
-  sharePercent: { official: number; full: number };  // share-of-footprint magnitudes (donut, always shown)
-  composition: {                       // donut slices at referenceYear (Mt CO2)
+  sharePercent: number;                // share-of-footprint magnitude at referenceYear: defo / (fossil + defo)
+  composition: {                       // donut slices at referenceYear (Mt CO2) — always 3 slices
     fossil: number;
     stock: number;
-    forgoneSink: number | null;        // full → number (3rd slice); official → null (2-slice donut)
+    forgoneSink: number;
   };
 }
 
 interface EquivalenceDTO {             // GET /api/equivalence
   params: DerivationParams;
   referenceYear: number;
-  horizon: 'annual' | '10y' | '30y' | '50y';
-  annualRateCO2: number;               // Mt CO2/yr at referenceYear
-  cumulativeCO2: number | null;        // forward committed = annualRateCO2 × horizonYears (null for 'annual')
-  carEquivalent: number;               // cars (annual, or over horizon)
+  horizon: Horizon;                    // echoes params.horizon
+  annualRateCO2: number;               // Mt CO2/yr at referenceYear (the always-shown headline)
+  cumulativeCO2: number | null;        // committed total = annualRateCO2 × horizonYears(horizon); null when horizon='today'
+  carEquivalent: number;               // cars (annual, or committed over horizon)
   countryEquivalent: { iso3: string; times: number };
 }
 ```
-**Note.** `multiplier` is omitted in `official` mode (business §4.2); the UI hides the badge rather
-than showing a trivial 1×. `ReferenceDTO` (donut + share %) is fetched in every global-scope view
-regardless of accounting mode (no fossil-reference toggle — business §4.1).
+**Note.** With the accounting switch removed there is a **single accounting ('full')**; the forgone
+sink, `fullEmissions`, `multiplier` and `crossingYear` are **always present** (business §2.6). The
+`multiplier` (`fullEmissions ÷ WB stock` at the reference year, business §2.5) is **always shown**
+and is **not** horizon-reactive in V1 (computed on measured data — §12 open item). `ReferenceDTO`
+(donut + share %) is fetched in every global-scope view (no fossil-reference toggle — business §4.1).
 
 **Design note (consistency with business §2.5):** all headline quantities that feed magnitude
 panels and equivalences are **annual flows** (Mt CO₂/yr); the forgone sink is the annual deficit
@@ -323,6 +364,17 @@ begin at `max(baseline, 2000)`; `area`/`cumulativeLoss` still begin at `baseline
 nowcast (probe: 2023 ≡ 2022 across every `EN.GHG.*` series). The adapter **drops the duplicated final
 year uniformly** (§4) so charts end on genuinely distinct data; the trimmed end sets `latestDataYear`,
 which in turn feeds the min-common `referenceYear` rule (ADR-016).
+
+**Forward projection (business §2.4a, §8).** When `horizon !== 'today'`, `AggregationService`
+extends each series past its last measured year up to `horizonTargetYear(horizon)` using a
+**per-domain linear-trend extrapolation** of the cleared-area series (`stats.projectSeries`: recent
+mean + fitted slope over the last ~9 measured years, clamped ≥ 0), then multiplies by `R_domain` and
+aggregates through the existing `sumSeries`/`aggregateForgoneSink` path. Projection is applied **per
+domain, before aggregation** (NOT a single fit on the pre-aggregated series) — because `R` and the
+trend differ per domain, and this is exactly what reshuffles the ranking. The projected points carry
+`meta.projectedFrom = <last measured year>`; composite scalars (`multiplier`, `referenceYear`, donut,
+share, equivalence annual rate) are computed on **measured data only**, never on projected points
+(business §7.1a). `horizon='today'` skips projection entirely (`projectedFrom = null`).
 
 ---
 
@@ -381,16 +433,23 @@ areaLoss(area: Series): Series;                    // -diff(area), clipped to lo
 cumulativeLoss(area: Series, baseline: number): Series;  // cumulative(areaLoss) from baseline; state
 forgoneSink(cumLoss: Series, r: RRange, scenario): BandSeries; // r * cumLoss + CI band (low/high from RRange endpoints, may be asymmetric); isEstimate=true
 fullEmissions(stock: Series, forgone: Series): Series;         // pointwise sum
-multiplier(stock: Series, full: Series, atYear: number): number;  // full/official at referenceYear
-crossingYear(stock: Series, cumulativeForgone: Series): number | null;
+multiplier(stock: Series, full: Series, atYear: number): number;  // fullEmissions ÷ WB stock at referenceYear (measured data)
+crossingYear(stock: Series, cumulativeForgone: Series): number | null;  // annual stock impulse × cumulative forgone level (semantics unchanged)
 referenceYear(...series: Series[]): number;                    // min common latestDataYear (ADR-016)
 
+// forward projection (business §2.4a/§8)
+projectSeries(series: Series, targetYear: number, lookback = 9): Series;  // recent mean + fitted slope,
+    // extrapolated to targetYear, clamped ≥ 0; appended points get meta.projectedFrom = last measured year.
+    // targetYear ≤ last measured year → returns the series unchanged (projectedFrom = null).
+
 // aggregation
+sumSeries(series: Series[], id: string, geo?: string): Series;  // PURE pointwise sum over the union of years (nulls skipped);
+                                                               // NO coverage/exclusion logic — country exclusion is the CoverageGate's job (§6, ADR-020)
 aggregateForgoneSink(perDomain: BandSeries[]): BandSeries;      // sum mid; combine lower/upper deviations SEPARATELY (asymmetric-safe):
                                                                //   low = midΣ − √Σ(mid_i−low_i)² ; high = midΣ + √Σ(high_i−mid_i)²
 sharePercent(numerator: number, denominator: number): number;
 domainRanking(values: Array<{domainId:string; value:number}>): Array<{domainId:string; value:number; rank:number}>;
-equivalence(annualRate: number, horizon, cfg: EquivalenceConfig): EquivalenceDTO;  // forward committed: annualRate × horizonYears
+equivalence(annualRate: number, horizon: Horizon, cfg: EquivalenceConfig): EquivalenceDTO;  // committed: annualRate × horizonYears(h)
 ```
 
 **Guards (business §2.7, §8):** `pearson`/`lagCorrelation` are guarded to refuse a `state × state`
@@ -407,26 +466,48 @@ Robustness rule (|r|<~0.25 = noise at n~30–60) documented for the future view.
 OOP classes, constructor-injected dependencies (ADR-008/009). Each orchestrates adapters + config +
 stats to produce DTOs.
 
+- **`CoverageGate()`** (pure, stateless — `server/utils/coverage.ts`, ADR-020) — the **single source
+  of truth for country exclusion**. `evaluate(contributions: { indicator: string; series: Series[] }[])`
+  inspects the **per-country** series of **every** indicator a domain uses (stock **and** forest area)
+  and returns `{ excluded: Set<iso>; gaps; windowEnd: Map<indicator, year|null> }`. **Union criterion:**
+  a country is excluded if it is incomplete on **any** indicator — where "complete" = reaches that
+  indicator's **modal** last-real year with a real value **and** has no internal hole between its first
+  real value and that year (leading pre-data nulls never trigger). The **same** excluded set is applied
+  to stock **and** area, so a domain's stock and forgone sink always describe the **identical country
+  set**. There is **no** domain-level exclusion tier.
 - **`ForestAreaService(adapter, domainConfig)`** — fetches `AG.LND.FRST.K2` for a domain's ISO3 set
-  (parallel), sums to a domain area series, computes `areaLoss`/`cumulativeLoss(baseline)`.
-- **`EmissionsService(adapter, indicatorRegistry)`** — fetches LULUCF `.DF` stock (and, for
-  reference, fossil totals); handles negative net values and the two-methodology note in meta.
-- **`AggregationService(forestAreaService, emissionsService, domainConfigs, stats)`** — the core
-  orchestrator. Produces `DomainResultDTO`, `GlobalResultDTO`, `RankingDTO` by combining domain
-  area + stock with `stats.forgoneSink/fullEmissions/aggregateForgoneSink/domainRanking`. Applies
-  the `rScenario` and `accounting` params; computes `multiplier` and `crossingYear`.
-- **`ReferenceService(emissionsService, stats)`** — global fossil bar + `sharePercent`.
-- **`EquivalenceService(aggregationService, equivalenceConfig, stats)`** — annual rate + finite
-  cumulative over horizon + car/country equivalents.
+  (parallel) and returns the **per-country** area series (`domainAreaByCountry`, fan-out only — the
+  summing + coverage gating is now the `AggregationService`'s job).
+- **`EmissionsService(adapter, indicatorRegistry)`** — fetches LULUCF `.DF` stock as **per-country**
+  series (`domainStockByCountry`, fan-out only) plus the fossil totals (`globalFossil`,
+  `countryFossil`); handles negative net values and the two-methodology note in meta.
+- **`AggregationService(forestAreaService, emissionsService, domainConfigs, coverageGate, stats)`** —
+  the core orchestrator. `buildDomain` fetches the per-country area + stock, runs the **`CoverageGate`
+  once** to get the shared excluded set + per-indicator window, then for each metric **filters
+  survivors → `stats.sumSeries` → clips to that indicator's window** (single consistent country set).
+  It then produces `DomainResultDTO`, `GlobalResultDTO`, `RankingDTO` by combining domain area + stock
+  with `stats.forgoneSink/fullEmissions/aggregateForgoneSink/domainRanking`. Applies the `rScenario`
+  param; **applies the `horizon` param by extending each domain's cleared-area series via
+  `stats.projectSeries(…, horizonTargetYear(horizon))` before `× R_domain` and aggregation**
+  (per-domain, pre-aggregation — §3.2); always computes `multiplier`, `crossingYear`, and the
+  forgone-sink family (single accounting, no official/full branch). The global aggregate stock is a
+  **plain `sumSeries` of the four per-domain series** — no domain-tier exclusion. Ranking returns
+  `today` (measured, referenceYear) + `atHorizon` (projected, target year) columns.
+- **`ReferenceService(emissionsService, stats)`** — global fossil bar + `sharePercent` + 3-slice
+  `composition` (fossil, stock, forgone sink), all at the reference year (measured data).
+- **`EquivalenceService(aggregationService, equivalenceConfig, stats)`** — annual rate (always) +
+  committed cumulative over the global `horizon` + car/country equivalents.
 
 **Parallelism (ADR-010):** services issue independent adapter calls via `Promise.all`
 (e.g., area + stock in parallel; all domains of a global request in parallel) and tolerate partial
 failure with `allSettled` where a gap must not sink the response.
 
-**Accounting/scenario handling:** services are pure functions of `DerivationParams`. In
-`official` mode they **omit** `forgoneSink`/`fullEmissions`/`crossingYear`/`multiplier` (all left
-`undefined`, so the UI hides the badge — never renders "1×"; consistency point 16, mode matrix).
-This is the single authoritative derivation path (ADR-005).
+**Horizon/scenario handling:** services are pure functions of `DerivationParams`. There is a
+**single accounting** — the forgone-sink family (`forgoneSink`/`fullEmissions`/`crossingYear`/
+`multiplier`) is **always** produced. The `horizon` param only changes how far each series is
+projected (via `stats.projectSeries`, per-domain, pre-aggregation); all composite scalars are read on
+**measured data** at `referenceYear`, independent of `horizon`. This is the single authoritative
+derivation path (ADR-005).
 
 ---
 
@@ -439,7 +520,8 @@ function createContainer(event?: H3Event) {
   const wdi: SourceAdapter = new WdiAdapter(httpClient);  // interface-typed
   const forestArea = new ForestAreaService(wdi, domainConfigs);
   const emissions  = new EmissionsService(wdi, indicatorRegistry);
-  const aggregation = new AggregationService(forestArea, emissions, domainConfigs, stats);
+  const coverage    = new CoverageGate();                 // pure, stateless (ADR-020)
+  const aggregation = new AggregationService(forestArea, emissions, domainConfigs, coverage, stats);
   const reference   = new ReferenceService(emissions, stats);
   const equivalence = new EquivalenceService(aggregation, equivalenceConfig, stats);
   return { aggregation, reference, equivalence };
@@ -460,12 +542,13 @@ Thin Nitro handlers: **parse/validate params → cache wrapper → service call 
 |---|---|---|
 | `GET /api/domain/[id]` | `DomainResultDTO` | local scope main chart, crossing, multiplier |
 | `GET /api/global` | `GlobalResultDTO` | global scope main chart, crossing, multiplier |
-| `GET /api/ranking` | `RankingDTO` | global ranking reshuffle panel |
+| `GET /api/ranking` | `RankingDTO` | global ranking reshuffle (today → chosen horizon) |
 | `GET /api/reference` | `ReferenceDTO` | global fossil reference + share-of-footprint |
-| `GET /api/equivalence` | `EquivalenceDTO` | equivalence panel (both modes) |
+| `GET /api/equivalence` | `EquivalenceDTO` | equivalence panel (driven by the global horizon) |
 
 **Param validation:** reject `baseline < 1990`; require `domainId` when `scope=local`; enumerate
-`accounting`/`rScenario`. Invalid → 400 with a localized-key error code.
+`horizon` (`today`/`20y`/`30y`/`50y`/`75y`/`100y`) and `rScenario`. Invalid → 400 with a
+localized-key error code.
 
 **Caching (ADR-005/014) — CDN-first:** `routeRules` set cache headers so the **Vercel CDN** caches
 each response by URL (the full `DerivationParams` signature is in the query string), with high
@@ -495,8 +578,9 @@ retryable localized error; per-endpoint isolation keeps the rest of the composer
 
 Three stores; all displayed data lives here; no component-local data.
 
-**Preset (opening state, business §4):** `scope='global'`, `accounting='official'`, `rScenario='mid'`,
-`baseline=1990`, `window=null` (full range). Opens in *official* so the first toggle reveals.
+**Preset (opening state, business §4):** `scope='global'`, `horizon='today'`, `rScenario='mid'`,
+`baseline=1990`, `timeRange=null` (full range). Opens at `horizon='today'` (measured data only, no
+projection); pushing the horizon out is the signature interaction that reveals the forward debt.
 
 ### 10.1 `useViewStore` — control/view state
 ```ts
@@ -504,24 +588,26 @@ type EndpointKey = 'domain' | 'global' | 'ranking' | 'reference' | 'equivalence'
 state: {
   scope: 'global' | 'local';           // preset 'global'
   domainId: DomainConfig['id'];        // meaningful only in local
-  accounting: 'official' | 'full';     // preset 'official'
+  horizon: Horizon;                    // preset 'today' — the signature control (replaced accounting)
   rScenario: 'conservative' | 'mid' | 'high';   // default 'mid'
   baseline: number;                    // default 1990
-  window: [number, number] | null;     // ECharts dataZoom view-state ONLY — no refetch, no data crop (ADR-005)
-  equivalenceHorizon: 'annual'|'10y'|'30y'|'50y';  // default '30y'
+  timeRange: [number, number] | null;  // ECharts dataZoom view-state ONLY — no refetch, no data crop (ADR-005)
 }
 getters: { derivationParams: () => DerivationParams }   // the cache key
 ```
 No `fossilReference` field — the share-of-footprint donut is always shown in global scope (business
-§4.1). Changing any field except `window` and `equivalenceHorizon` produces a new `derivationParams`
-→ the data store fetches. (`equivalenceHorizon` only re-derives the equivalence forward projection,
-which the store can compute from the already-fetched `annualRateCO2`, or refetch `/api/equivalence`.)
+§4.1). No separate `equivalenceHorizon` — the equivalence panel is driven by the same `horizon`
+(business §4.4). Changing any field except `timeRange` produces a new `derivationParams` → the data
+store fetches. `horizon` **is** a refetch trigger (server projects the series): unlike the old
+official↔full toggle (instant client re-layer), pushing the horizon out fetches the projected DTOs
+(then cached — instant on re-select).
 
 **URL sync (ADR-017).** A router-sync layer maps `derivationParams ↔ route.query` (replace, not
 push): on load the store initializes from the query, falling back to the preset for any
 missing/invalid key (validation reuses the server param validation, §8); each derivation change
-rewrites the query. `window` and `equivalenceHorizon` are **not** in the URL (pure view state).
-Selecting a new scope/domain **resets `window` to `null`** (domains span different x-ranges).
+rewrites the query. `horizon` **is** in the URL (it is part of `DerivationParams`); only `timeRange`
+stays out (pure view state). Selecting a new scope/domain **resets `timeRange` to `null`** (domains span
+different x-ranges).
 
 ### 10.2 `useDataStore` — fetched/derived DTOs + caching
 ```ts
@@ -543,8 +629,9 @@ getters: {
 ```
 **Caching key** = `endpoint + JSON(derivationParams)`. On a control change the action computes the
 key; a cache hit returns instantly (server-authoritative first fetch warmed both caches → instant
-re-toggle, ADR-005). `inFlight` dedupes simultaneous identical requests. The **window** only updates
-`viewStore.window`, which is bound to the chart's ECharts `dataZoom`; the series data is untouched
+re-select of an already-visited horizon/scope, ADR-005). `inFlight` dedupes simultaneous identical
+requests. The **time-range zoom** only updates
+`viewStore.timeRange`, which is bound to the chart's ECharts `dataZoom`; the series data is untouched
 and nothing refetches.
 
 ### 10.3 `useUiStore` — locale, theme, presentation
@@ -565,7 +652,7 @@ interface ChartContext {
   theme: ThemeTokens;                     // shared with app chrome (§13)
   formatter: Formatter;                   // injected number formatting (§11.5, ADR-018)
   breakpoint: 'sm' | 'md' | 'lg';         // responsive option tweaks
-  accounting: 'official' | 'full';
+  horizon: Horizon;                       // drives projection extent + which years are dashed
   rScenario: 'conservative' | 'mid' | 'high';
 }
 abstract class BaseChartOption<TData> {
@@ -574,25 +661,44 @@ abstract class BaseChartOption<TData> {
   protected themeColors(): string[];      // theme tokens → ECharts palette
   protected axisTypeFor(seriesType: SeriesType): 'value' | 'log' | 'time';
   protected estimateStyle(): object;      // dashed line + band styling (estimate vs measured)
+  protected splitAtProjection(s: Series): { measured: Series; projected: Series | null };
+                                          // splits a metric at meta.projectedFrom into a solid
+                                          // measured segment + a dashed-lighter projected segment
+                                          // (overlapping the join point so the line is continuous)
+  protected projectionDivider(joinYear: number): object;  // vertical markLine at the join year
   abstract buildSeries(): object[];       // the only required per-chart method
   build(): EChartsOption;                 // assembles baseGrid + buildSeries into a full Option
 }
 ```
 Centralizes ECharts boilerplate, theme→color mapping, i18n labels, number/unit formatting, the
-measured-vs-estimate visual distinction (solid stock vs dashed forgone sink + band), empty/loading
+measured-vs-estimate visual distinction (solid stock vs dashed forgone sink + band), the
+**measured-vs-projected split** (a metric is emitted as two series at `meta.projectedFrom` — same
+color/stack order, the projected one dashed-and-lighter, excluded from the legend via the
+`legend.data` allowlist, with a join-year divider `markLine`, business §2.4a / UI §4.5), empty/loading
 handling, and the `state/flow` → axis-type mapping. Subclasses implement only `buildSeries()` plus
 chart-specific overrides.
 
+**Why the split (ECharts limitation).** ECharts cannot switch a single line solid→dashed mid-series
+(no per-segment dash; `visualMap` only recolours). So each projected metric becomes a **separate
+series** starting at the join year with the same color and stack, `estimateStyle()` dashed + reduced
+opacity. Only the measured series appear in `legend.data` (the projected twins are name-suffixed and
+omitted) so the legend stays clean. This is a **binding contract** with UI §4.5.
+
 ### 11.2 Concrete subclasses (one responsibility: data → complete `Option`)
-- **`MainStackedOption`** (local): stock (solid) + forgone-sink (dashed + band); official = stock
-  only. (The "side by side" stock-vs-forgone variant is **deferred** from V1 — §16, business §12.)
-- **`GlobalStackedAreaOption`**: per-domain stacked area + one aggregate band.
-- **`CrossingOption`**: stock curve vs cumulative forgone sink + marked crossing point (full only).
-- **`RankingBumpOption`**: official vs full domain ranks as a bump chart.
-- **`FootprintDonutOption`**: composition donut of total emissions — **full = 3 slices** (fossil,
-  stock, forgone sink), **official = 2 slices** (fossil, stock); reads `ReferenceDTO.composition`.
+- **`MainStackedOption`** (local): stock (solid) + forgone-sink (dashed + band), each split into a
+  measured + dashed-lighter projected segment at `projectedFrom` when `horizon !== 'today'`. (The
+  "side by side" stock-vs-forgone variant is **deferred** from V1 — §16, business §12.)
+- **`GlobalStackedAreaOption`**: per-domain stacked area + one aggregate band; each layer split
+  measured/projected at its own join year, with a single join-year divider.
+- **`CrossingOption`**: **annual stock impulse** vs **cumulative forgone-sink level** + marked
+  crossing point (semantics unchanged — business §4.3). The extended horizon window is what finally
+  gives it enough span to reach the crossing; the projected tail is dashed-lighter.
+- **`RankingBumpOption`**: **two-column bump chart** — `RankingDTO.today` → `RankingDTO.atHorizon`
+  ranks; the reshuffle is driven by the chosen horizon (business §4.3).
+- **`FootprintDonutOption`**: composition donut of total emissions — **always 3 slices** (fossil,
+  stock, forgone sink); reads `ReferenceDTO.composition`.
 - **`FossilComparisonOption`** (**global only**): two side-by-side bars/columns — total deforestation
-  emissions (official = stock; full = stock + forgone sink) vs. global fossil emissions — on a
+  emissions (stock + forgone sink) vs. global fossil emissions, at the reference year — on a
   **shared Y-axis** (identical `max` + tick interval). It builds one `Option` with two grids and
   applies `sharedYAxis()` (below) to both `yAxis`, **overriding** ECharts' per-axis auto-scale so the
   two panels are visually comparable. Consumes `currentReference` (fossil) + `currentMainResult`
@@ -605,38 +711,37 @@ every `yAxis` of the paired grids (also reusable as a standalone util for any fu
 All are **pure** (no fetch, no Vue reactivity, no side effects) → directly unit-testable by
 asserting the produced `Option` (ADR-013).
 
-### 11.3 `ChartOptionFactory` (the DI/injection layer, ADR-009)
+### 11.3 `useChartContext` (the shared injection bundle, ADR-009)
 ```ts
-function useChartOptionFactory() {
-  const data = useDataStore(); const view = useViewStore(); const ui = useUiStore();
+function useChartContext(): ComputedRef<ChartContext> {
+  const view = useViewStore(); const ui = useUiStore();
   const { t } = useI18n();
-  const ctx = (): ChartContext => ({ t, theme: ui.theme, formatter: useFormatter(),
-                                     breakpoint: ui.breakpoint, accounting: view.accounting,
-                                     rScenario: view.rScenario });
-  return {
-    mainOption:   () => new MainStackedOption(data.currentMainResult, ctx()).build(),
-    globalOption: () => new GlobalStackedAreaOption(data.currentMainResult, ctx()).build(),
-    crossingOption: () => new CrossingOption(data.currentMainResult, ctx()).build(),
-    rankingOption:  () => new RankingBumpOption(data.currentRanking, ctx()).build(),
-    donutOption:    () => new FootprintDonutOption(data.currentReference, ctx()).build(),
-    fossilComparisonOption: () =>   // global only
-      new FossilComparisonOption({ reference: data.currentReference,
-                                   main: data.currentMainResult }, ctx()).build(),
-  };
+  return computed(() => ({ t, theme: ui.theme, formatter: useFormatter(),
+                           breakpoint: ui.breakpoint, horizon: view.horizon,
+                           rScenario: view.rScenario, timeRange: view.timeRange }));
 }
 ```
-This is the explicit "layer that feeds data from Pinia/component into the class constructors" the
-concept asks for. Components call the factory; they never assemble option data by hand.
+This composable is **Pinia-aware** and lives in the parent (shell) components. It bundles the
+cross-cutting context (i18n, theme, formatter, breakpoint, horizon, R, timeRange) that every option
+class needs. The chart components themselves are **Pinia-unaware**: a parent reads the DTOs from the
+data store and passes them, together with `ctx`, as **typed props**. There is no central factory —
+each chart component instantiates its own option class from its props (§11.4).
 
 ### 11.4 Rendering tiers
 - **`BaseChart.vue`** (tier 1): props `{ option, loading, theme }`; wraps `<VChart :option
-  :autoresize />` inside the module's client-only rendering; no domain logic; responsive.
-- **Per-chart components** (tier 2): call the factory getter, pass the `Option` to `BaseChart`,
-  bind `loading` from the data store. Hold no math.
+  :autoresize />` inside the module's client-only rendering; no domain logic; responsive. The two
+  zoomable charts bind ECharts `dataZoom` and emit a `timeRange` event upward (never touch Pinia).
+- **Per-chart components** (tier 2, Pinia-unaware): take typed props `{ <dto>, ctx: ChartContext,
+  loading? }`, build their option class in a local `computed`, and pass `:option`/`:loading` to
+  `BaseChart`. They hold no math and read no store. The main/global charts also re-emit `timeRange`.
+- **Shell parents** (Pinia-aware owners: `MainCanvas`, `MagnitudePanels`): read the DTOs +
+  `useChartContext()` from the stores, pass them down as props, and persist the charts' `timeRange`
+  emits back to `viewStore.setTimeRange`.
 
-**Reactivity:** factory getters are `computed`; when Pinia state (data or view) changes, the
-`Option` recomputes and `<VChart>` updates. R/mode changes flow: control → viewStore → data
-fetch/cache → getters → factory `computed` → new `Option` → chart update.
+**Reactivity:** each chart wraps its option in a `computed` over its props; the parent's DTO getters
+and `ctx` are themselves `computed` over Pinia state. When state (data or view) changes, the props
+update → the `Option` recomputes → `<VChart>` updates. R/horizon changes flow: control → viewStore →
+data fetch/cache → parent getters → props → chart `computed` → new `Option` → chart update.
 
 ### 11.5 Number formatting (`app/format/`, ADR-018)
 A small class hierarchy is the **single** path for turning a number into display text; components
@@ -704,13 +809,13 @@ visually consistent and dark-mode-correct from one source.
 
 | Target | Tool | What is asserted |
 |---|---|---|
-| `stats.ts` | Vitest | movingAvg/detrend/diff/cumulative, forgoneSink+band (asymmetric CI), fullEmissions, aggregate band with two-sided deviation combine (asymmetric-safe), crossingYear, ranking, equivalence; correlation guards reject state×state levels; determinism |
-| `WdiAdapter` | Vitest + fixtures | `response[1]` parsing, aggregate filtering, `mrnev`/holes (null preserved), gap recording, normalization to `DataPoint`/meta |
-| Services | Vitest + stub adapter | DTO shape, `referenceYear` = min common data year, official-mode omits `multiplier`/forgone, forward-committed equivalence (annualRate × horizon), parallel fan-out, partial-failure tolerance |
-| Chart-option classes | Vitest | produced `Option`: series count, estimate styling (dashed+band), axis types from seriesType, i18n/format usage |
-| Config integrity | Vitest | domain `r = rAboveground × allometricFactor` (factor = 1.24), CI ordering low≤mid≤high, indicator seriesType coverage |
-| Store flow | Vue Test Utils | control change → correct `derivationParams` → correct apiClient call/params → getters; window (`dataZoom`) does NOT refetch; cache hit/dedupe |
-| Critical components | Vue Test Utils | mode-matrix visibility, official-mode hides forgone/multiplier/crossing |
+| `stats.ts` | Vitest | movingAvg/detrend/diff/cumulative, forgoneSink+band (asymmetric CI), fullEmissions, aggregate band with two-sided deviation combine (asymmetric-safe), crossingYear, ranking, equivalence; `projectSeries` (slope+clamp≥0, `projectedFrom` set, `today`/target≤last → unchanged), `sumSeries`; correlation guards reject state×state levels; determinism |
+| `WdiAdapter` | Vitest + fixtures | `response[1]` parsing, aggregate filtering, `mrnev`/holes (null preserved), gap recording, normalization to `DataPoint`/meta (incl. `projectedFrom: null`) |
+| Services | Vitest + stub adapter | DTO shape, `referenceYear` = min common data year, forgone-sink family always present, composite scalars on measured data only (horizon-invariant), per-domain projection before aggregation, ranking `today`→`atHorizon` reshuffle, committed equivalence (annualRate × horizonYears), parallel fan-out, partial-failure tolerance |
+| Chart-option classes | Vitest | produced `Option`: series count, estimate styling (dashed+band), measured/projected split at `projectedFrom` (twin series, projected omitted from `legend.data`, divider markLine), axis types from seriesType, i18n/format usage |
+| Config integrity | Vitest | domain `r = rAboveground × allometricFactor` (factor = 1.24), CI ordering low≤mid≤high, indicator seriesType coverage, `horizonTargetYear`/`horizonYears` mapping |
+| Store flow | Vue Test Utils | control change → correct `derivationParams` (incl. `horizon`) → correct apiClient call/params → getters; `timeRange` (`dataZoom`) does NOT refetch; horizon DOES refetch (then cache hit/dedupe) |
+| Critical components | Vue Test Utils | mode-matrix visibility (scope × horizon), horizon='today' hides projection + divider, multiplier always shown |
 
 Fixtures for the adapter are captured during the live spike (business §10).
 
@@ -731,18 +836,23 @@ Every new element checked against the earlier documents; conflicts resolved for 
    mandate; SSR handled via absolute base URL.
 
 3. **"All data in Pinia, none in components" vs. chart classes needing data.**
-   *Resolution (ADR-007/009):* chart-option classes are pure and receive data through the
-   `ChartOptionFactory`, which reads Pinia; components hold nothing. **Consistent.**
+   *Resolution (ADR-007/009):* chart-option classes are pure and receive data as **typed props**
+   from Pinia-unaware chart components; the Pinia-aware shell parents read the store and supply those
+   props plus the `useChartContext` bundle. The chart components hold nothing. **Consistent.**
 
-4. **Binary official↔full switch vs. belowground biomass / soil.**
-   *Resolution (business §6):* belowground folded into `R` (allometric factor), soil omitted; the
-   switch stays strictly binary. The config models this via `rAboveground × allometricFactor = r`.
-   **Consistent** — no third state anywhere in state, DTOs or UI.
+4. **Single accounting ('full') vs. belowground biomass / soil.**
+   *Resolution (business §2.6/§6):* the official↔full switch is **removed** — the app always shows
+   full accounting (stock + forgone sink). Belowground biomass is folded into `R` (allometric
+   factor), soil omitted; the config models this via `rAboveground × allometricFactor = r`. The time
+   **horizon** (§2.3/§3.2) is now the signature derivation axis in its place. **Consistent** — no
+   accounting state anywhere in params, DTOs or UI; a single always-full presentation.
 
 5. **"Total forgone sink is non-computable" (§2.4) vs. equivalence panel showing numbers.**
-   *Resolution:* the panel exposes only the **annual rate** or a **finite cumulative** over a chosen
-   horizon (`10/30/50y`), never an infinite total; `EquivalenceDTO.cumulativeCO2` is `null` for
-   `annual`. Default `30y`. **Consistent** with the "permanent debt, not a total" framing.
+   *Resolution:* the panel always shows the **annual rate**, and when the global horizon is pushed
+   past `today` it adds a **finite committed total** = `annualRate × horizonYears(horizon)`, never an
+   infinite total; `EquivalenceDTO.cumulativeCO2` is `null` when `horizon='today'`. The equivalence
+   panel has **no own horizon control** — it is driven by the global time horizon (business §4.4).
+   **Consistent** with the "permanent debt, not a total" framing.
 
 6. **Stock (impulse/flow) + forgone sink (cumulative level) summed into full emissions.**
    *Resolution (§2.5):* both expressed as the **annual flow of year t** (Mt CO₂/yr) before summing;
@@ -778,11 +888,13 @@ Every new element checked against the earlier documents; conflicts resolved for 
     *Resolution (§7.2, UI §3):* baseline ≥ 1990, explicit label "from loss after {X}", part of
     `DerivationParams` (so it correctly re-derives and re-caches). **Consistent.**
 
-13. **Time-window control vs. server-authoritative refetch.**
-    *Resolution (ADR-005, §10.1, UI §3/§11):* the time window is a pure client-side **ECharts
-    `dataZoom`** over data already in the store; it is *not* part of `DerivationParams` and triggers
-    **no** refetch. Only `scope / domainId / accounting / rScenario / baseline` re-derive on the
-    server. **Consistent** — instant windowing, no server round-trip.
+13. **Time-range zoom vs. time-horizon (projection upper bound) — two distinct controls.**
+    *Resolution (ADR-005, §10.1, UI §3/§11):* the **time range** (`viewStore.timeRange`) is a pure
+    client-side **ECharts `dataZoom`** over data already in the store — *not* part of
+    `DerivationParams`, triggers **no** refetch. The time **horizon** (`today`/`20y`/…/`100y`) *is*
+    part of `DerivationParams` and *does* refetch (the server projects each series to
+    `horizonTargetYear`). Only `scope / domainId / horizon / rScenario / baseline` re-derive on the
+    server; `timeRange` never does. **Consistent** — instant range-zoom over a server-projected series.
 
 14. **Reference year for composite scalars vs. uneven series end-years.**
     *Resolution (ADR-016, §2.1/§3.2/§5, UI §9a):* every DTO carries a `referenceYear` = the **minimum
@@ -796,10 +908,12 @@ Every new element checked against the earlier documents; conflicts resolved for 
     No `fossilReference` field exists in state, DTOs or params. **Consistent** — a single always-on
     presentation, no hidden mode.
 
-16. **Multiplier badge in official mode.**
-    *Resolution (§3.2, UI §3/§7):* `multiplier` is **optional on the DTOs and populated only in full
-    mode**; in official mode the badge is **hidden** (conceptually 1×, never rendered as "1×").
-    **Consistent** — the official view shows no derived multiplier.
+16. **Multiplier badge — always shown (single accounting).**
+    *Resolution (§3.2, UI §3/§7, business §2.5/§4.2):* with the official↔full switch removed,
+    `multiplier` is **non-optional on the DTOs and always shown** — `fullEmissions ÷ WB stock` at the
+    reference year (how many times official numbers understate the impact). It is computed on
+    **measured data** and is **not** horizon-reactive in V1 (a flagged, revisable §12 open item).
+    **Consistent** — one always-visible headline multiplier, never a trivial 1×.
 
 17. **Allometric factor as a free parameter vs. a locked constant.**
     *Resolution (business §6, §2.1, ADR-012):* `allometricFactor` is **locked = 1.24**
@@ -808,9 +922,10 @@ Every new element checked against the earlier documents; conflicts resolved for 
 
 18. **Equivalence panel numbers vs. "no total" — semantics.**
     *Resolution (§2.3/§5, business §4.4, UI §6):* equivalence is **forward-committed**
-    (`annualRate × horizonYears`, `semantics: 'forward-committed'`), representing committed annual
-    debt over a finite horizon — never the non-computable infinite total. **Consistent** with
-    point 5 and the "permanent debt" framing.
+    (`annualRate × horizonYears(horizon)`), representing committed annual debt over a finite horizon —
+    never the non-computable infinite total. It is **driven by the global time horizon** (no own
+    control); at `horizon='today'` only the annual rate shows (`cumulativeCO2 = null`). **Consistent**
+    with point 5 and the "permanent debt" framing.
 
 19. **Single Scope/Domain dropdown vs. two-axis data model.**
     *Resolution (§2.4, UI §3/§3.1):* scope and domain remain **two independent state variables**
@@ -819,26 +934,28 @@ Every new element checked against the earlier documents; conflicts resolved for 
     maps back onto both variables. No change to DTOs, params, endpoints or the cache key.
     **Consistent** — the mode matrix and server contract are untouched.
 
-20. **URL-synced composer state vs. cache key and view-only window.**
+20. **URL-synced composer state vs. cache key and view-only time range.**
     *Resolution (ADR-017, §10.1, UI §10):* only `DerivationParams` is synced to `route.query`
-    (replace); `window` and `equivalenceHorizon` stay out of the URL (pure view state). The query
-    signature is exactly the cache key (ADR-014), so sharing a URL warms the same cache.
-    **Consistent** — no new contract, window stays client-only (point 13).
+    (replace) — and `horizon` **is** in `DerivationParams`, so it is shareable in the URL. Only
+    `timeRange` stays out (pure view state). The query signature is exactly the cache key (ADR-014), so
+    sharing a URL warms the same cache. **Consistent** — no new contract, `timeRange` stays client-only
+    (point 13).
 
 21. **"Fully localized" vs. international (non-localized) numbers.**
     *Resolution (ADR-018, §11.5, UI §1/§4.4):* **copy, labels and units localize** (i18n keys);
     the **numeric part is international compact notation** (`3.2M`, `×3.2`) via the injected
     `Formatter`. This is a deliberate scoping of localization, not a contradiction. **Consistent.**
 
-22. **Non-interactive legend vs. layer visibility.**
-    *Resolution (UI §4.4, §3):* the legend is **display-only**; layer visibility is driven solely by
-    the official↔full switch (and scope). A clickable legend would reintroduce the contradictory
-    per-layer state the binary switch was chosen to prevent (point 3-adjacent). **Consistent.**
+22. **Non-interactive legend vs. layer visibility + projected twin series.**
+    *Resolution (UI §4.4/§4.5, §3, §11.1):* the legend is **display-only**; layer visibility is
+    driven solely by scope (single accounting — no per-layer toggle). The dashed **projected** twin of
+    each metric is **excluded from `legend.data`** so the legend shows one entry per metric regardless
+    of horizon. A clickable legend would reintroduce contradictory per-layer state. **Consistent.**
 
 23. **Multiplier in header vs. above canvas.**
     *Resolution (UI §2/§4/§7, per user F8):* a **single** `MultiplierBadge` instance lives
-    **top-right above the canvas** (full mode only); it is **not** duplicated in the header.
-    **Consistent** — one source of truth for the headline number.
+    **top-right above the canvas**, **always shown** (single accounting); it is **not** duplicated in
+    the header. **Consistent** — one source of truth for the headline number.
 
 24. **Local "side by side" variant referenced but deferred.**
     *Resolution (per user F7a; business §4.2/§12, UI §4.1/§13, §11.2):* the local stock-vs-forgone
@@ -850,9 +967,9 @@ Every new element checked against the earlier documents; conflicts resolved for 
     *Resolution (per user F7b; business §4.3/§4.5, UI §5/§8, §11.2/§11.3, §3.2):* a **global-only**
     `FossilComparisonOption` draws two grids sharing a computed `sharedYAxis()` max+interval
     (overriding ECharts auto-scale); it reuses the already-fetched `ReferenceDTO` (fossil, plus the
-    new `composition` powering the 3-/2-slice donut) and `currentMainResult` (aggregate
-    deforestation). Global-only, matching the "local fossil comparison is weak" rule (§4.5). No new
-    endpoint or param. **Consistent** — reacts to accounting, hidden in local scope.
+    3-slice `composition` powering the donut) and `currentMainResult` (aggregate deforestation =
+    stock + forgone sink at the reference year). Global-only, matching the "local fossil comparison
+    is weak" rule (§4.5). No new endpoint or param. **Consistent** — hidden in local scope.
 
 26. **Asymmetric `R` CI bands vs. symmetric `mid ± σ` assumptions.**
     *Resolution (business §6, §2.1/§5):* `RRange` stores **absolute `{ low, high }`** endpoints, not
@@ -883,6 +1000,41 @@ Every new element checked against the earlier documents; conflicts resolved for 
     network/5xx only (never 4xx), inherited via the shared Axios instance. **Consistent** — one
     verified denominator, uniform transient-failure policy.
 
+30. **Time horizon as a derivation axis vs. per-domain projection granularity.**
+    *Resolution (business §2.4a/§8, §2.3/§3.2/§5/§6, per user):* `horizon` (`today`/`20y`/…/`100y`,
+    anchored at calendar `HORIZON_ANCHOR_YEAR = 2026`) is part of `DerivationParams` and refetches.
+    Projection is a **per-domain linear-trend extrapolation** of each cleared-area series
+    (`stats.projectSeries`, slope over ~9 measured years, clamp ≥ 0) applied **before** `× R_domain`
+    and aggregation — *not* one fit on the pre-aggregated series — because `R` and the trend differ
+    per domain, which is exactly what reshuffles the ranking (`today` → `atHorizon`). All composite
+    scalars (`multiplier`, `referenceYear`, donut, share, equivalence rate) use **measured data
+    only**. **Consistent** — one horizon axis, honest scalars, ranking reshuffle preserved.
+
+31. **Dashed "projected future" rendering vs. ECharts single-line dash limitation.**
+    *Resolution (§3.2/§11.1/§11.2, UI §4.5, business §2.4a):* ECharts cannot switch one line
+    solid→dashed mid-series, so every projected metric is emitted as a **separate series** starting at
+    `meta.projectedFrom` (same color + stack, `estimateStyle()` dashed + reduced opacity), the
+    projected twins are **excluded from `legend.data`**, and a **join-year divider `markLine`** marks
+    where measurement ends. `horizon='today'` sets `projectedFrom = null` → no twin, no divider.
+    **Consistent** — a single binding rendering contract across all stacked/line charts.
+
+32. **Crossing chart semantics unchanged by the horizon extension.**
+    *Resolution (business §4.3, §11.2, per user):* `CrossingOption` keeps the existing semantics —
+    the **annual stock impulse** (roughly flat) against the **cumulative forgone-sink level** (rising)
+    — and `stats.crossingYear` is unchanged. The horizon only **extends the x-span** far enough for
+    the two to actually cross on screen (the projected tail is dashed-lighter; the crossing may fall
+    in the projected range). **Consistent** — no semantic change, only more span.
+
+33. **Country coverage consistency across metrics vs. per-indicator exclusion.**
+    *Resolution (ADR-020, §5/§6):* a domain's **stock** and **forgone sink** must describe the
+    **same set of countries**. A single **`CoverageGate`** (pure) is the sole authority: it evaluates
+    the per-country series of **all** of a domain's indicators (stock + forest area) and yields one
+    **excluded ISO set** (union criterion — incomplete on **stock OR area** ⇒ out of **both**), which
+    `AggregationService.buildDomain` applies uniformly when summing each metric. `sumSeries` is a
+    **pure** sum with no coverage logic, and there is **no** domain-level exclusion tier (a whole
+    domain is never dropped from the global aggregate — a path that never fired in practice).
+    **Consistent** — one country set per domain, one place that decides it.
+
 No unresolved contradiction remains. Any future element must be checked against this section and
 the earlier documents before adoption.
 
@@ -897,20 +1049,24 @@ the earlier documents before adoption.
 | `stats.ts` pure module | ADR-005/008 | §8 |
 | Domain unit + config | ADR-012 | §3, §3.1, §6 |
 | Merged Scope/Domain dropdown (UI-only, `SCOPE_SELECTOR_OPTIONS`) | §2.4, UI §3.1 | §3 (two axes) |
-| Binary switch, R scenario tri-state | ADR-002 (UI), business | §4.1, §5, §6 |
+| Time horizon (signature derivation axis, `today`/20y/…/100y), R scenario tri-state | §2.3/§3.2, §16.30 | §2.4a, §4.1, §5, §6 |
+| Per-domain forward projection (`projectSeries`, before ×R + aggregation) | §3.2/§5/§6, §16.30 | §2.4a, §8 |
+| Dashed projected series (twin series, legend allowlist, join divider) | §11.1/§11.2, §16.31 | §2.4a |
 | Forgone sink band + σ_total | stats/DTO | §2.2, §3 |
-| Multiplier (full-only, hidden in official) | DTO/charts | §4.2, §4.5 |
-| Crossing, panels (panel 1 always on) | DTO/charts | §4.3–4.5 |
+| Multiplier (always shown, `fullEmissions ÷ WB stock`, measured data) | DTO/charts, §16.16 | §2.5, §4.2 |
+| Crossing (annual impulse × cumulative level, semantics unchanged) | DTO/charts, §16.32 | §4.3 |
+| Ranking two-column bump (today → chosen horizon) | `RankingDTO`, §11.2 | §4.3 |
 | Fossil share donut + number always-on (no toggle) | UI §3/§7 | §4.1 |
-| Equivalence forward-committed, default 30y | ADR-012, UI §6 | §4.4, §2.4 |
+| Equivalence driven by global horizon (committed = rate × horizonYears) | §2.3/§5, UI §6 | §4.4, §2.4 |
 | Reference year = min common data year | ADR-016 | §7.1a |
-| Time window = client-side ECharts dataZoom (slider+inside, reset on scope) | ADR-005, UI §11 | §9 |
-| Shareable state via URL query (window/horizon excluded) | ADR-017 | §9 (portfolio) |
+| Single country coverage gate (union; stock & forgone share one country set; no domain exclusion) | ADR-020, §16.33 | §7.1 |
+| Time range = client-side ECharts dataZoom (slider+inside, reset on scope) | ADR-005, UI §11 | §9 |
+| Shareable state via URL query (horizon included, timeRange excluded) | ADR-017 | §9 (portfolio) |
 | Injectable `Formatter` hierarchy; international compact numbers | ADR-018 | (app requirement) |
 | Dark-only V1 (no light toggle) | ADR-002 | UI §1 |
 | Shared tooltip, non-interactive legend, toggle animation | UI §4.4 | §4.1–4.3 |
 | Single multiplier badge, top-right above canvas | UI §2/§4/§7 | §4.2 |
-| Composition donut (full 3 slices / official 2), `ReferenceDTO.composition` | §3.2, §11.2, UI §5 | §4.3 |
+| Composition donut (always 3 slices), `ReferenceDTO.composition` | §3.2, §11.2, UI §5 | §4.3 |
 | Global-only deforestation-vs-fossil, shared Y-scale (`sharedYAxis`) | §11.2/§11.3, UI §5/§8 | §4.3/§4.5 |
 | Local side-by-side variant deferred | §11.2, UI §13 | §12 |
 | `R` values provisionally locked (4 domains); asymmetric CI, two-sided aggregation | §2.1, §5 | §6 |

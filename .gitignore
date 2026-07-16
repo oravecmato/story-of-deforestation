@@ -1,0 +1,22 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Nuxt / Nitro build output
+.nuxt
+.output
+.data
+dist
+.vercel
+
+# Test / coverage
+coverage
+
+# Logs & OS
+*.log
+.DS_Store
+
+# Env
+.env
+.env.*
+!.env.example

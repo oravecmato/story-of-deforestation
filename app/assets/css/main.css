@@ -1,0 +1,61 @@
+/* Global base (design §2–4). Dark-only V1. Tokens duplicated here as CSS variables so plain markup
+   (non-PrimeVue chrome: header, panels, legend) can reference the same palette the charts use. */
+:root {
+  --c-bg: #0d1117;
+  --c-surface-1: #161b22;
+  --c-surface-2: #1c232d;
+  --c-border-hairline: rgba(255, 255, 255, 0.08);
+  --c-border-strong: #2a313b;
+  --c-text-hi: #e8ecf2;
+  --c-text-mid: #a7b0bd;
+  --c-text-low: #6e7681;
+  --c-accent: #3fb6a8;
+  --c-negative: #e5534b;
+  --c-stock: #5fbe6e;
+  --c-forgone: #e8a13a;
+  --c-fossil: #5b6b7f;
+
+  --radius-panel: 10px;
+  --radius-control: 8px;
+  --space: 4px;
+
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--c-bg);
+  color: var(--c-text-mid);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--c-text-hi);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Numbers read as instrument readouts, not prose (design §3). */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+a {
+  color: var(--c-accent);
+}

@@ -1,0 +1,113 @@
+{
+  "app": {
+    "title": "The Hidden Carbon Cost of Deforestation",
+    "thesis": "Reported forest emissions are only half the story — the lost future carbon sink is the rest.",
+    "footer": "Data: World Bank Open Data · EDGAR (EN.GHG.*). A portfolio piece."
+  },
+  "scope": {
+    "label": "Region",
+    "global": "Global (all tropical)",
+    "domain": {
+      "amazon": "Amazon",
+      "congo": "Congo Basin",
+      "seasia": "Southeast Asia",
+      "other": "Other tropical"
+    }
+  },
+  "horizon": {
+    "label": "Time horizon",
+    "today": "Today",
+    "20y": "+20 y",
+    "30y": "+30 y",
+    "50y": "+50 y",
+    "75y": "+75 y",
+    "100y": "+100 y"
+  },
+  "rscenario": {
+    "label": "Sink scenario",
+    "conservative": "Conservative",
+    "mid": "Mid",
+    "high": "High"
+  },
+  "baseline": {
+    "label": "Baseline",
+    "pattern": "from loss after {year}"
+  },
+  "language": {
+    "label": "Language",
+    "en": "EN",
+    "sk": "SK"
+  },
+  "timeRange": {
+    "reset": "Reset range"
+  },
+  "panel": {
+    "main": { "title": "Emissions over time" },
+    "ranking": { "title": "Domain ranking" },
+    "fossil": { "title": "Deforestation vs fossil emissions" },
+    "crossing": { "title": "Stock release vs forgone sink" },
+    "donut": { "title": "Share of footprint" },
+    "equivalence": { "title": "What this means" },
+    "dataYear": "data to {year}",
+    "referenceYear": "compared at {year}"
+  },
+  "multiplier": {
+    "caption": "full vs reported at {year}"
+  },
+  "share": {
+    "label": "Share of global footprint",
+    "value": "{value}"
+  },
+  "equivalence": {
+    "annualRate": "per year",
+    "committed": "committed over the horizon",
+    "cars": "passenger cars",
+    "country": "of {country}'s annual emissions"
+  },
+  "methodology": {
+    "link": "Methodology",
+    "title": "Methodology",
+    "body": "Reported (official) emissions are the World Bank deforestation figures. Full accounting adds the forgone carbon sink — the future sequestration lost when forest is cleared — estimated as an R factor times cumulative area loss. R combines an aboveground rate with a locked allometric factor of 1.24; the conservative / mid / high band reflects its uncertainty. Estimates are dashed; measured values are solid. Composite figures start in 2000 (stock coverage) while the sink integral runs from 1990."
+  },
+  "state": {
+    "loading": "Loading…",
+    "empty": "No data for this selection.",
+    "gap": "Data gap: {reason}",
+    "error": {
+      "title": "Couldn't load this panel.",
+      "retry": "Retry"
+    }
+  },
+  "unit": {
+    "mtco2": "Mt CO₂",
+    "mtco2yr": "Mt CO₂/yr"
+  },
+  "country": {
+    "svk": "Slovakia",
+    "gbr": "the United Kingdom"
+  },
+  "series": {
+    "stock": "Reported emissions",
+    "forgoneSink": "Forgone carbon sink",
+    "fossil": "Fossil emissions"
+  },
+  "domain": {
+    "amazon": "Amazon",
+    "congo": "Congo Basin",
+    "seasia": "Southeast Asia",
+    "other_tropical": "Other tropical"
+  },
+  "ranking": {
+    "today": "Today",
+    "atHorizon": "At horizon"
+  },
+  "fossil": {
+    "deforestation": "Deforestation",
+    "fossil": "Fossil"
+  },
+  "chart": {
+    "crossing": {
+      "point": "Crossing"
+    }
+  }
+}

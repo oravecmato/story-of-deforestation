@@ -52,8 +52,9 @@ V1 control.
 
 **Rationale.**
 - Lighter and less style-opinionated than Material; pairs cleanly with an ECharts dashboard.
-- Strong data/form components: `SelectButton`/`ToggleButton` fit the signature "official ↔ full"
-  switch and the tri-state `R` scenario; `Slider`, `Select`, `Panel`, `Card` cover the rest.
+- Strong data/form components: `SelectButton` fits the signature **time-horizon** selector
+  (`today`/`20y`/…/`100y`) and the tri-state `R` scenario; `Slider`, `Select`, `Panel`, `Card`
+  cover the rest.
 - Dark mode is a first-class theme concern (`.p-dark` class strategy), controllable centrally.
 
 **Consequences.**
@@ -116,30 +117,31 @@ Chart components receive already-shaped series through props; they fetch nothing
 ## ADR-005 — Derivations are server-authoritative; the store caches by parameter signature
 
 **Context (resolves a handoff tension).** The handoff says the BFF computes the forgone sink and
-full emissions on the server. The UX also wants the "official ↔ full" toggle and the `R` scenario
+full emissions on the server. The UX also wants the **time-horizon** selector and the `R` scenario
 change to feel instant.
 
-**Decision.** All `R`-scenario- and accounting-mode-dependent derivations are computed
-**server-side** (single source of truth). Changing the scenario or mode **refetches** the
-corresponding endpoint. The endpoint is cached on the BFF (`defineCachedFunction`) keyed by
-`(scope, domain, mode, rScenario, baseline)`. The **store additionally caches responses by the
-same parameter signature**, so re-selecting a previously seen combination is served from memory
-with no network round-trip. The **time window** is a pure client-side ECharts `dataZoom` view state
-— it never triggers a refetch and never manipulates the series data.
+**Decision.** All `R`-scenario- and horizon-dependent derivations are computed
+**server-side** (single source of truth). Changing the scenario or horizon **refetches** the
+corresponding endpoint (the horizon drives per-domain forward projection — ADR-019). The endpoint is
+cached on the BFF (`defineCachedFunction`) keyed by `(scope, domain, horizon, rScenario, baseline)`.
+The **store additionally caches responses by the same parameter signature**, so re-selecting a
+previously seen combination is served from memory with no network round-trip. The **time range**
+(zoom) is a pure client-side ECharts `dataZoom` view state (`viewStore.timeRange`) — distinct from
+the horizon; it never triggers a refetch and never manipulates the series data.
 
 **Rationale.**
 - One authoritative computation path (the server statistics module) — no risk of client/server
   math drift.
-- The parameter space is small and finite (2 modes × 3 scenarios × {global + 4 domains} × a few
+- The parameter space is small and finite (6 horizons × 3 scenarios × {global + 4 domains} × a few
   baselines), so both layers of cache make the practical experience feel instant after the first
   visit; the first visit warms the cache.
 
 **Consequences.**
-- The frontend does **not** re-implement the derivation math; the statistics module is used on the
-  server only (though it is written as a pure, isomorphic module and *could* run anywhere).
+- The frontend does **not** re-implement the derivation math (nor the projection); the statistics
+  module is used on the server only (though written as a pure, isomorphic module).
 - The store keeps a keyed cache map and a small "in-flight request" map to dedupe concurrent
   identical fetches.
-- Endpoints must accept `mode`, `rScenario`, `baseline` as query params and be pure functions of
+- Endpoints must accept `horizon`, `rScenario`, `baseline` as query params and be pure functions of
   them (deterministic → cacheable).
 
 **Alternatives.** Client-side recompute via a shared isomorphic module (instant, but two math
@@ -255,16 +257,17 @@ no IoC container, no decorators, no `reflect-metadata`.
   `WdiAdapter → services → statistics`, returning ready service instances to route handlers.
   Cached singletons where safe (stateless adapters/services); per-request where request context
   matters.
-- **Frontend:** chart-option classes have no service dependencies — they need *data*. A
-  **`ChartOptionFactory`** (a composable/factory) reads the required slices from Pinia + the i18n
-  translator + theme tokens and constructs the appropriate chart-option class instance with that
-  data via its constructor. Components call the factory; they never `new` a chart-option class with
-  hand-assembled data.
+- **Frontend:** chart-option classes have no service dependencies — they need *data*. The
+  Pinia-aware **shell parents** read the required DTOs from the data store and pass them, together
+  with the shared **`useChartContext`** bundle (i18n translator + theme tokens + formatter +
+  breakpoint + horizon/R/timeRange), as **typed props** into the Pinia-unaware chart components. Each
+  chart component `new`s its own option class from those props. No central factory; components never
+  read Pinia or hand-assemble data.
 
 **Rationale.**
 - Idiomatic for Nitro/Nuxt; zero runtime reflection; smallest bundle and ceremony for this scope.
-- The factory is the explicit "layer that feeds data from Pinia/component into constructors" the
-  concept describes.
+- Typed props + `useChartContext` are the explicit "layer that feeds data from Pinia/component into
+  constructors" the concept describes, while keeping the chart components dumb and store-free.
 
 **Consequences.**
 - Dependencies are explicit and visible at the wiring site (the composition root / factory) —
@@ -328,9 +331,10 @@ auditable and defensible.
 - **Domain config** — `domain → { id, isoCodes[], R: {mid, low, high}, allometricFactor, labelKey }`.
   The allometric factor is **locked = 1.24** (= 1 + IPCC root:shoot ≈ 0.24, cited; business §6).
 - **Indicator registry** — `indicator → { id, code, category, seriesType: 'state'|'flow', unit }`.
-- **Equivalence config** — conversion factors (car annual emissions, reference country), horizons,
-  sources. **Preset semantics = forward committed** (`annualRate × horizon`, business §4.4);
-  **default horizon = `30y`**.
+- **Equivalence config** — conversion factors (car annual emissions, reference country), the shared
+  `Horizon` vocabulary + calendar anchor (`HORIZON_ANCHOR_YEAR`, ADR-019), sources. Equivalence has
+  **no own horizon control** — it is driven by the global time horizon; committed total =
+  `annualRate × horizonYears(horizon)` (business §4.4).
 
 **Rationale.** Single source for defensible numbers; the `seriesType` attribute powers both the
 correlation guard (§2.7, dormant) and the axis-type choice in chart-option classes; versionable
@@ -348,7 +352,7 @@ traceable to a config entry with a cited source.
 **Decision.** **Vitest** for unit tests of pure logic — the statistics module, the WDI adapter
 (against recorded fixtures), the services (with a stub adapter), the chart-option classes (assert
 the produced `Option`), and the config integrity. **Vue Test Utils** for a few critical components
-and the store flow (mode toggle, `R` scenario change → correct fetch/params → correct getters).
+and the store flow (horizon change, `R` scenario change → correct fetch/params → correct getters).
 No end-to-end layer in V1.
 
 **Rationale.** Best value-to-effort: the risky parts (math, normalization, `Option` construction,
@@ -420,22 +424,23 @@ scalar; the UI binds a "data as of {X}" note to it.
 
 ## ADR-017 — Composer state is shareable via the URL query
 
-**Context.** The app is a portfolio composer: a configured view (scope, domain, accounting, R
+**Context.** The app is a portfolio composer: a configured view (scope, domain, time horizon, R
 scenario, baseline) is worth **sharing and bookmarking**, and SSR should render the requested state,
 not only the opening preset.
 
-**Decision.** The **`DerivationParams`** (`scope`, `domainId`, `accounting`, `rScenario`,
-`baseline`) are **synced to the URL query string**. On load the view store initializes **from the
-URL**, falling back to the opening preset for any missing/invalid key (validation reuses the server
-param validation). Changing a derivation control rewrites the query. The **client-only** time window
-(`dataZoom`) and `equivalenceHorizon` are **not** in the URL — they are pure view state. This
-dovetails with ADR-014 (the param signature is already the cache-key URL) and ADR-005.
+**Decision.** The **`DerivationParams`** (`scope`, `domainId`, `horizon`, `rScenario`,
+`baseline`) are **synced to the URL query string** — including the time `horizon`, since it is a
+derivation param. On load the view store initializes **from the URL**, falling back to the opening
+preset for any missing/invalid key (validation reuses the server param validation). Changing a
+derivation control rewrites the query. Only the **client-only** time range (`dataZoom`) is **not**
+in the URL — it is pure view state. This dovetails with ADR-014 (the param signature is already the
+cache-key URL) and ADR-005.
 
 **Rationale.** Shareable/bookmarkable views; SSR renders exactly the requested state; reuses the
 existing parameter signature, so no new contract surface.
 
 **Consequences.** A small router-sync layer maps `viewStore.derivationParams ↔ route.query`
-(replace, not push, to avoid history spam); window/horizon deliberately stay out of the URL.
+(replace, not push, to avoid history spam); only `timeRange` deliberately stays out of the URL.
 
 ---
 
@@ -462,6 +467,116 @@ instance; the formatter is unit-tested directly (mount-free).
 
 ---
 
+## ADR-019 — Time horizon as the signature axis; per-domain forward projection; dashed rendering
+
+**Context (supersedes the earlier "official ↔ full" accounting switch).** The original design made
+"official vs. full accounting" the signature control (a binary toggle between WB-reported stock and
+stock + forgone sink). That switch is **removed** (business §2.6): the app now **always** shows full
+accounting. In its place, the signature control is a **time horizon** — the *upper* bound of the
+time window — with categories `today` / `+20y` / `+30y` / `+50y` / `+75y` / `+100y` measured from a
+fixed calendar anchor. Because the WB stock series ends ~2022–2023, showing a meaningful future
+horizon requires **projecting the data forward**; and the crossing chart (annual stock impulse vs.
+cumulative forgone sink) only reaches its crossing point once the window extends far enough.
+
+**Decision.**
+- **Horizon is a `DerivationParams` axis** (`horizon: Horizon`, `HORIZON_ANCHOR_YEAR = 2026`,
+  `horizonTargetYear`/`horizonYears` helpers in config). It refetches and is URL-synced (ADR-005/017).
+  `today` = measured data only (no projection).
+- **Per-domain linear-trend projection.** When `horizon !== 'today'`, each domain's cleared-area
+  series is extrapolated to the horizon's target year (`stats.projectSeries`: recent mean + fitted
+  slope over the last ~9 measured years, clamped ≥ 0), **then** multiplied by `R_domain` and
+  aggregated. Projection is applied **per domain, before aggregation** — *not* as a single fit on the
+  pre-aggregated series — because `R` and the trend differ per domain; this is exactly what drives
+  the **ranking reshuffle** (`today` → `atHorizon`). Composite scalars (multiplier, share,
+  equivalence rate, reference year) are computed on **measured data only**, never on projected points.
+- **Dashed rendering via separate series (ECharts workaround).** ECharts cannot switch a single line
+  from solid to dashed mid-series (no per-segment dash; `visualMap` only recolours). So each
+  projected metric is emitted as a **separate series** starting at the join year (`meta.projectedFrom`),
+  sharing the measured series' color and stack, styled dashed + lighter, and **excluded from the
+  legend** (`legend.data` allowlist). A join-year divider `markLine` marks where measurement ends.
+- **Crossing semantics unchanged.** The crossing chart keeps comparing the **annual stock impulse**
+  against the **cumulative forgone-sink level**; the horizon only extends the x-span so the crossing
+  becomes visible.
+
+**Rationale.** The horizon reframes the whole story around "how large is the committed future debt,
+and when does it overtake the reported impulse" — a more honest and vivid message than a binary
+accounting toggle. Per-domain projection is the correct granularity (linear extrapolation is a linear
+operator, so per-domain and aggregate coincide only under identical coverage, which the domains do
+not share) and it powers the reshuffle. Separate dashed series is the only clean ECharts path.
+
+**Consequences.**
+- `SeriesMeta` gains `projectedFrom: number | null`; DTOs drop the `accounting` axis and make the
+  forgone-sink family non-optional; `RankingDTO` becomes `today` + `atHorizon`; the multiplier is
+  always shown (§3.2, §16.30–32 of the technical spec).
+- The projection is a server-only derivation (single authoritative path, ADR-005).
+- **Revisable V1 choices (business §12):** the multiplier is not horizon-reactive; the ranking uses a
+  point-in-time value at the target year (not an integral); the CI band is not widened for
+  projection uncertainty; join-divider styling is provisional.
+
+**Alternatives.** Keep the official↔full toggle (rejected — the horizon subsumes and improves it);
+project the pre-aggregated global series with one fit (rejected — loses the per-domain reshuffle and
+mixes differing `R`); use `visualMap` for the dashed effect (rejected — recolours only, cannot dash).
+
+---
+
+## ADR-020 — Single-source-of-truth country coverage gate; no domain-level exclusion
+
+**Context.** A domain aggregate (e.g. Amazon) is a **sum over its member countries** of two
+indicators — deforestation **stock** (`EN.GHG.CO2.LU.DF…`, flaky, ends early / has holes for some
+countries) and forest **area** (`AG.LND.FRST.K2`, robust) — where forest area drives the forgone
+sink. To avoid a laggard country dragging the aggregate's window, an *incomplete-coverage* exclusion
+was introduced inside `sumSeries`. But that exclusion was decided **per indicator, independently**:
+a country could be dropped from **stock** (its stock series is incomplete) yet **kept** in **forgone
+sink** (its forest area is fine), because the two sums each made their own decision. The result was a
+domain whose stock and forgone described **different sets of countries** (e.g. SE Asia's forgone sink
+included Malaysia + Brunei while its stock excluded them; "other tropical" included Senegal + Samoa in
+forgone but not stock). The same `sumSeries` logic also ran a second time at the **domain → global**
+level, which could in principle drop a whole domain from the aggregate stock — a path that **never
+fires in practice** (all four domains reach the same modal window) yet added hidden behaviour.
+
+**Decision.**
+- **One coverage decision per domain, applied to every metric.** A dedicated pure, stateless
+  **`CoverageGate`** (constructor-injected, ADR-008/009) is the **single source of truth** for which
+  countries are excluded. It inspects the per-country series of **all** indicators a domain uses
+  (stock **and** forest area) and returns one **excluded ISO set** + `incomplete-coverage` gaps +
+  the per-indicator modal window. `AggregationService.buildDomain` applies that **same** excluded set
+  when summing **both** stock and area, so a domain's stock and forgone sink always describe the
+  **identical country set**.
+- **Union criterion.** A country is retained only if it is **complete on every indicator**; it is
+  excluded if it is incomplete on **stock OR forest area** (or has no data for either). "Complete" =
+  reaches that indicator's modal last-real year with a real value **and** has no internal hole between
+  its first real value and that year. Leading pre-data nulls never trigger exclusion.
+- **`sumSeries` reverts to a pure sum.** It is once again a plain pointwise sum over the union of
+  years (nulls skipped), with **no** coverage logic — matching its original technical-spec contract.
+  The exclusion/window logic lives **only** in `CoverageGate`.
+- **Domain-level exclusion is removed entirely.** The global aggregate stock is a plain sum of the
+  four per-domain series (no modal-window exclusion at the domain tier), because in practice no whole
+  domain is ever incomplete over the shared window.
+
+**Rationale.** A single gate makes country membership **consistent across metrics** (the property the
+data owner requires) and gives one obvious place to reason about coverage. The union criterion is the
+most defensible reading of "a region we cannot fully represent should not appear at all," and it is
+future-proof (a hole in forest area would now also exclude, not just a hole in stock). Removing the
+never-firing domain tier deletes dead, surprising behaviour.
+
+**Consequences.**
+- New `server/utils/coverage.ts` (`CoverageGate`, pure). `ForestAreaService` / `EmissionsService`
+  return **per-country** series (fan-out only); `AggregationService` gains a `CoverageGate` dependency
+  and owns the gate → filter → `sumSeries` → clip-to-window composition. `container.ts` wires it.
+- The aggregate **forgone sink / full emissions / multiplier change numerically** (countries now
+  dropped from forgone too), which is the intended correction.
+- `referenceYear` (ADR-016) is unaffected — it still reads the min-common `latestDataYear` of the
+  (now consistently-built) domain series.
+
+**Alternatives.** Gate on **stock only** (rejected — equivalent today because area is robust, but
+misses a future area hole; the union is strictly safer). Keep exclusion inside `sumSeries` and pass a
+shared excluded set into both service sums (rejected — the gate would need per-country data the
+services had already summed away, forcing a double fetch or leaking country detail through the
+service contract). Keep the domain-level tier "just in case" (rejected — dead behaviour, harder to
+reason about).
+
+---
+
 ## Decision summary table
 
 | # | Area | Decision |
@@ -470,11 +585,11 @@ instance; the formatter is unit-tested directly (mount-free).
 | 002 | UI library | PrimeVue v4 (Aura), dark default |
 | 003 | State | Pinia single source of truth; dumb components |
 | 004 | HTTP | Axios both tiers, injected instances |
-| 005 | Derivations | Server-authoritative + store cache by param signature; window is client-only ECharts `dataZoom` |
+| 005 | Derivations | Server-authoritative + store cache by param signature; `timeRange` is client-only ECharts `dataZoom` |
 | 006 | Charts lib | `nuxt-echarts` module (`<VChart>`), client-only, tree-shaken |
 | 007 | Chart arch | `BaseChart.vue` → per-chart components → abstract `BaseChartOption` classes |
 | 008 | Backend | Adapter → Service → thin BFF route, OOP TS classes |
-| 009 | DI | Manual composition root, constructor injection; `ChartOptionFactory` on FE |
+| 009 | DI | Manual composition root, constructor injection; typed props + `useChartContext` on FE |
 | 010 | Parallelism | `Promise.all`/`allSettled` on server; concurrent deduped fetch on client |
 | 011 | i18n | `@nuxtjs/i18n` (vue-i18n), SK/EN, browser-detected default, all copy localized |
 | 012 | Config | Typed versioned config: domains, indicators, equivalences |
@@ -482,5 +597,7 @@ instance; the formatter is unit-tested directly (mount-free).
 | 014 | Deploy | Vercel, Nitro `vercel` preset; CDN `routeRules` cache (SWR) + `defineCachedFunction` |
 | 015 | Tooling | pnpm, Node 20 LTS, strict TS, `@nuxt/eslint` + Prettier |
 | 016 | Reference year | Composite scalars at min common data year; surfaced in UI |
-| 017 | Shareable state | `DerivationParams` synced to URL query (window/horizon excluded); SSR reads it |
+| 017 | Shareable state | `DerivationParams` (incl. `horizon`) synced to URL query (only `timeRange` excluded); SSR reads it |
 | 018 | Number formatting | Injectable `Formatter` hierarchy; V1 `CompactNumberFormatter` (`3.2M`, `×3.2`) |
+| 019 | Time horizon + projection | Horizon is the signature axis (replaces official↔full); per-domain linear projection; dashed separate series (ECharts workaround) |
+| 020 | Country coverage gate | Single `CoverageGate` decides excluded countries (union: incomplete on stock OR area) and applies to both stock & forgone; `sumSeries` is a pure sum; no domain-level exclusion |

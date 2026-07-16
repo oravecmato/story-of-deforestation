@@ -1,0 +1,113 @@
+{
+  "app": {
+    "title": "Skrytá uhlíková cena odlesňovania",
+    "thesis": "Vykázané emisie z lesov sú len polovica príbehu — zvyškom je stratený budúci uhlíkový záchyt.",
+    "footer": "Údaje: World Bank Open Data · EDGAR (EN.GHG.*). Portfóliová ukážka."
+  },
+  "scope": {
+    "label": "Región",
+    "global": "Globálne (všetky tropické)",
+    "domain": {
+      "amazon": "Amazónia",
+      "congo": "Konžská panva",
+      "seasia": "Juhovýchodná Ázia",
+      "other": "Ostatné tropické"
+    }
+  },
+  "horizon": {
+    "label": "Časový horizont",
+    "today": "Dnes",
+    "20y": "+20 r",
+    "30y": "+30 r",
+    "50y": "+50 r",
+    "75y": "+75 r",
+    "100y": "+100 r"
+  },
+  "rscenario": {
+    "label": "Scenár záchytu",
+    "conservative": "Konzervatívny",
+    "mid": "Stredný",
+    "high": "Vysoký"
+  },
+  "baseline": {
+    "label": "Základný rok",
+    "pattern": "zo strát po roku {year}"
+  },
+  "language": {
+    "label": "Jazyk",
+    "en": "EN",
+    "sk": "SK"
+  },
+  "timeRange": {
+    "reset": "Zrušiť výber"
+  },
+  "panel": {
+    "main": { "title": "Emisie v čase" },
+    "ranking": { "title": "Poradie oblastí" },
+    "fossil": { "title": "Odlesňovanie vs fosílne emisie" },
+    "crossing": { "title": "Uvoľnenie stavu vs stratený záchyt" },
+    "donut": { "title": "Podiel na stope" },
+    "equivalence": { "title": "Čo to znamená" },
+    "dataYear": "údaje do {year}",
+    "referenceYear": "porovnané v {year}"
+  },
+  "multiplier": {
+    "caption": "úplné vs vykázané v {year}"
+  },
+  "share": {
+    "label": "Podiel na globálnej stope",
+    "value": "{value}"
+  },
+  "equivalence": {
+    "annualRate": "ročne",
+    "committed": "záväzok za horizont",
+    "cars": "osobných áut",
+    "country": "ročných emisií krajiny {country}"
+  },
+  "methodology": {
+    "link": "Metodika",
+    "title": "Metodika",
+    "body": "Vykázané (oficiálne) emisie sú údaje Svetovej banky o odlesňovaní. Úplné účtovanie pridáva stratený uhlíkový záchyt — budúce ukladanie uhlíka stratené vyrúbaním lesa — odhadnutý ako faktor R krát kumulatívna strata plochy. R kombinuje nadzemnú mieru s uzamknutým alometrickým faktorom 1,24; pásmo konzervatívny / stredný / vysoký odráža jeho neistotu. Odhady sú prerušované; namerané hodnoty plné. Kompozitné hodnoty začínajú v roku 2000 (pokrytie stavu), zatiaľ čo integrál záchytu beží od roku 1990."
+  },
+  "state": {
+    "loading": "Načítava sa…",
+    "empty": "Pre tento výber nie sú údaje.",
+    "gap": "Chýbajúce údaje: {reason}",
+    "error": {
+      "title": "Panel sa nepodarilo načítať.",
+      "retry": "Skúsiť znova"
+    }
+  },
+  "unit": {
+    "mtco2": "Mt CO₂",
+    "mtco2yr": "Mt CO₂/rok"
+  },
+  "country": {
+    "svk": "Slovenska",
+    "gbr": "Spojeného kráľovstva"
+  },
+  "series": {
+    "stock": "Vykázané emisie",
+    "forgoneSink": "Stratený uhlíkový záchyt",
+    "fossil": "Fosílne emisie"
+  },
+  "domain": {
+    "amazon": "Amazónia",
+    "congo": "Konžská panva",
+    "seasia": "Juhovýchodná Ázia",
+    "other_tropical": "Ostatné tropické"
+  },
+  "ranking": {
+    "today": "Dnes",
+    "atHorizon": "Na horizonte"
+  },
+  "fossil": {
+    "deforestation": "Odlesňovanie",
+    "fossil": "Fosílne"
+  },
+  "chart": {
+    "crossing": {
+      "point": "Prekríženie"
+    }
+  }
+}

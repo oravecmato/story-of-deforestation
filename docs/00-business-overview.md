@@ -84,6 +84,43 @@ therefore disproportionately more important than the distant future. Consequence
 (§4.4): shorter horizons are the relevant ones, and the argument "the sink will saturate around
 2035 anyway" is weak if the critical window is precisely now.
 
+### 2.4a The time horizon as the central control, and the forward projection
+
+The choice of time horizon is not a footnote — in V1 it is **the** signature interaction of the app
+(it replaces the earlier "official ↔ full" accounting toggle, now removed; see §2.6). The user sets
+**both edges of the time window**: the lower edge (baseline, §7.2) and an **upper edge chosen from
+fixed horizon categories** — *today* · *+20 y* · *+30 y* · *+50 y* · *+75 y* · *+100 y*, counted
+from the current calendar year. "Today" means no projection (the window ends at the last year of
+measured data); every other category extends the window into the future by that many years.
+
+**Why the app must project.** Measured series end ~2022 (§7.1). The crossing panel (§4.3, panel 3)
+cannot show its point — the moment the accumulating forgone sink overtakes the one-off stock
+release — inside such a short measured window; the multiplier and the ranking are likewise more
+telling over a longer horizon. So beyond the last measured year the app draws a **forward
+projection** ("committed future"): visualisations need *some* future values to make the point, and
+these are clearly-labelled, visually-distinct estimates, never presented as measured data.
+
+**How the projection is built (method, binding).**
+- **Per domain, not on the aggregate.** Each domain's cleared-area series is extrapolated on its
+  own, because each domain has its own `R` (§6) and its own trajectory; the projected domains are
+  then summed with the same aggregation as measured data (§3). A single trend fitted to the
+  pre-aggregated series would freeze today's domain mix and is therefore wrong for the forgone sink
+  (and it is exactly the per-domain divergence that makes the ranking reshuffle, §4.3, panel 2).
+- **Linear trend from the recent past.** The projection is a linear extrapolation of the last
+  ~10 measured years (recent mean + fitted slope), clamped to non-negative area loss. It carries
+  forward the current pace *and* its direction (accelerating or declining deforestation). From the
+  projected cleared area follow the projected stock and the projected forgone sink by the same
+  formulas as for measured years (§2.2, §2.5).
+- **Visually distinct.** Projected values render as a **dashed** continuation of each series in the
+  same colour and the same stacking order as its measured part, so a stacked chart reads as "the
+  solid line simply became dashed," with a **join-year divider** marking where measurement ends and
+  projection begins (the technical rendering contract is in the UI/technical specs).
+
+The projection does not change any *scalar* computed on measured data: the multiplier, the
+equivalence base and the footprint donut are still evaluated at the measured **reference year**
+(§7.1a). The horizon extends the *time-series* charts, the crossing point, and the ranking's
+"at-horizon" column.
+
 ### 2.5 Composite quantity "full emissions"
 
 ```
@@ -95,18 +132,28 @@ forgone sink is the annual deficit valid in year t due to loss so far (a cumulat
 its increment). Units are consistent. This number feeds the magnitude panels and the equivalence
 panel (§4).
 
-### 2.6 Principle "the switch changes magnitudes, not shapes"
+The **multiplier ×N** shown above the main chart is `fullEmissions ÷ WB_emissions` at the reference
+year (§7.1a) — how many times the true annual impact exceeds the officially reported number. The WB
+reported stock survives as this denominator even though the app no longer has a separate "official"
+display mode (§2.6).
 
-The "official ↔ full" switch lives in emissions accounting. Consequences:
-- Downstream impacts (weather, yields) are measured facts that an accounting methodology cannot
-  retroactively change — the switch cannot react to them.
-- Pearson `r` is invariant to scaling, and the increments of the forgone sink are almost
-  collinear with the stock emission (both ~ area loss of that year) — so "full" and "official"
-  correlations would come out almost identical. The switch would not show up in any `r`.
+### 2.6 One accounting ("full"), and what the horizon changes
 
-Therefore everything correlational/shape-based is blind to the switch, but everything
-**magnitude-based** (proportions, orderings, temporal crossings) changes dramatically. The panels
-under the main chart are therefore magnitude-based, not correlational (§4.3).
+**V1 shows one accounting: "full" (stock + forgone sink).** Earlier drafts carried an
+"official ↔ full" toggle; it is **removed** — from the UI and from every architecture layer. The
+reveal it produced (the hidden forgone sink appearing) is now carried by the app's default state
+(the forgone sink is always shown) and, above all, by the **time-horizon** control (§2.4a), the new
+signature interaction. The WB "official" number does not disappear as a *quantity* — it remains the
+measured stock layer and the denominator of the multiplier (§2.5) — only as a separate *mode*.
+
+What the horizon changes and does not change:
+- **Magnitude-based** things move strongly with the horizon: the crossing year, the multiplier
+  ceiling, the domain ranking, the equivalence value all grow/shift as the window lengthens. These
+  are the panels under the main chart (§4.3) — magnitude-based by design.
+- **Shape/correlational** things are blind to it: Pearson `r` is invariant to the horizon just as it
+  was invariant to the old switch (the forgone-sink increment is nearly collinear with the stock —
+  both track that year's area loss). The optional correlation view (§2.7) therefore stays out of the
+  main story.
 
 ### 2.7 Correlation — only one optional view
 
@@ -138,8 +185,10 @@ predefined domains, not from a list of countries. A domain = a set of ISO3 codes
 Amazon = Brazil + Peru + Colombia + …). This resolves the fact that biogeographic rainforests
 cross country borders; countries are an internal aggregation detail, invisible in the UI.
 
-A second, independent axis is **accounting**: "official" (stock only) vs. "full" (stock + forgone
-sink) — controlled by the "official ↔ full" switch.
+A second, independent axis is the **time horizon** (§2.4a): the upper edge of the window — *today*
+or a projected *+20 / +30 / +50 / +75 / +100 y* — set by the horizon selector, the app's signature
+control. It changes magnitudes (crossing, multiplier, ranking, equivalence), never the identity of
+a domain.
 
 ### Global sum and uncertainty aggregation
 
@@ -176,27 +225,33 @@ inclusion. The exact membership per domain is defined in the domain config and i
 ## 4. UX and screen structure
 
 The UI is a **composer**: a narrow control panel + a main canvas that changes according to
-configuration (not a static page). It opens on a ready preset — **global scope, accounting =
-official, `R` = mid, baseline 1990, window 1990–today** — a functional state from which the user
-branches out. Opening in *official* is a deliberate didactic choice: the signature "official ↔
-full" toggle then produces the reveal (the hidden forgone sink and the ×N multiplier appear live)
-rather than being pre-shown. A one-sentence point primes the user to make that first switch.
+configuration (not a static page). It opens on a ready preset — **global scope, `R` = mid, baseline
+1990, horizon = today (window 1990 – last measured year)** — a functional state from which the user
+branches out. The forgone sink and the ×N multiplier are shown from the start (there is no
+"official" mode to reveal them from). The signature interaction is instead the **time-horizon
+selector**: pushing the horizon out (+20 … +100 y) makes the forward projection appear and drives
+the crossing point, the growing multiplier ceiling and the reshuffling ranking live. A one-sentence
+point primes the user to push the horizon out.
 
 ### 4.1 Controls (degrees of freedom; limits follow from the nature of the data)
 
 - **Scope** — switch global aggregate / local domain.
 - **Domain selection** — from the ~4 rainforest domains (local mode only).
-- **"Official ↔ full" switch** — the signature interaction; reveals/hides the forgone-sink layer.
-  Replaces separate stock/forgone-sink checkboxes (those are not in the UI — they would create
-  contradictory states). The switch stays **binary** (see §5 — belowground biomass is not a third
-  state, it is folded directly into `R`).
+- **Time-horizon selector** — the signature interaction; sets the **upper edge** of the window as
+  one of *today · +20 y · +30 y · +50 y · +75 y · +100 y* (from the current calendar year). *Today*
+  ends at the last measured year; the others extend a dashed forward projection (§2.4a). This single
+  control also drives the equivalence panel (§4.4). There is **no** "official ↔ full" toggle and no
+  stock/forgone-sink checkboxes — the forgone sink is always part of the picture (belowground
+  biomass is folded into `R`, §5, not a separate control).
 - **`R` scenario** — three values conservative / mid / high = lower CI bound / central value /
   upper CI bound (§6). Not a free continuous slider — `R` is anchored in the literature.
   **Default = mid value** (not conservative — reason in §5). In global mode the scenario applies
   to all domains at once.
 - **Reference year (baseline)** — optional, but only from 1990 upward (§7.2 — the data floor).
   Label always explicit: "forgone sink computed from forest loss after year {X}."
-- **Time window** — a brush on the timeline (a client-side view crop, not a recomputation).
+- **Time range (lower edge / zoom)** — a brush on the timeline (a client-side view crop, not a
+  recomputation). The range's **upper edge** is the horizon selector above — that one *does* change
+  the computed projection, so it is server-side, unlike the client-only zoom.
 
 There is **no fossil-reference toggle.** The fossil comparison is not gated behind a control: in
 global scope the share-of-footprint donut + share number (with global fossil emissions as the
@@ -211,8 +266,10 @@ redundant matrix row.
   §12.)
 - **Global aggregate:** a stacked area where the layers are domains (each domain's contribution to
   the world sum), with one aggregate uncertainty band around the upper edge.
-- Above the canvas, a large live **multiplier** ("×N: the real cost is N times higher than the
-  official one"), recomputed on change of `R` scenario and on switching the accounting mode.
+- Above the canvas, a large live **multiplier** ("×N: the real annual cost is N times the officially
+  reported number") = `fullEmissions ÷ WB_emissions` at the reference year (§2.5), recomputed on
+  change of `R` scenario. It is a scalar on measured data, so in V1 it does not itself move with the
+  horizon; a horizon-reactive multiplier is a candidate (§12).
 
 **Framing note (important for UI copy):** the stock layer carries the anti-deforestation argument
 even when a domain's forgone sink is small (e.g., a saturated Amazon). Even if the net sink were
@@ -221,71 +278,94 @@ reading "small forgone sink = clearing is okay."
 
 ### 4.3 Magnitude panels under the main chart
 
-Each reacts to the "official/full" switch with a visible difference (magnitudes, not correlations):
+Each is magnitude-based (proportions, orderings, temporal crossings), not correlational; the horizon
+control (§2.4a) is what moves them, most visibly the ranking (panel 2) and the crossing (panel 3):
 
-1. **Share of the total carbon footprint** — a **composition donut** of total emissions. In "full"
-   mode it has **three slices**: fossil, the one-off deforestation stock release, and the forgone
-   sink; in "official" mode **two slices**: fossil + stock. The accompanying **share number**
-   (deforestation as % of total) jumps when the forgone sink enters. (Global mode — fossil is global
-   fossil emissions.) **Always shown in global scope** (in both accounting modes; not behind a
-   toggle).
-2. **Reshuffling of the domain ranking** — because `R` is regionally different, the forgone sink
-   scales differently in each domain than the stock; the domain ranking really reshuffles on
-   switch. Bump chart / ranked bars. (Global / cross-domain view.)
-3. **Stock vs. forgone-sink crossing over time** — the cumulative forgone sink grows faster and in
-   year N crosses the one-off released stock. "Official" shows only the stock curve, "full"
-   reveals the second. (Both scope modes; "full" only.)
+1. **Share of the total carbon footprint** — a **composition donut** of total emissions with
+   **three slices**: fossil, the one-off deforestation stock release, and the forgone sink. The
+   accompanying **share number** is deforestation (stock + forgone sink) as % of the total footprint.
+   (Global mode — fossil is global fossil emissions.) **Always shown in global scope.** Evaluated at
+   the reference year on measured data (§7.1a), so it does not move with the horizon in V1.
+2. **Reshuffling of the domain ranking with the horizon** — a **two-column bump chart**: the domain
+   ranking **today** (left) vs. the ranking **at the chosen horizon** (right), with connectors. The
+   order reshuffles because each domain has its own `R` and its own projected trajectory (§2.4a), so
+   their forgone-sink burdens grow at different rates; a domain modest today can climb by +100 y.
+   Driven by the horizon selector, not by any accounting switch. (Global / cross-domain view.) *The
+   per-domain value ranked is the domain's full impact accumulated over the window up to the column's
+   year; the exact integral is flagged revisable (§12).*
+3. **Stock vs. forgone-sink crossing over time** — the annual one-off stock release (impulse, ~flat)
+   vs. the forgone sink as a cumulative-driven level (`R × cumulative area loss`, rising, §2.3); in
+   year **N** the rising forgone sink overtakes the stock. That point sits *beyond* the measured
+   window, so it becomes visible only once the horizon is pushed out into the projection (§2.4a) —
+   the horizon is what finally lets this panel deliver its message. (Both scope modes.)
 4. **Deforestation vs. fossil emissions (side by side, shared scale)** — two side-by-side charts of
-   total deforestation emissions (official = stock; full = stock + forgone sink) vs. global fossil
-   emissions, drawn on a **shared Y-axis** (identical maximum and tick size) so the magnitudes are
-   directly comparable. **Global scope only** (local fossil comparison is weak, §4.5); reacts to the
-   official/full switch.
+   total deforestation emissions (stock + forgone sink) vs. global fossil emissions, drawn on a
+   **shared Y-axis** (identical maximum and tick size) so the magnitudes are directly comparable.
+   **Global scope only** (local fossil comparison is weak, §4.5). Evaluated at the reference year on
+   measured data.
 5. **Equivalence panel** — see §4.4.
 
-### 4.4 Equivalence panel (finalized — presets)
+### 4.4 Equivalence panel (finalized — driven by the global horizon)
 
 Quarter width. **Resting state:** a large number + the framing "per year" right below it (e.g.,
-"≈ 3.2 million cars per year — and every subsequent year again"), and under that a row of
-**self-describing presets** `annual` · `10 y` · `30 y` · `50 y`. No mode switch, no paragraph of
-explanatory text (the preset labels are their own description), touch-friendly. Framing as an
-**annual rate / permanent debt**, not as a one-off "total" number.
+"≈ 3.2 million cars per year — and every subsequent year again"). Framing as an **annual rate /
+permanent debt**, not a one-off "total". No mode switch and **no separate preset row** any more —
+the panel reads the **global time-horizon selector** (§2.4a, §4.1), which replaces its old
+`annual/10/30/50` presets.
 
-**Preset semantics — forward committed (decided).** The `annual` value is the annual rate at the
-reference year (§7.1a). The `10/30/50 y` presets are a **forward committed projection**: the
-already-incurred cumulative area loss keeps failing to absorb its annual amount every future year,
-so the horizon value = `annualRate × horizon` (holding the current cumulative loss constant, i.e.,
-assuming no *further* loss). This matches the "permanent debt — and every subsequent year again"
-framing and the climatic asymmetry (§2.4): it is the debt *already committed*, not a historical
-back-sum. It is a finite window, never an infinite total (§2.4).
+**Semantics — forward committed (decided).** The headline is always the **annual rate** at the
+reference year (§7.1a). When the horizon is a future category (+20 … +100 y) the panel additionally
+shows the **committed total over that window** = `annualRate × horizonYears` — the already-incurred
+cumulative area loss keeps failing to absorb its annual amount every future year (holding the
+current loss constant, i.e., no *further* loss). This matches the "permanent debt — and every
+subsequent year again" framing and the climatic asymmetry (§2.4). At horizon *today* only the annual
+headline shows. It is always a finite window, never an infinite total (§2.4).
 
-**V1 decision (climate asymmetry, §2.4):** the **default preset is `30 y`** (not `annual`), and
-shorter horizons are visually emphasized as the decisive ones. Equivalences shown =
+**V1 emphasis (climate asymmetry, §2.4):** the horizon selector visually emphasises the shorter
+future categories (**+20 / +30 y**) as the decisive ones. Equivalences shown =
 (a) equivalent annual emissions of passenger cars and (b) annual emissions of a reference country.
 Conversion factors and their sources live in config.
 
+**Resolved config values (V1, `revisable`):**
+
+- **Car factor `carAnnualTonsCO2 = 4.6` t CO₂/yr.** *Reasoning:* the US EPA "typical passenger
+  vehicle" figure — a car driving ≈ 11,500 mi/yr at ≈ 22 mpg burns ≈ 489 gal, and gasoline emits
+  8,887 g CO₂/gal → ≈ 4.6 metric t CO₂/yr (EPA, *Greenhouse Gas Emissions from a Typical Passenger
+  Vehicle*, EPA-420-F-18-008). Chosen as the single most widely-cited, internationally recognizable
+  anchor; the EU-fleet figure is lower but less universally known. A single scalar keeps the "≈ N
+  million cars/yr" framing legible.
+- **Reference country — locale-driven.** The comparison country is **resolved from the active UI
+  language** (i18n locale in the store): **Slovak (`sk`) → Slovakia (`SVK`)** (relatable to the
+  primary audience, ~30 Mt CO₂/yr → punchy multipliers); **all other locales (default `en`) →
+  United Kingdom (`GBR`)** (recognizable mid-size emitter). Both countries' annual fossil emissions
+  come from the same fossil indicator (`EN.GHG.CO2.MT.CE.AR5`). The equivalence UX element is
+  **reactive to the current locale** — changing the language re-resolves the reference country (and
+  its `countryEquivalent.times`) without a new data fetch of the deforestation series.
+
 ### 4.5 Mode matrix (what is shown where)
 
-Two independent axes: scope (global / local) and accounting (official / full).
+Two axes remain: **scope** (global / local) and the **time horizon** (§2.4a). There is no accounting
+axis — the app always shows "full".
 
-| Element | Global | Local domain | "Full" only | Also "official" |
-|---|---|---|---|---|
-| Main chart: stock + forgone sink over time | ✓ (forgone sink as domain stack) | ✓ (one domain, 2 series) | — | ✓ (official = stock only) |
-| "Official ↔ full" switch | ✓ | ✓ | (it is the axis) | (it is the axis) |
-| Forgone-sink layer/band | ✓ | ✓ | ✓ | ✗ (hidden) |
-| Multiplier ×N | ✓ | ✓ | ✓ | ✗ (badge hidden; conceptually 1×) |
-| Stock × forgone-sink crossing | ✓ | ✓ | ✓ | ✗ (nothing to cross) |
-| Equivalence panel (annual rate) | ✓ | ✓ | ✓ | ✓ (value reacts) |
-| Share of total footprint (composition donut + %, fossil incl.) | ✓ (always on, not toggled) | ✗ (local fossil compare is weak) | ✓ (3 slices) | ✓ (2 slices, % jumps) |
-| Deforestation vs. fossil (side by side, shared Y-scale) | ✓ (global only) | ✗ (local fossil compare is weak) | ✓ (incl. forgone sink) | ✓ (stock only) |
-| Domain ranking reshuffle | ✓ (domain ranking) | ✗ (single item) | ✓ | ✓ (order reshuffles) |
-| Domain selection | ✗ (all summed) | ✓ (from ~4 domains) | independent | independent |
-| `R` scenario | ✓ (all domains) | ✓ (given domain) | independent | independent |
-| Baseline year, time window | ✓ | ✓ | independent | independent |
+| Element | Global | Local domain | Notes |
+|---|---|---|---|
+| Main chart: stock + forgone sink over time | ✓ (forgone sink as domain stack) | ✓ (one domain, 2 series) | forgone always shown; projection dashed past the last measured year |
+| Time-horizon selector | ✓ | ✓ | the signature control; sets the window's upper edge / projection |
+| Forgone-sink layer + uncertainty band | ✓ | ✓ | always on |
+| Multiplier ×N | ✓ | ✓ | `fullEmissions ÷ WB stock` at the reference year |
+| Stock × forgone-sink crossing | ✓ | ✓ | crossing point appears only once the horizon is pushed into the projection |
+| Equivalence panel | ✓ | ✓ | reads the global horizon; headline = annual rate, +N y = committed total |
+| Share of total footprint (3-slice donut + %) | ✓ (always on) | ✗ (local fossil compare weak) | fossil + stock + forgone sink; at the reference year |
+| Deforestation vs. fossil (side by side, shared Y) | ✓ (global only) | ✗ (local fossil compare weak) | stock + forgone sink vs. fossil; at the reference year |
+| Domain ranking reshuffle (today → horizon bump) | ✓ | ✗ (single item) | reshuffles with the horizon, not an accounting switch |
+| Domain selection | ✗ (all summed) | ✓ (from ~4 domains) | local only |
+| `R` scenario | ✓ (all domains) | ✓ (given domain) | conservative / mid / high |
+| Baseline (lower edge), time-range zoom | ✓ | ✓ | baseline is server-side; zoom is client-only |
 
-Logic: fossil comparison, share of footprint and domain ranking are global (local fossil
+Logic: fossil comparison, share of footprint and the domain ranking are global (local fossil
 comparison is weakly informative; a ranking of one domain makes no sense). The forgone sink, the
-multiplier, the crossing and the uncertainty band live in "full" mode. Domain selection is the
-only element exclusive to local mode.
+multiplier, the crossing and the uncertainty band are always present (no "official" mode hides
+them). Domain selection is the only element exclusive to local mode.
 
 ---
 
@@ -348,11 +428,11 @@ Communications (Borneo 0.43 t C/ha/yr, 95% CI 0.14–0.72). Pan-tropical average
 **Belowground biomass is folded directly into `R`, not a third mode.** `R` = **total** ecosystem
 sink = aboveground value × an allometric factor for roots/lianas/understory. **Factor locked =
 1.24** (= 1 + IPCC default root:shoot ratio ≈ 0.24 for tropical rainforest; within the ~1.2–1.3
-range), cited in the domain config; revisable. Why not a third switch state: the
-belowground part via a constant reveals no new *qualitative* mechanism (unlike the forgone sink,
-which is missing from official numbers by principle) — it is "the same, larger." A third state
-would only dilute the sharpness of the binary switch for one constant. **Soil carbon flux is
-deliberately omitted** (its measurement is very uncertain everywhere).
+range), cited in the domain config; revisable. Why not a separate control: the belowground part via
+a constant reveals no new *qualitative* mechanism (unlike the forgone sink, which is missing from
+official numbers by principle) — it is "the same, larger." A separate control would only add a
+degree of freedom for one constant with no qualitative payoff. **Soil carbon flux is deliberately
+omitted** (its measurement is very uncertain everywhere).
 
 Values (aboveground from literature; in config convert to CO₂ and multiply by the allometric
 factor for the total sink):
@@ -422,7 +502,22 @@ computed at a single **reference year = the most recent year where *all* require
 value** (i.e., `min` of the per-series `latestDataYear`). This avoids mixing different years inside
 one composite number. The reference year is **always surfaced in the UI** ("data as of {X}"),
 consistent with the honest-explorer stance. (Time-series charts still draw each series over its own
-full range; only the composite scalars use the common reference year.)
+full range — and, when a future horizon is chosen, on into the dashed projection, §2.4a; only the
+composite scalars use the common reference year, and they are computed on **measured data only**,
+never on the projection.)
+
+### 7.1b Country coverage consistency (decided)
+A region (Amazon, Congo, SE Asia, "other tropical") is a **sum over its member countries** of two
+indicators: the deforestation **stock** (`EN.GHG.CO2.LU.DF…`, which is patchy — some countries end
+early or have holes) and forest **area** (`AG.LND.FRST.K2`, robust), where area drives the forgone
+sink. To keep the story honest, a domain's **stock and forgone sink must cover the same countries**:
+a country we cannot fully represent should not appear in *one* metric but not the other. So a single
+**coverage decision** is made per domain and applied to **both** metrics — a country is **excluded
+entirely** (from stock *and* forgone) if it has incomplete coverage on **either** indicator
+(doesn't reach the shared last-real year with a value, or has an internal hole). Only leading
+pre-data years are tolerated. Whole regions are **never** dropped from the global total (in practice
+they all reach the same window); the exclusion operates only at the country level. Excluded countries
+are recorded as coverage gaps the UI can surface.
 
 ### 7.2 Key indicators
 - **Forest area (input for both forgone sink and stock):** `AG.LND.FRST.K2` (km²),
@@ -473,6 +568,11 @@ Pure, composable functions (series in → series out), a uniform point shape
 - `diff(series)` — first differences (cross-check of detrend).
 - `cumulative(series)` — cumulative sum (for the forgone sink over area losses). Conceptual
   inverse of `diff`.
+- `projectSeries(series, horizonYear, lookback=9)` — **per-domain** linear extrapolation (recent
+  mean + fitted slope, clamped ≥ 0) of the cleared-area series from the last measured year to the
+  horizon (§2.4a). Feeds the projected stock and forgone sink by the same formulas as measured
+  years; the derived future points carry a `projected` flag so the UI can render them dashed and
+  exclude them from any scalar computed at the reference year.
 - `pearson(xs, ys)`, `lagCorrelation(...)` — for the optional correlation view (§2.7); otherwise
   dormant.
 - Derived series: `forgoneSink_domain = R_domain × cumulative(area losses of domain)`,
@@ -495,9 +595,9 @@ Robustness (for the optional correlation view): take a signal seriously only if 
   - Cache: `cachedEventHandler`/`defineCachedFunction`; `country/all` responses are large, data
     changes ~yearly — maxAge hours to a day.
   - Server-side computations: domain aggregation, cumulative, forgone sink, full emissions,
-    magnitude panels, equivalences. Derivations are **server-authoritative** (see the technical
-    decisions document): changing the `R` scenario or accounting mode refetches the corresponding
-    (cached) endpoint.
+    magnitude panels, equivalences, the forward projection. Derivations are **server-authoritative**
+    (see the technical decisions document): changing the `R` scenario or the **time horizon**
+    refetches the corresponding (cached) endpoint.
 - **Adapter pattern** (`server/adapters/`): each source a separate module with a uniform output.
   Currently only WDI; possible extensions (§12) are one new file, key/token in the BFF.
 - **Domain config:** mapping domain → { ISO3 codes, `R` mid, `R` CI (low/high), allometric factor,
@@ -506,9 +606,10 @@ Robustness (for the optional correlation view): take a signal seriously only if 
   "state/cumulative vs. flow/increment."
 - **Series-agnostic chart components** (`components/charts/`): take normalized series via props,
   fetch nothing.
-- **Indicative endpoints:** `/api/domain/{id}` (area, stock, forgone sink, full emissions),
-  `/api/global` (sum across domains + aggregate band), `/api/ranking` (domain ranking for both
-  accounting modes), `/api/reference` (global fossil bar).
+- **Indicative endpoints:** `/api/domain/{id}` (area, stock, forgone sink, full emissions, incl. the
+  projection to the requested horizon), `/api/global` (sum across domains + aggregate band),
+  `/api/ranking` (domain ranking today and at the chosen horizon), `/api/reference` (global fossil
+  bar). Each takes the `R` scenario and the horizon as parameters.
 - **Deploy:** Vercel (Nitro `vercel` preset).
 
 ---
@@ -540,17 +641,24 @@ across 2–3 domains including the aggregate band.
 - Narrowed topic: the hidden carbon cost of deforestation; terminal metric = CO₂.
 - Two components: stock (WB `.DF`) + forgone sink (derived `R × cumulative area loss`).
 - Two modes: global aggregate / local domain; unit = domain (a set of ISO3), not country.
-- "Official ↔ full" switch as the signature interaction; binary; replaces layer checkboxes.
+- **No "official ↔ full" switch** — the app always shows "full" (stock + forgone sink). The
+  signature interaction is the **time-horizon selector** (§2.4a): upper-edge categories
+  *today/+20/+30/+50/+75/+100 y*, driving a per-domain dashed forward projection.
 - `R` hardcoded from literature (§6), band = published CI; belowground biomass folded into `R`
   (allometric factor **1.24**, locked), not a third mode; soil flux omitted.
 - **Default `R` = mid value** (not conservative), because the model structurally underestimates
   (§5).
 - Baseline 1990+ (FAOSTAT floor), explicit label.
-- 4 magnitude panels; equivalence = annual rate + presets; **default preset `30 y`**, preset
-  semantics = **forward committed** (`annualRate × horizon`), equivalences = cars + reference
-  country. Share-of-footprint panel is **always on** in global scope (no fossil-reference toggle).
-- Composite scalars use a single **reference year** = min common `latestDataYear`, always shown (§7.1a).
-- Opening preset = **global · official · mid · 1990** (opens in official so the toggle reveals).
+- 4 magnitude panels; equivalence = annual rate, driven by the **global horizon** (headline = annual
+  rate, future categories add `annualRate × horizonYears` committed); equivalences = cars + reference
+  country. Share-of-footprint donut is **always on** (3 slices) in global scope (no fossil toggle).
+  The ranking (panel 2) is a **today → horizon bump**; the crossing (panel 3) shows its point once
+  the horizon is pushed into the projection.
+- Composite scalars use a single **reference year** = min common `latestDataYear`, on measured data
+  only, always shown (§7.1a). The projection (§2.4a) extends only the time-series charts, the
+  crossing, and the ranking's at-horizon column.
+- Opening preset = **global · mid · 1990 · horizon today** (forgone sink + multiplier shown from the
+  start; pushing the horizon out reveals the projection and the crossing).
 - The mode matrix (§4.5) determines what is shown where.
 - Nuxt (SSR universal) + Nitro BFF; World Bank the only source; adapter pattern for future sources.
 - Domain set locked to 4 (§3.1); correlation view deferred from V1.
@@ -562,13 +670,26 @@ across 2–3 domains including the aggregate band.
 
 ## 12. Open / undecided (do not extrapolate without agreement)
 
-- **Exact ISO3 membership** per domain (§3.1) — to be finalized/verified in the spike against WB
-  country coverage.
+- **Exact ISO3 membership** per domain (§3.1) — **RESOLVED (V1, `revisable`).** Named domains
+  (Amazon/Congo/SE Asia) taken from §3.1; "other tropical" derived from WB forest-area data
+  (`AG.LND.FRST.K2`, 2023): tropical belt ∩ not-in-named-domains ∩ forest cover ≥ 5% (drops arid
+  Sahel scrub NER/MRT/TCD) → 52 ISO codes. Membership lives in the domain config.
 - **`R` config values:** **provisionally locked** for all four domains (§6 total-R table, flagged
   `revisable`), including the Amazon (asymmetric, floor at 0) and "other tropical" (envelope CI).
   These stay open only in the sense that better literature can revise them; they are not blockers.
-- **Concrete equivalences:** the specific reference country and the car-emission conversion factor
-  + source (form and default horizon `30 y` are decided).
+- **Concrete equivalences:** **RESOLVED (V1, `revisable`, §4.4).** Car factor = 4.6 t CO₂/yr (EPA);
+  reference country is **locale-driven** (`sk` → Slovakia, else → UK). Form decided; the panel is now
+  driven by the global time horizon (§4.4) rather than its own preset row.
+- **Time horizon + forward projection (§2.4a) — RESOLVED (V1, `revisable`).** Replaces the removed
+  "official ↔ full" accounting axis. Upper-edge categories *today/+20/+30/+50/+75/+100 y* from the
+  calendar year; per-domain linear-trend projection (last ~9–10 measured years, clamped ≥ 0);
+  projected data rendered dashed with a join-year divider. Documented **defaults, flagged
+  revisable:** (a) the multiplier stays a scalar at the reference year — not horizon-reactive in V1;
+  (b) the ranking bump ranks each domain's full impact **accumulated over the window to each
+  column's year** (annual-at-horizon is the alternative); (c) the uncertainty band is carried
+  forward by the same `R` interval, **not** additionally widened with projection distance; (d) the
+  visual separation of "measured-but-estimated" (forgone, already dashed) from "projected" data is a
+  join-year divider + a lighter dashed projection — exact styling lives in the design doc.
 - **Exact shape** of the stacked area and aggregate band (global), the domain stacked chart
   (local), the bump chart (panel 2), the crossing (panel 3) — to be detailed in the dedicated UI
   round.
