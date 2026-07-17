@@ -10,7 +10,7 @@ import { paramsKey } from '../shared/config/derivation'
 import type { GlobalResultDTO } from '../shared/types'
 
 // Critical-component mode-matrix tests (tech-spec §15, UI §8, ADR-019 — single accounting): the
-// multiplier shows whenever it is present; the share/ranking/fossil panels are global-only while the
+// multiplier shows whenever it is present; the share/fossil panels are global-only while the
 // crossing panel renders in both scopes. Nuxt auto-imports the components rely on (`useI18n`,
 // `useNuxtApp`) are stubbed — `t` echoes its key so we can assert on which panels render.
 vi.stubGlobal('useI18n', () => ({
@@ -52,13 +52,12 @@ describe('MagnitudePanels (scope visibility)', () => {
   const titles = (w: ReturnType<typeof mount>) =>
     w.findAll('.panel__title').map((n) => n.text())
 
-  it('global → share, ranking, fossil and crossing panels', () => {
+  it('global → share, fossil and crossing panels', () => {
     const view = useViewStore()
     view.scope = 'global'
     const w = mount(MagnitudePanels)
     const t = titles(w)
     expect(t).toContain('panel.donut.title')
-    expect(t).toContain('panel.ranking.title')
     expect(t).toContain('panel.fossil.title')
     expect(t).toContain('panel.crossing.title')
   })

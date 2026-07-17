@@ -28,11 +28,8 @@ describe('createApiClient', () => {
       params: { scope: 'global', horizon: 'today', rScenario: 'mid', baseline: '1990' },
     })
 
-    await api.ranking(global)
-    expect(calls[1]!.url).toBe('/api/ranking')
-
     await api.reference(global)
-    expect(calls[2]!.url).toBe('/api/reference')
+    expect(calls[1]!.url).toBe('/api/reference')
   })
 
   it('builds the domain URL from the path and appends the locale for equivalence', async () => {

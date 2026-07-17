@@ -47,7 +47,7 @@ const def = computed(() => getSlide(slug.value) ?? getSlide(FIRST_SLUG)!)
 const slide = computed<RenderableSlide>(() => renderSlide(def.value, view.derivationParams))
 const slideNumber = computed(() => slideIndex(slug.value) + 1)
 
-/** The DTO endpoints a resolved visualisation needs (deck subset — ranking/equivalence stay deferred). */
+/** The DTO endpoints a resolved visualisation needs (deck subset). */
 const vizEndpoints = (component: ChartComponentName, scope: Scope): EndpointKey[] => {
   switch (component) {
     case 'MainStackedChart':

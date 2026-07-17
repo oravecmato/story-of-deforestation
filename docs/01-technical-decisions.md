@@ -157,7 +157,7 @@ compute DOM dimensions during SSR.
 
 **Decision.** Integrate via the official **`nuxt-echarts`** module (which wraps `vue-echarts`,
 by ecomfe/Justineo). Use its `<VChart>` component. Register only the needed chart types
-(`LineChart`, `BarChart`, `PieChart`, custom for bump) and components (grid, tooltip, legend,
+(`LineChart`, `BarChart`, `PieChart`) and components (grid, tooltip, legend,
 dataZoom, markLine, visualMap, etc.) for tree-shaking. Charts are rendered client-only.
 
 **Rationale.**
@@ -184,7 +184,7 @@ into the component. It asks whether per-chart classes should share an abstract b
 1. **`BaseChart.vue`** (lowest tier) — a thin, dumb wrapper over `<VChart>`. Props: `option`,
    `loading`, `theme`. Responsive (`autoresize`). Contains no domain logic.
 2. **Per-chart Vue components** (e.g., `MainStackedChart.vue`, `CrossingChart.vue`,
-   `RankingBumpChart.vue`, `FootprintDonut.vue`) — receive already-shaped series + view context
+   `FootprintDonut.vue`) — receive already-shaped series + view context
    via props, obtain a finished `Option` from a chart-option class, and pass it to `BaseChart`.
    They hold no business math.
 3. **Chart-option classes** (`app/charts/*`) — an **abstract `BaseChartOption`** with concrete
@@ -288,8 +288,8 @@ backend and frontend where it makes sense.
   countries of a domain, or area + emissions + fossil reference in parallel), and use
   `Promise.allSettled` where partial failure must be tolerated (a missing country/indicator must
   not sink the whole domain — it degrades with a recorded gap in `meta`).
-- **Client:** the store dispatches independent endpoint fetches concurrently (e.g., domain series +
-  ranking + reference for the current view) via `Promise.all`, deduped through the in-flight map
+- **Client:** the store dispatches independent endpoint fetches concurrently (e.g., global series +
+  reference for the current view) via `Promise.all`, deduped through the in-flight map
   (ADR-005). No sequential waterfalls where calls are independent.
 
 **Rationale.** Latency reduction; the World Bank API and the BFF endpoints are largely independent
@@ -487,9 +487,8 @@ cumulative forgone sink) only reaches its crossing point once the window extends
   series is extrapolated to the horizon's target year (`stats.projectSeries`: recent mean + fitted
   slope over the last ~9 measured years, clamped ≥ 0), **then** multiplied by `R_domain` and
   aggregated. Projection is applied **per domain, before aggregation** — *not* as a single fit on the
-  pre-aggregated series — because `R` and the trend differ per domain; this is exactly what drives
-  the **ranking reshuffle** (`today` → `atHorizon`). Composite scalars (multiplier, share,
-  equivalence rate, reference year) are computed on **measured data only**, never on projected points.
+  pre-aggregated series — because `R` and the trend differ per domain. Composite scalars (multiplier,
+  share, equivalence rate, reference year) are computed on **measured data only**, never on projected points.
 - **Dashed rendering via separate series (ECharts workaround).** ECharts cannot switch a single line
   from solid to dashed mid-series (no per-segment dash; `visualMap` only recolours). So each
   projected metric is emitted as a **separate series** starting at the join year (`meta.projectedFrom`),
@@ -503,19 +502,18 @@ cumulative forgone sink) only reaches its crossing point once the window extends
 and when does it overtake the reported impulse" — a more honest and vivid message than a binary
 accounting toggle. Per-domain projection is the correct granularity (linear extrapolation is a linear
 operator, so per-domain and aggregate coincide only under identical coverage, which the domains do
-not share) and it powers the reshuffle. Separate dashed series is the only clean ECharts path.
+not share). Separate dashed series is the only clean ECharts path.
 
 **Consequences.**
 - `SeriesMeta` gains `projectedFrom: number | null`; DTOs drop the `accounting` axis and make the
-  forgone-sink family non-optional; `RankingDTO` becomes `today` + `atHorizon`; the multiplier is
+  forgone-sink family non-optional; the multiplier is
   always shown (§3.2, §16.30–32 of the technical spec).
 - The projection is a server-only derivation (single authoritative path, ADR-005).
-- **Revisable V1 choices (business §12):** the multiplier is not horizon-reactive; the ranking uses a
-  point-in-time value at the target year (not an integral); the CI band is not widened for
-  projection uncertainty; join-divider styling is provisional.
+- **Revisable V1 choices (business §12):** the multiplier is not horizon-reactive; the CI band is not
+  widened for projection uncertainty; join-divider styling is provisional.
 
 **Alternatives.** Keep the official↔full toggle (rejected — the horizon subsumes and improves it);
-project the pre-aggregated global series with one fit (rejected — loses the per-domain reshuffle and
+project the pre-aggregated global series with one fit (rejected — loses the per-domain granularity and
 mixes differing `R`); use `visualMap` for the dashed effect (rejected — recolours only, cannot dash).
 
 ---
@@ -634,8 +632,7 @@ without server round-trips.
 **Consequences.**
 - New frontend layer: `shared`/`app` **story config** (`SlideDef[]`), a `SlideFactory`, and generic
   slide components (ADR-024). No new server route, DTO or param.
-- The **ranking** and **equivalence** visualisations are **deferred from the deck** (built, on no
-  slide — business §4.6); their endpoints/components remain for a later `SlideDef`.
+- (Equivalence was deferred here originally but is **restaged on slide 6** by ADR-025.)
 - Chart-option classes gain a **presentation input** (which metrics to render) — see ADR-024.
 
 **Alternatives.** Keep the composer (rejected — weaker for the audience). Encode slide config on the

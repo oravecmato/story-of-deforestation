@@ -3,7 +3,6 @@ import type {
   DerivationParams,
   DomainResultDTO,
   GlobalResultDTO,
-  RankingDTO,
   ReferenceDTO,
   EquivalenceDTO,
 } from '../../shared/types'
@@ -20,20 +19,18 @@ import type { ApiClient, StoreError } from '../services/apiClient'
 // `loadForScene`/`prefetch` take the ApiClient explicitly (DI, so the store stays free of Nuxt globals
 // and is unit-testable); callers pass `useApi()`.
 
-export type EndpointKey = 'domain' | 'global' | 'ranking' | 'reference' | 'equivalence'
-type AnyDTO = DomainResultDTO | GlobalResultDTO | RankingDTO | ReferenceDTO | EquivalenceDTO
+export type EndpointKey = 'domain' | 'global' | 'reference' | 'equivalence'
+type AnyDTO = DomainResultDTO | GlobalResultDTO | ReferenceDTO | EquivalenceDTO
 
 const noneLoading = (): Record<EndpointKey, boolean> => ({
   domain: false,
   global: false,
-  ranking: false,
   reference: false,
   equivalence: false,
 })
 const noneError = (): Record<EndpointKey, StoreError | null> => ({
   domain: null,
   global: null,
-  ranking: null,
   reference: null,
   equivalence: null,
 })
@@ -59,8 +56,6 @@ const fetchEndpoint = (
       return client.domain(params)
     case 'global':
       return client.global(params)
-    case 'ranking':
-      return client.ranking(params)
     case 'reference':
       return client.reference(params)
     case 'equivalence':
@@ -68,10 +63,10 @@ const fetchEndpoint = (
   }
 }
 
-/** The endpoints a scope needs by default (deck scenes pass an explicit subset). Ranking + equivalence
- *  are DEFERRED from the V1 deck (business §4.6) but remain fetchable for the panels built on no slide. */
+/** The endpoints a scope needs by default (deck scenes pass an explicit subset). Equivalence is
+ *  consumed by the slide-6 strip's country-unit basis (ADR-025, §17.4). */
 const defaultEndpoints = (scope: DerivationParams['scope']): EndpointKey[] =>
-  scope === 'global' ? ['global', 'ranking', 'reference', 'equivalence'] : ['domain', 'equivalence']
+  scope === 'global' ? ['global', 'reference', 'equivalence'] : ['domain', 'equivalence']
 
 /** Options for a scene load / prefetch: override the params and/or the endpoint set. */
 export interface LoadOptions {
@@ -95,10 +90,6 @@ export const useDataStore = defineStore('data', {
         | DomainResultDTO
         | GlobalResultDTO
         | undefined
-    },
-    currentRanking(state): RankingDTO | undefined {
-      const view = useViewStore()
-      return state.dtoCache.get(paramsKey('ranking', view.derivationParams)) as RankingDTO | undefined
     },
     currentReference(state): ReferenceDTO | undefined {
       const view = useViewStore()

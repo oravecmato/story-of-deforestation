@@ -32,14 +32,6 @@ export interface GlobalResultDTO {
   crossingYear: number | null
 }
 
-/** GET /api/ranking — global / cross-domain ranking reshuffle (two-column bump, business §4.3). */
-export interface RankingDTO {
-  params: DerivationParams
-  referenceYear: number
-  today: Array<{ domainId: string; value: number; rank: number }> // MEASURED full emissions at referenceYear
-  atHorizon: Array<{ domainId: string; value: number; rank: number }> // projected at horizon target year — reshuffled
-}
-
 /** GET /api/reference — global fossil bar + share-of-footprint (always fetched in global scope). */
 export interface ReferenceDTO {
   params: DerivationParams

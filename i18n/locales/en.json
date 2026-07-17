@@ -43,7 +43,6 @@
   },
   "panel": {
     "main": { "title": "Emissions over time" },
-    "ranking": { "title": "Domain ranking" },
     "fossil": { "title": "Deforestation vs fossil emissions" },
     "crossing": { "title": "Stock release vs forgone sink" },
     "donut": { "title": "Share of footprint" },
@@ -57,12 +56,6 @@
   "share": {
     "label": "Share of global footprint",
     "value": "{value}"
-  },
-  "equivalence": {
-    "annualRate": "per year",
-    "committed": "committed over the horizon",
-    "cars": "passenger cars",
-    "country": "of {country}'s annual emissions"
   },
   "equivalenceStrip": {
     "stockWindow": "Reported stock over the window",
@@ -110,10 +103,6 @@
     "congo": "Congo Basin",
     "seasia": "Southeast Asia",
     "other_tropical": "Other tropical"
-  },
-  "ranking": {
-    "today": "Today",
-    "atHorizon": "At horizon"
   },
   "fossil": {
     "deforestation": "Deforestation",

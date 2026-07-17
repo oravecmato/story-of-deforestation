@@ -39,7 +39,7 @@ describe('paramsKey / paramsToQuery', () => {
   it('key is stable and endpoint-scoped', () => {
     const p = { scope: 'global', horizon: 'today', rScenario: 'mid', baseline: 1990 } as const
     expect(paramsKey('global', p)).toBe('global:global::today:mid:1990')
-    expect(paramsKey('ranking', p)).not.toBe(paramsKey('global', p))
+    expect(paramsKey('reference', p)).not.toBe(paramsKey('global', p))
   })
 
   it('query drops domainId in global, includes it in local', () => {

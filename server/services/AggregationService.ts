@@ -6,7 +6,6 @@ import type {
   DerivationParams,
   DomainResultDTO,
   GlobalResultDTO,
-  RankingDTO,
 } from '../../shared/types'
 import type { DomainConfig } from '../../shared/config/domains'
 import { getIndicator } from '../../shared/config/indicators'
@@ -17,16 +16,15 @@ import { countryKey, type CoverageGate, type CoverageVerdict } from '../utils/co
 import * as stats from '../utils/stats'
 
 // AggregationService (tech-spec §6) — the core orchestrator. Combines each domain's forest area +
-// deforestation stock with the pure stats module to produce DomainResultDTO / GlobalResultDTO /
-// RankingDTO. It is a pure function of DerivationParams (ADR-005). There is a single accounting
+// deforestation stock with the pure stats module to produce DomainResultDTO / GlobalResultDTO.
+// It is a pure function of DerivationParams (ADR-005). There is a single accounting
 // ('full', ADR-019): the forgone-sink family (forgoneSink / fullEmissions / multiplier /
 // crossingYear) is ALWAYS present.
 //
 // Horizon projection (§6): when `horizon !== 'today'` each series is extended past its last measured
 // year up to `horizonTargetYear(horizon)` via `stats.projectSeries` — PER DOMAIN, before `× R` and
-// aggregation, so per-domain R + trend differences reshuffle the ranking (`today` → `atHorizon`).
-// Composite scalars (referenceYear, multiplier) are read at the MEASURED referenceYear, computed from
-// the measured bundle before projection, so they are horizon-invariant (ADR-016).
+// aggregation. Composite scalars (referenceYear, multiplier) are read at the MEASURED referenceYear,
+// computed from the measured bundle before projection, so they are horizon-invariant (ADR-016).
 //
 // Composite floor (§3.2): the WB deforestation stock only exists from `deforestationStock.coverageFrom`
 // (2000), while forest area — hence the forgone-sink integral — runs from `baseline` (≥1990). `area`
@@ -46,9 +44,6 @@ const clampBand = (b: BandSeries, floor: number): BandSeries => ({
   lower: b.lower.filter((p) => p.year >= floor),
   upper: b.upper.filter((p) => p.year >= floor),
 })
-
-const valueAt = (s: Series, year: number): number =>
-  s.points.find((p) => p.year === year)?.value ?? 0
 
 /** Per-domain intermediates (raw + derived), shared by the domain and global assemblers. */
 interface DomainBundle {
@@ -165,8 +160,8 @@ export class AggregationService {
     const aggregateStock = project(stats.sumSeries(perDomainStockMeasured, 'stock:global', 'GLOBAL'))
     const perDomainStock = perDomainStockMeasured.map(project)
 
-    // Forgone sink: projected PER DOMAIN (R differs → ranking reshuffle), then combined into the
-    // aggregate band over the full (projected) year range.
+    // Forgone sink: projected PER DOMAIN (R differs), then combined into the aggregate band over the
+    // full (projected) year range.
     const perDomainForgoneSink = bundles.map((b) => {
       const cfg = this.domains[b.domainId]
       const cumulativeLoss = project(clamp(b.cumulativeLoss, params.baseline))
@@ -185,43 +180,6 @@ export class AggregationService {
       aggregateFullEmissions,
       multiplier: stats.multiplier(aggregateStock, aggregateFullEmissions, refYear),
       crossingYear: stats.crossingYear(aggregateStock, aggregateForgoneSink),
-    }
-  }
-
-  /** GET /api/ranking — two-column bump (business §4.3): `today` = full emissions per domain on
-   *  MEASURED data at referenceYear; `atHorizon` = per-domain full emissions read at the horizon's
-   *  target year (projected). Ranks reshuffle because per-domain R + trend differ. */
-  async ranking(params: DerivationParams): Promise<RankingDTO> {
-    const ids = Object.keys(this.domains) as DomainId[]
-    const bundles = await Promise.all(ids.map((id) => this.buildDomain(id, params)))
-    const refYear = stats.referenceYear(...bundles.flatMap((b) => [b.area, b.stock]))
-    const floor = Math.max(params.baseline, STOCK_FLOOR)
-
-    const todayVals = bundles.map((b) => {
-      const stock = clamp(b.stock, floor)
-      const forgone = clampBand(b.forgoneSink, floor)
-      const full = stats.fullEmissions(stock, forgone)
-      return { domainId: b.domainId as string, value: valueAt(full, refYear) }
-    })
-
-    let atHorizonVals = todayVals
-    if (params.horizon !== 'today') {
-      const target = horizonTargetYear(params.horizon)
-      atHorizonVals = bundles.map((b) => {
-        const cfg = this.domains[b.domainId]
-        const stock = stats.projectSeries(clamp(b.stock, floor), target)
-        const cumulativeLoss = stats.projectSeries(clamp(b.cumulativeLoss, params.baseline), target)
-        const forgone = clampBand(stats.forgoneSink(cumulativeLoss, cfg.r, params.rScenario), floor)
-        const full = stats.fullEmissions(stock, forgone)
-        return { domainId: b.domainId as string, value: valueAt(full, target) }
-      })
-    }
-
-    return {
-      params,
-      referenceYear: refYear,
-      today: stats.domainRanking(todayVals),
-      atHorizon: stats.domainRanking(atHorizonVals),
     }
   }
 }

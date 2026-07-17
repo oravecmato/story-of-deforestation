@@ -25,7 +25,6 @@ function stubClient(overrides: Partial<Record<keyof ApiClient, () => Promise<unk
   const client = {
     domain: make('domain'),
     global: make('global'),
-    ranking: make('ranking'),
     reference: make('reference'),
     equivalence: make('equivalence'),
   } as unknown as ApiClient
@@ -33,11 +32,11 @@ function stubClient(overrides: Partial<Record<keyof ApiClient, () => Promise<unk
 }
 
 describe('useDataStore.loadForScene', () => {
-  it('global scope fetches global + ranking + reference + equivalence', async () => {
+  it('global scope fetches global + reference + equivalence', async () => {
     const data = useDataStore()
     const { client, counts } = stubClient()
     await data.loadForScene(client)
-    expect(counts).toEqual({ global: 1, ranking: 1, reference: 1, equivalence: 1 })
+    expect(counts).toEqual({ global: 1, reference: 1, equivalence: 1 })
     expect(counts.domain).toBeUndefined()
   })
 
@@ -71,7 +70,6 @@ describe('useDataStore.loadForScene', () => {
     const { client } = stubClient()
     await data.loadForScene(client)
     expect(data.currentMainResult).toMatchObject({ tag: 'global' })
-    expect(data.currentRanking).toMatchObject({ tag: 'ranking' })
     expect(data.currentReference).toMatchObject({ tag: 'reference' })
     expect(data.currentEquivalence).toMatchObject({ tag: 'equivalence' })
   })

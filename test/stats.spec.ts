@@ -14,7 +14,6 @@ import {
   referenceYear,
   aggregateForgoneSink,
   sharePercent,
-  domainRanking,
   projectSeries,
   pearson,
   lagCorrelation,
@@ -213,20 +212,6 @@ describe('aggregation', () => {
   it('sharePercent: percentage, NaN on zero denominator', () => {
     expect(sharePercent(5, 100)).toBe(5)
     expect(sharePercent(5, 0)).toBeNaN()
-  })
-
-  it('domainRanking: descending, rank 1 = largest', () => {
-    expect(
-      domainRanking([
-        { domainId: 'a', value: 10 },
-        { domainId: 'b', value: 30 },
-        { domainId: 'c', value: 20 },
-      ]),
-    ).toEqual([
-      { domainId: 'b', value: 30, rank: 1 },
-      { domainId: 'c', value: 20, rank: 2 },
-      { domainId: 'a', value: 10, rank: 3 },
-    ])
   })
 })
 

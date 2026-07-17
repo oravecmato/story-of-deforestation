@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import type { DomainResultDTO, GlobalResultDTO } from '../../../shared/types'
 import AsyncPanel from './AsyncPanel.vue'
 import FootprintDonut from '../charts/FootprintDonut.vue'
-import RankingBumpChart from '../charts/RankingBumpChart.vue'
 import FossilComparisonChart from '../charts/FossilComparisonChart.vue'
 import CrossingChart from '../charts/CrossingChart.vue'
 import type { CrossingInput } from '../../charts/CrossingOption'
@@ -15,7 +14,6 @@ import { useReload } from '../../composables/useReload'
 
 // Secondary magnitude panels (UI §5), rendered per the mode matrix (UI §8, ADR-019 — single accounting):
 //  - Share-of-footprint donut + share %  → global.
-//  - Domain ranking reshuffle            → global.
 //  - Deforestation vs fossil (shared Y)  → global.
 //  - Stock × forgone-sink crossing       → both scopes.
 // Panels that don't apply are hidden entirely (not greyed), keeping the composer clean. This panel is
@@ -32,7 +30,6 @@ const isGlobal = computed(() => view.scope === 'global')
 const mainEndpoint = computed(() => (isGlobal.value ? 'global' : 'domain'))
 
 const reference = computed(() => data.currentReference)
-const ranking = computed(() => data.currentRanking)
 const globalResult = computed(() => data.currentMainResult as GlobalResultDTO | undefined)
 const share = computed(() => reference.value?.sharePercent ?? null)
 
@@ -75,19 +72,6 @@ const crossingInput = computed<CrossingInput | undefined>(() => {
           t('share.value', { value: `${formatter.format(share)}%` })
         }}</span>
       </p>
-    </AsyncPanel>
-
-    <!-- Domain ranking reshuffle (global) -->
-    <AsyncPanel
-      v-if="isGlobal"
-      :title="t('panel.ranking.title')"
-      :data-year="ranking?.referenceYear"
-      :loading="data.loading.ranking"
-      :error="data.errors.ranking"
-      :has-data="ranking != null"
-      @retry="reload"
-    >
-      <RankingBumpChart v-if="ranking" :ranking="ranking" :ctx="chartCtx" :loading="data.loading.ranking" />
     </AsyncPanel>
 
     <!-- Deforestation vs fossil, shared Y-scale (global) -->

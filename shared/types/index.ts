@@ -18,7 +18,6 @@ export type {
 export type {
   DomainResultDTO,
   GlobalResultDTO,
-  RankingDTO,
   ReferenceDTO,
   EquivalenceDTO,
 } from './dto'

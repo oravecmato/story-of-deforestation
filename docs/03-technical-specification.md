@@ -74,16 +74,14 @@ code is written this round.
 │  │     ├─ GlobalStackedAreaChart.vue
 │  │     ├─ CrossingChart.vue
 │  │     ├─ FossilComparisonChart.vue   # one grid, two categories (ADR-024)
-│  │     ├─ FootprintDonut.vue
-│  │     └─ RankingBumpChart.vue   # DEFERRED from the deck (built, on no slide — business §4.6)
+│  │     └─ FootprintDonut.vue
 │  ├─ charts/                      # tier 3: chart-option classes (pure; take a metrics/presentation arg)
 │  │  ├─ BaseChartOption.ts        # abstract base
 │  │  ├─ MainStackedOption.ts
 │  │  ├─ GlobalStackedAreaOption.ts
 │  │  ├─ CrossingOption.ts
 │  │  ├─ FootprintDonutOption.ts
-│  │  ├─ FossilComparisonOption.ts # one grid, two categories
-│  │  └─ RankingBumpOption.ts      # DEFERRED (built, unused)
+│  │  └─ FossilComparisonOption.ts # one grid, two categories
 │  ├─ composables/
 │  │  └─ useChartContext.ts        # Pinia-aware ChartContext bundle (i18n+theme+formatter+view)
 │  ├─ stores/                      # Pinia: single source of truth
@@ -99,7 +97,6 @@ code is written this round.
 │  ├─ api/
 │  │  ├─ domain/[id].get.ts        # /api/domain/{id}
 │  │  ├─ global.get.ts             # /api/global
-│  │  ├─ ranking.get.ts            # /api/ranking
 │  │  ├─ reference.get.ts          # /api/reference
 │  │  └─ equivalence.get.ts        # /api/equivalence
 │  ├─ services/                    # EmissionsService, ForestAreaService, AggregationService, ...
@@ -332,16 +329,6 @@ interface GlobalResultDTO {            // GET /api/global
   crossingYear: number | null;
 }
 
-interface RankingDTO {                 // GET /api/ranking (global/cross-domain)
-  params: DerivationParams;
-  referenceYear: number;
-  // Two-column bump chart (business §4.3): today = annual full emissions per domain on MEASURED data
-  // at referenceYear; atHorizon = per-domain full emissions read at the chosen horizon's target year
-  // (projected). The horizon reshuffles ranks because per-domain R + trend differ.
-  today: Array<{ domainId: string; value: number; rank: number }>;
-  atHorizon: Array<{ domainId: string; value: number; rank: number }>;   // reshuffled by horizon
-}
-
 interface ReferenceDTO {               // GET /api/reference (global fossil bar) — always fetched in global scope
   params: DerivationParams;
   referenceYear: number;
@@ -395,7 +382,7 @@ extends each series past its last measured year up to `horizonTargetYear(horizon
 mean + fitted slope over the last ~9 measured years, clamped ≥ 0), then multiplies by `R_domain` and
 aggregates through the existing `sumSeries`/`aggregateForgoneSink` path. Projection is applied **per
 domain, before aggregation** (NOT a single fit on the pre-aggregated series) — because `R` and the
-trend differ per domain, and this is exactly what reshuffles the ranking. The projected points carry
+trend differ per domain. The projected points carry
 `meta.projectedFrom = <last measured year>`; composite scalars (`multiplier`, `referenceYear`, donut,
 share, equivalence annual rate) are computed on **measured data only**, never on projected points
 (business §7.1a). `horizon='today'` skips projection entirely (`projectedFrom = null`).
@@ -483,7 +470,6 @@ sumSeries(series: Series[], id: string, geo?: string): Series;  // PURE pointwis
 aggregateForgoneSink(perDomain: BandSeries[]): BandSeries;      // sum mid; combine lower/upper deviations SEPARATELY (asymmetric-safe):
                                                                //   low = midΣ − √Σ(mid_i−low_i)² ; high = midΣ + √Σ(high_i−mid_i)²
 sharePercent(numerator: number, denominator: number): number;
-domainRanking(values: Array<{domainId:string; value:number}>): Array<{domainId:string; value:number; rank:number}>;
 equivalence(annualRate: number, horizon: Horizon, cfg: EquivalenceConfig): EquivalenceDTO;  // committed: annualRate × horizonYears(h)
 ```
 
@@ -520,14 +506,13 @@ stats to produce DTOs.
   the core orchestrator. `buildDomain` fetches the per-country area + stock, runs the **`CoverageGate`
   once** to get the shared excluded set + per-indicator window, then for each metric **filters
   survivors → `stats.sumSeries` → clips to that indicator's window** (single consistent country set).
-  It then produces `DomainResultDTO`, `GlobalResultDTO`, `RankingDTO` by combining domain area + stock
-  with `stats.forgoneSink/fullEmissions/aggregateForgoneSink/domainRanking`. Applies the `rScenario`
+  It then produces `DomainResultDTO`, `GlobalResultDTO` by combining domain area + stock
+  with `stats.forgoneSink/fullEmissions/aggregateForgoneSink`. Applies the `rScenario`
   param; **applies the `horizon` param by extending each domain's cleared-area series via
   `stats.projectSeries(…, horizonTargetYear(horizon))` before `× R_domain` and aggregation**
   (per-domain, pre-aggregation — §3.2); always computes `multiplier`, `crossingYear`, and the
   forgone-sink family (single accounting, no official/full branch). The global aggregate stock is a
-  **plain `sumSeries` of the four per-domain series** — no domain-tier exclusion. Ranking returns
-  `today` (measured, referenceYear) + `atHorizon` (projected, target year) columns.
+  **plain `sumSeries` of the four per-domain series** — no domain-tier exclusion.
 - **`ReferenceService(emissionsService, stats)`** — global fossil bar + `sharePercent` + 3-slice
   `composition` (fossil, stock, forgone sink), all at the reference year (measured data).
 - **`EquivalenceService(aggregationService, equivalenceConfig, stats)`** — annual rate (always) +
@@ -577,7 +562,6 @@ Thin Nitro handlers: **parse/validate params → cache wrapper → service call 
 |---|---|---|
 | `GET /api/domain/[id]` | `DomainResultDTO` | main scene, local domain (main chart, multiplier) |
 | `GET /api/global` | `GlobalResultDTO` | main scene (global) + crossing scene, multiplier |
-| `GET /api/ranking` | `RankingDTO` | ranking reshuffle (today → horizon) — **deferred from deck (§4.6)** |
 | `GET /api/reference` | `ReferenceDTO` | footprint scene: donut + fossil bar + share-of-footprint |
 | `GET /api/equivalence` | `EquivalenceDTO` | equivalence — **not fetched for the slide-6 strip** (its 4 magnitudes are client-derived from the global DTO, §17.4); reused only for the locale-driven reference-country scalar behind the `country` unit |
 
@@ -624,7 +608,7 @@ interaction that reveals the forward debt.
 
 ### 10.1 `useViewStore` — per-scene control/view state
 ```ts
-type EndpointKey = 'domain' | 'global' | 'ranking' | 'reference' | 'equivalence';
+type EndpointKey = 'domain' | 'global' | 'reference' | 'equivalence';
 type SceneId = 'intro' | 'main' | 'crossing' | 'footprint';
 
 interface SceneState {
@@ -667,7 +651,7 @@ whose `params` differ **resets that scene's `timeRange` to `null`** (scenes span
 ### 10.2 `useDataStore` — fetched/derived DTOs + caching
 ```ts
 state: {
-  dtoCache: Map<string, DomainResultDTO | GlobalResultDTO | RankingDTO | ReferenceDTO | EquivalenceDTO>;
+  dtoCache: Map<string, DomainResultDTO | GlobalResultDTO | ReferenceDTO | EquivalenceDTO>;
   inFlight: Map<string, Promise<unknown>>;   // dedupe concurrent identical fetches
   loading: Record<EndpointKey, boolean>;
   errors:  Record<EndpointKey, StoreError | null>;
@@ -678,7 +662,7 @@ actions: {
 }
 getters: {
   currentMainResult;      // domain or global DTO for current scene's params
-  currentReference; currentEquivalence; currentRanking;   // ranking deferred (§4.6); equivalence restaged on slide 6 (strip §17.4, mostly client-derived from the global DTO)
+  currentReference; currentEquivalence;   // equivalence restaged on slide 6 (strip §17.4, mostly client-derived from the global DTO)
   multiplier;             // from the DTO
 }
 ```
@@ -776,8 +760,6 @@ Each takes the `presentation.metrics` set (§11.1) so the deck can reveal metric
   fossil bar leaves and the deforestation bar splits its `forgoneSink` out as its own stacked layer
   (or sibling bar) over `stock`, the shared axis rescaling to the deforestation-only range ("zoom
   in", UI §6.3). Consumes `currentReference` (fossil) + `currentMainResult` (aggregate deforestation).
-- **`RankingBumpOption`** (**DEFERRED from the V1 deck** — built, on no slide, business §4.6):
-  two-column bump chart `RankingDTO.today → RankingDTO.atHorizon`; reshuffle driven by the horizon.
 
 **Single-axis rescale.** `FossilComparisonOption` uses one `yAxis` whose `max`/`interval` are derived
 from the **visible** categories via `sharedYAxis()`, so removing `fossil` recomputes the axis to the
@@ -899,14 +881,14 @@ visually consistent and dark-mode-correct from one source.
 
 | Target | Tool | What is asserted |
 |---|---|---|
-| `stats.ts` | Vitest | movingAvg/detrend/diff/cumulative, forgoneSink+band (asymmetric CI), fullEmissions, aggregate band with two-sided deviation combine (asymmetric-safe), crossingYear, ranking, equivalence; `projectSeries` (slope+clamp≥0, `projectedFrom` set, `today`/target≤last → unchanged), `sumSeries`; correlation guards reject state×state levels; determinism |
+| `stats.ts` | Vitest | movingAvg/detrend/diff/cumulative, forgoneSink+band (asymmetric CI), fullEmissions, aggregate band with two-sided deviation combine (asymmetric-safe), crossingYear, equivalence; `projectSeries` (slope+clamp≥0, `projectedFrom` set, `today`/target≤last → unchanged), `sumSeries`; correlation guards reject state×state levels; determinism |
 | `WdiAdapter` | Vitest + fixtures | `response[1]` parsing, aggregate filtering, `mrnev`/holes (null preserved), gap recording, normalization to `DataPoint`/meta (incl. `projectedFrom: null`) |
-| Services | Vitest + stub adapter | DTO shape, `referenceYear` = min common data year, forgone-sink family always present, composite scalars on measured data only (horizon-invariant), per-domain projection before aggregation, ranking `today`→`atHorizon` reshuffle, committed equivalence (annualRate × horizonYears), parallel fan-out, partial-failure tolerance |
+| Services | Vitest + stub adapter | DTO shape, `referenceYear` = min common data year, forgone-sink family always present, composite scalars on measured data only (horizon-invariant), per-domain projection before aggregation, committed equivalence (annualRate × horizonYears), parallel fan-out, partial-failure tolerance |
 | Chart-option classes | Vitest | produced `Option` for a `(data, ctx, presentation)` triple: series count under a metric set, metric-reveal (stock→stock+forgone) and metric-drop (donut/bar lose fossil, axis rescale), estimate styling (dashed+band), measured/projected split at `projectedFrom` (twin series, projected omitted from `legend.data`, divider markLine), fossil-comparison one-grid two-category shared axis, axis types from seriesType, i18n/format usage |
 | Config integrity | Vitest | domain `r = rAboveground × allometricFactor` (factor = 1.24), CI ordering low≤mid≤high, indicator seriesType coverage, `horizonTargetYear`/`horizonYears` mapping |
 | Story config + factory | Vitest | `slides.ts` well-formed (6 slides / 4 scenes, valid layout preset + VizKind + metrics per VizConfig, forced-global on crossing/footprint); `SlideFactory` → `RenderableSlide` (resolves scene params, layout, viz list); `viz.id` stable within a scene, distinct across scenes; server-refetch vs client-only control tagging |
 | Store flow | Vue Test Utils | per-scene `sceneState`: entering a scene seeds authored defaults / restores prior state (policy A); server-refetch control → correct `derivationParams` → apiClient call → `dtoCache`; `timeRange` (`dataZoom`) and metric selection do NOT refetch; horizon/domain/baseline DO (then cache hit/dedupe); URL query sync of current scene's params |
-| Deck components | Vue Test Utils | `GenericSlide` renders the layout preset + controls a scene surfaces; charts keyed by `viz.id` (same key 2→3 & 5→6, new key across scene boundary); the 5→6 `duo-viz-text`→`duo-viz-equiv` preset change does **not** remount the `viz.id`-keyed charts (stable `#viz` outlet, ADR-025); horizon='today' hides projection + divider; multiplier appears from slide 3; deferred ranking renders on no slide; `EquivalenceStrip` renders on slide 6 only (4 colour-coded values, unit switcher converts all four, default `car`) |
+| Deck components | Vue Test Utils | `GenericSlide` renders the layout preset + controls a scene surfaces; charts keyed by `viz.id` (same key 2→3 & 5→6, new key across scene boundary); the 5→6 `duo-viz-text`→`duo-viz-equiv` preset change does **not** remount the `viz.id`-keyed charts (stable `#viz` outlet, ADR-025); horizon='today' hides projection + divider; multiplier appears from slide 3; `EquivalenceStrip` renders on slide 6 only (4 colour-coded values, unit switcher converts all four, default `car`) |
 
 Fixtures for the adapter are captured during the live spike (business §10).
 
@@ -1101,9 +1083,9 @@ Every new element checked against the earlier documents; conflicts resolved for 
     Projection is a **per-domain linear-trend extrapolation** of each cleared-area series
     (`stats.projectSeries`, slope over ~9 measured years, clamp ≥ 0) applied **before** `× R_domain`
     and aggregation — *not* one fit on the pre-aggregated series — because `R` and the trend differ
-    per domain, which is exactly what reshuffles the ranking (`today` → `atHorizon`). All composite
+    per domain. All composite
     scalars (`multiplier`, `referenceYear`, donut, share, equivalence rate) use **measured data
-    only**. **Consistent** — one horizon axis, honest scalars, ranking reshuffle preserved.
+    only**. **Consistent** — one horizon axis, honest scalars.
 
 31. **Dashed "projected future" rendering vs. ECharts single-line dash limitation.**
     *Resolution (§3.2/§11.1/§11.2, UI §4.5, business §2.4a):* ECharts cannot switch one line
@@ -1199,8 +1181,7 @@ interface SlideDef {
 ```
 The six slides map to four scenes: `intro`(text) · `main`(2 slides: reveal) · `crossing` ·
 `footprint`(2 slides: fossil-removal). Copy is **only** i18n keys (ADR-011); `slides.ts` holds no
-prose. The V1 deck stages the **`RankingBumpChart` on no `SlideDef`** (still deferred, business §4.6),
-but the **equivalence panel is restaged on slide 6** as a redesigned `EquivalenceStrip` (ADR-025, §17.4)
+prose. The **equivalence panel is restaged on slide 6** as a redesigned `EquivalenceStrip` (ADR-025, §17.4)
 — it is a **scene widget**, not a `VizConfig` chart, so it lives outside the `visualizations[]` list.
 
 **Footprint scene controls (ADR-025).** Slides 5–6 both carry `controls: ['baseline','horizon']`; the
@@ -1303,7 +1284,6 @@ reads its cumulative-to-today value (never 0).
 | Forgone sink band + σ_total | stats/DTO | §2.2, §3 |
 | Multiplier (always on DTO, badge from slide 3, `fullEmissions ÷ WB stock`, measured data) | DTO/charts, §16.16 | §2.5, §4.2 |
 | Crossing (annual impulse × cumulative level, semantics unchanged) | DTO/charts, §16.32 | §4.3 |
-| Ranking two-column bump (today → chosen horizon) — **deferred from the deck** | `RankingDTO`, §11.2 | §4.3, §4.6 |
 | Fossil share donut + number always-on (no toggle) | UI §6.3 | §4.1 |
 | Equivalence driven by global horizon (committed = rate × horizonYears) | §2.3/§5, UI §6 | §4.4, §2.4 |
 | Slide-6 `EquivalenceStrip` (4 client-derived values, colour-coded; unit switcher car-default; symmetric window `[baseline, horizonTargetYear(horizon)]` with forgone as a true Σ integral, donut + fossil bar share the same window totals) | ADR-025, §17.4, UI §6.7 | §4.5 |

@@ -328,10 +328,7 @@ exactly this. It replaces the old scope×accounting mode matrix.
 | Unit switcher (equivalence) | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
 | Forgone-sink layer + band | ✗ | ✗ | ✓ | ✓ | ✓ (as slice) | ✓ (as slice) |
 
-**Deferred from the V1 deck** (built in code, on **no** slide — like the dormant correlation view):
-the **domain-ranking bump** (business §4.6). Its component and endpoint exist; no slide places it. The
-**equivalence panel is no longer deferred** — it is restaged (redesigned) as the slide-6 equivalence
-strip (§6.7, ADR-025).
+The **equivalence panel** is restaged (redesigned) as the slide-6 equivalence strip (§6.7, ADR-025).
 
 ---
 
@@ -405,8 +402,8 @@ finalized in `03-technical-specification.md`.
   `MainStackedChart` (single domain), `GlobalStackedAreaChart` (global aggregate), `CrossingChart`,
   `FootprintDonut` (3-slice → 2-slice), `FossilComparisonChart` (**one grid, two categories**, shared
   Y-scale). Time-series charts render measured solid + a dashed **projection continuation** series per
-  metric, excluded from the legend (§6.4). **Deferred (present, unused on the deck):** `RankingBumpChart`
-  (§8). The former `EquivalencePanel` is **restaged** as the slide-6 `EquivalenceStrip` (§6.7).
+  metric, excluded from the legend (§6.4). The equivalence data is presented by the slide-6
+  `EquivalenceStrip` (§6.7); the old `EquivalencePanel` component has been removed (ADR-025).
 - **Chart base (tier 1):** `BaseChart.vue` wrapping `<VChart>` (autoresize, loading, theme).
 - **State/feedback:** `LoadingSkeleton`, `DataGapNote`, `EmptyState`, `ErrorRetry`.
 - **Formatting:** an injected `Formatter` (abstract base + V1 `CompactNumberFormatter`: `3.2M`,
@@ -440,7 +437,6 @@ scene/shell parents (ADR-007/009). No component fetches or stores data locally.
   crossing rendering, the donut (3→2 slice) and the one-grid-two-category defo-vs-fossil bar, and the
   exact styling of the dashed projection + join-year divider (§6.4).
 - The progress indicator's exact form and the scroll-vs-buttons emphasis.
-- Whether/when to add deck slides for the **deferred** ranking and equivalence visualisations (§8),
-  and for the dormant correlation view.
+- Whether/when to add a deck slide for the dormant correlation view.
 - The local **"side by side" stock-vs-forgone variant** of the domain chart (deferred from V1; the
   main chart ships stacked-only).

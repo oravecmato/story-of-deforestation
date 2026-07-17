@@ -3,7 +3,6 @@ import type {
   DerivationParams,
   DomainResultDTO,
   GlobalResultDTO,
-  RankingDTO,
   ReferenceDTO,
   EquivalenceDTO,
 } from '../../shared/types'
@@ -23,7 +22,6 @@ export interface StoreError {
 export interface ApiClient {
   domain(params: DerivationParams): Promise<DomainResultDTO>
   global(params: DerivationParams): Promise<GlobalResultDTO>
-  ranking(params: DerivationParams): Promise<RankingDTO>
   reference(params: DerivationParams): Promise<ReferenceDTO>
   equivalence(params: DerivationParams, locale: string): Promise<EquivalenceDTO>
 }
@@ -49,7 +47,6 @@ export function createApiClient(http: AxiosInstance): ApiClient {
   return {
     domain: (p) => get<DomainResultDTO>(`/api/domain/${p.domainId}`, paramsToQuery(p)),
     global: (p) => get<GlobalResultDTO>('/api/global', paramsToQuery(p)),
-    ranking: (p) => get<RankingDTO>('/api/ranking', paramsToQuery(p)),
     reference: (p) => get<ReferenceDTO>('/api/reference', paramsToQuery(p)),
     equivalence: (p, locale) =>
       get<EquivalenceDTO>('/api/equivalence', { ...paramsToQuery(p), locale }),

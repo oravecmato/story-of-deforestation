@@ -6,7 +6,6 @@ import type {
   DerivationParams,
   DomainResultDTO,
   GlobalResultDTO,
-  RankingDTO,
   ReferenceDTO,
   ThemeTokens,
 } from '../shared/types'
@@ -16,7 +15,6 @@ import { PROJECTED_SUFFIX } from '../app/charts/BaseChartOption'
 import { MainStackedOption } from '../app/charts/MainStackedOption'
 import { GlobalStackedAreaOption } from '../app/charts/GlobalStackedAreaOption'
 import { CrossingOption, type CrossingInput } from '../app/charts/CrossingOption'
-import { RankingBumpOption } from '../app/charts/RankingBumpOption'
 import { FootprintDonutOption } from '../app/charts/FootprintDonutOption'
 import { FossilComparisonOption } from '../app/charts/FossilComparisonOption'
 
@@ -237,34 +235,6 @@ describe('CrossingOption', () => {
     const s = seriesOf(new CrossingOption(input, ctx()).build())
     const stock = s.find((x) => x.name === 'series.stock')!
     expect(stock.markLine).toBeUndefined()
-  })
-})
-
-// --- RankingBumpOption ------------------------------------------------------
-
-describe('RankingBumpOption', () => {
-  const dto: RankingDTO = {
-    params: globalParams,
-    referenceYear: 2001,
-    today: [
-      { domainId: 'amazon', value: 100, rank: 1 },
-      { domainId: 'congo', value: 50, rank: 2 },
-    ],
-    atHorizon: [
-      { domainId: 'congo', value: 120, rank: 1 },
-      { domainId: 'amazon', value: 110, rank: 2 },
-    ],
-  }
-
-  it('one line per domain connecting today → atHorizon rank; inverse Y capped at domain count', () => {
-    const opt = new RankingBumpOption(dto, ctx()).build()
-    const s = seriesOf(opt)
-    expect(s).toHaveLength(2)
-    const amazon = s.find((x) => x.name === 'domain.amazon')!
-    expect(amazon.data).toEqual([[0, 1], [1, 2]])
-    const y = opt.yAxis as unknown as AxisLike
-    expect(y.inverse).toBe(true)
-    expect(y.max).toBe(2)
   })
 })
 

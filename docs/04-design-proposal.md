@@ -239,9 +239,6 @@ the crossing.
 - **Crossing marker:** thin accent vertical guide + a small accent dot where the annual stock impulse
   and the cumulative forgone-sink level cross; label in `text.mid`. The extended horizon is what gives
   the chart enough span to reach the crossing (which may sit in the projected tail).
-- **Ranking bump** *(deferred from the V1 deck — built, on no slide, business §4.6)*: two category
-  columns (`today` → chosen horizon), one line per domain in its stock green tint, rank labels
-  `text.mid`.
 - **dataZoom:** slider (bottom, minimal, accent handles) + inside; a "reset to full range" affordance;
   time range is **per-scene** and resets on scene entry. Pure client view, distinct from the horizon —
   no refetch (ADR-005/023).
@@ -311,8 +308,6 @@ remount — tech spec §11.4/§17.3, ADR-022):
   (2→3) and fossil-removal/zoom-in (5→6) — §7/§8. The fossil-comparison bar is restructured to **one
   grid, two categories** to enable the 5→6 animation (§7).
 - **Multiplier badge** now **appears from slide 3** (the reveal), not always-on (§5/§6).
-- **Ranking bump is DEFERRED** from the V1 deck (built, on no slide — business §4.6); its styling notes
-  are retained for a later deck.
 
 **Resolved (iteration 5 — slide-6 insight restage, ADR-025):**
 - **Fourth layout preset `duo-viz-equiv`** for slide 6 (§5.1): caption · controls · duo-viz · full-width

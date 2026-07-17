@@ -233,8 +233,7 @@ export function cumulativeLoss(area: Series, baseline: number): Series {
  * where measurement ends, no step at the join year) and clamped ≥ 0. Appended points carry
  * `source: 'projected'`; the returned meta's `projectedFrom` = last measured year — the join year the
  * charts split (solid → dashed) at. `targetYear ≤ last measured year` returns the series unchanged
- * (`projectedFrom = null`). Applied PER DOMAIN before `× R` and aggregation so per-domain slope/R
- * differences reshuffle the ranking.
+ * (`projectedFrom = null`). Applied PER DOMAIN before `× R` and aggregation.
  */
 export function projectSeries(series: Series, targetYear: number, lookback = 9): Series {
   const measured = series.points.filter((p) => p.value != null)
@@ -404,15 +403,6 @@ export function aggregateForgoneSink(perDomain: BandSeries[]): BandSeries {
 /** Share of a total footprint as a percentage. NaN if the denominator is 0 (business §4.3). */
 export function sharePercent(numerator: number, denominator: number): number {
   return denominator === 0 ? NaN : (numerator / denominator) * 100
-}
-
-/** Rank domains by value, descending; rank 1 = largest (business §4.3, panel 2). */
-export function domainRanking(
-  values: Array<{ domainId: string; value: number }>,
-): Array<{ domainId: string; value: number; rank: number }> {
-  return [...values]
-    .sort((a, b) => b.value - a.value)
-    .map((v, i) => ({ domainId: v.domainId, value: v.value, rank: i + 1 }))
 }
 
 // ── equivalence (business §4.4; forward-committed presets) ───────────────────────────────────────

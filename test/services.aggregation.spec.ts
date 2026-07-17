@@ -109,7 +109,7 @@ describe('AggregationService.domainResult', () => {
   })
 })
 
-describe('AggregationService.globalResult & ranking', () => {
+describe('AggregationService.globalResult', () => {
   it('global: stacked per-domain stock + aggregate band + full family + multiplier', async () => {
     const { agg } = makeAgg()
     const dto = await agg.globalResult({ ...base, scope: 'global' })
@@ -119,13 +119,6 @@ describe('AggregationService.globalResult & ranking', () => {
     expect(dto.aggregateFullEmissions).toBeDefined()
     expect(dto.aggregateStock).toBeDefined()
     expect(dto.multiplier).toBeGreaterThanOrEqual(1)
-  })
-
-  it('ranking: today + atHorizon ranks, rank 1 present in each', async () => {
-    const { agg } = makeAgg()
-    const dto = await agg.ranking({ ...base, scope: 'global' })
-    expect(dto.today.map((r) => r.rank)).toContain(1)
-    expect(dto.atHorizon.map((r) => r.rank)).toContain(1)
   })
 })
 

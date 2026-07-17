@@ -3,8 +3,8 @@ import type { SlideDef } from '../../shared/types'
 // The authored story deck (tech-spec §17.1, business §4.7). Six slides across four scenes. Copy is
 // i18n keys only. Sibling slides in a scene share `viz.id`s so the reveal (2→3) and the zoom (5→6)
 // animate in place. `params` seeds a scene's authored defaults on first entry; `forced` overrides are
-// immutable (crossing/footprint are global-only). The ranking bump + equivalence panel are DEFERRED
-// (business §4.6): built in code, on no slide.
+// immutable (crossing/footprint are global-only). The equivalence data is restaged as the slide-6
+// `EquivalenceStrip` (ADR-025).
 
 export const SLIDES: readonly SlideDef[] = [
   // 1 — intro: pure text framing, no visualisation.

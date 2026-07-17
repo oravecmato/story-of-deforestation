@@ -117,7 +117,7 @@ measured data); every other category extends the window into the future by that 
 
 **Why the app must project.** Measured series end ~2022 (§7.1). The crossing panel (§4.3, panel 3)
 cannot show its point — the moment the accumulating forgone sink overtakes the one-off stock
-release — inside such a short measured window; the multiplier and the ranking are likewise more
+release — inside such a short measured window; the multiplier is likewise more
 telling over a longer horizon. So beyond the last measured year the app draws a **forward
 projection** ("committed future"): visualisations need *some* future values to make the point, and
 these are clearly-labelled, visually-distinct estimates, never presented as measured data.
@@ -126,8 +126,7 @@ these are clearly-labelled, visually-distinct estimates, never presented as meas
 - **Per domain, not on the aggregate.** Each domain's cleared-area series is extrapolated on its
   own, because each domain has its own `R` (§6) and its own trajectory; the projected domains are
   then summed with the same aggregation as measured data (§3). A single trend fitted to the
-  pre-aggregated series would freeze today's domain mix and is therefore wrong for the forgone sink
-  (and it is exactly the per-domain divergence that makes the ranking reshuffle, §4.3, panel 2).
+  pre-aggregated series would freeze today's domain mix and is therefore wrong for the forgone sink.
 - **Linear trend from the recent past.** The projection is a linear extrapolation of the last
   ~10 measured years (recent mean + fitted slope), clamped to non-negative area loss. It carries
   forward the current pace *and* its direction (accelerating or declining deforestation). From the
@@ -140,8 +139,7 @@ these are clearly-labelled, visually-distinct estimates, never presented as meas
 
 The projection does not change any *scalar* computed on measured data: the multiplier, the
 equivalence base and the footprint donut are still evaluated at the measured **reference year**
-(§7.1a). The horizon extends the *time-series* charts, the crossing point, and the ranking's
-"at-horizon" column.
+(§7.1a). The horizon extends the *time-series* charts and the crossing point.
 
 ### 2.5 Composite quantity "full emissions"
 
@@ -170,8 +168,8 @@ layer and the denominator of the multiplier (§2.5) — only as a separate *mode
 
 What the horizon changes and does not change:
 - **Magnitude-based** things move strongly with the horizon: the crossing year and the shape of the
-  projected series grow/shift as the window lengthens (and, in the dormant ranking/equivalence, so do
-  those values, §4.6). The horizon lives in the `main` scene (§4.3) and its projection feeds the
+  projected series grow/shift as the window lengthens (as do the slide-6 equivalence-strip figures,
+  §4.5a). The horizon lives in the `main` scene (§4.3) and its projection feeds the
   crossing scene (§4.4) — magnitude-based by design.
 - **Shape/correlational** things are blind to it: Pearson `r` is invariant to the horizon just as it
   was invariant to the old switch (the forgone-sink increment is nearly collinear with the stock —
@@ -210,7 +208,7 @@ cross country borders; countries are an internal aggregation detail, invisible i
 
 A second, independent axis is the **time horizon** (§2.4a): the upper edge of the window — *today*
 or a projected *+20 / +30 / +50 / +75 / +100 y* — set by the horizon selector, the app's signature
-control. It changes magnitudes (crossing, multiplier, ranking, equivalence), never the identity of
+control. It changes magnitudes (crossing, multiplier, equivalence), never the identity of
 a domain.
 
 ### Global sum and uncertainty aggregation
@@ -334,8 +332,8 @@ rising, §2.3); in year **N** the rising forgone sink overtakes the stock. That 
 measured window, so it is only visible once the series runs far enough into the projection — hence the
 scene exposes the **time-range** zoom (to frame the crossing) and the **baseline** control. The
 **domain control disappears and the data is forced to the global aggregate** — a single crossing for
-the whole tropical belt is the honest, legible framing (a per-domain crossing race is deferred with
-the ranking, §4.6). Below the chart, one full-width text block describes what the crossing means.
+the whole tropical belt is the honest, legible framing (a per-domain crossing race is out of scope for
+V1). Below the chart, one full-width text block describes what the crossing means.
 
 ### 4.5 Slides 5–6 — The footprint (scene `footprint`)
 
@@ -392,12 +390,6 @@ window) plus the car/country factors — no new server call beyond the two contr
 
 ### 4.6 What the V1 deck does not stage (and scope)
 
-- **Domain ranking bump** (old §4.3 panel 2) is **not part of the six-slide deck.** Its service +
-  chart-option class exist in code; it is **deferred from the V1 deck** (built, unused — like the
-  dormant correlation view, §2.7), not deleted. Its resolved parameters are preserved so a later deck
-  can add a slide for it:
-  - *Ranking (dormant):* two-column bump `today → chosen horizon`; per-domain reshuffle driven by each
-    domain's `R` + trajectory.
 - **The equivalence panel is no longer deferred** — it is **restaged and redesigned as the slide-6
   equivalence strip** (§4.5a). Its resolved config carries over unchanged: car factor
   `carAnnualTonsCO2 = 4.6` t CO₂/yr (US EPA "typical passenger vehicle," EPA-420-F-18-008); reference
@@ -636,7 +628,7 @@ Pure, composable functions (series in → series out), a uniform point shape
 - Derived series: `forgoneSink_domain = R_domain × cumulative(area losses of domain)`,
   `globalForgoneSink = Σ domains`, `fullEmissions = WB_emissions + forgoneSink`.
 - Uncertainty aggregation: `σ_total = √Σ σ_domain²`.
-- Magnitude computations for the panels: share of footprint, domain ranking, the year of the
+- Magnitude computations for the panels: share of footprint, the year of the
   stock × forgone-sink crossing, equivalence conversions (annual rate + cumulative over a window).
 
 Robustness (for the optional correlation view): take a signal seriously only if it survives both
@@ -666,8 +658,7 @@ Robustness (for the optional correlation view): take a signal seriously only if 
   fetch nothing.
 - **Indicative endpoints:** `/api/domain/{id}` (area, stock, forgone sink, full emissions, incl. the
   projection to the requested horizon), `/api/global` (sum across domains + aggregate band),
-  `/api/ranking` (domain ranking today and at the chosen horizon), `/api/reference` (global fossil
-  bar). Each takes the `R` scenario and the horizon as parameters.
+  `/api/reference` (global fossil bar). Each takes the `R` scenario and the horizon as parameters.
 - **Deploy:** Vercel (Nitro `vercel` preset).
 
 ---
@@ -718,9 +709,7 @@ across 2–3 domains including the aggregate band.
   forgone sink); the defo-vs-fossil chart is **one grid, two categories** (for the 5→6 animation).
   **Footprint slides 5–6 share `baseline` + `horizon`; slide 6 adds a caption + a redesigned
   equivalence strip** (four colour-coded figures + unit switcher, §4.5a).
-- **Deferred from the V1 deck (built in code, no slide):** the **domain-ranking bump** (§4.6; resolved
-  today→horizon params preserved for a later deck, like the dormant correlation view). The
-  **equivalence panel is no longer deferred** — restaged as the slide-6 strip (§4.5a), reusing its
+- **The equivalence panel is no longer deferred** — restaged as the slide-6 strip (§4.5a), reusing its
   resolved config (car factor 4.6, locale-driven reference country).
 - Composite scalars use a single **reference year** = min common `latestDataYear`, on measured data
   only, always shown (§7.1a). The projection (§2.4a) extends only the time-series/crossing charts.
@@ -753,14 +742,13 @@ across 2–3 domains including the aggregate band.
   calendar year; per-domain linear-trend projection (last ~9–10 measured years, clamped ≥ 0);
   projected data rendered dashed with a join-year divider. Documented **defaults, flagged
   revisable:** (a) the multiplier stays a scalar at the reference year — not horizon-reactive in V1;
-  (b) the ranking bump ranks each domain's full impact **accumulated over the window to each
-  column's year** (annual-at-horizon is the alternative); (c) the uncertainty band is carried
-  forward by the same `R` interval, **not** additionally widened with projection distance; (d) the
+  (b) the uncertainty band is carried
+  forward by the same `R` interval, **not** additionally widened with projection distance; (c) the
   visual separation of "measured-but-estimated" (forgone, already dashed) from "projected" data is a
   join-year divider + a lighter dashed projection — exact styling lives in the design doc.
 - **Exact shape** of the stacked area and aggregate band (global), the domain stacked chart, the
   crossing chart, and the donut + defo-vs-fossil bar — the visual/layout detail lives in the UI and
-  design docs (02, 04). The bump chart's shape is dormant with the ranking (§4.6).
+  design docs (02, 04).
 - **Whether to include the optional correlation view** at all before a future version (deferred
   from V1, kept dormant).
 - **Local "side by side" stock-vs-forgone variant** of the domain chart — **deferred** from V1
