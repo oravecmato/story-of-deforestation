@@ -29,7 +29,7 @@ const THEME: ThemeTokens = {
   border: '#2A313B',
   text: { hi: '#E8ECF2', mid: '#A7B0BD', low: '#6E7681' },
   accent: '#3FB6A8',
-  data: { stock: '#5FBE6E', forgoneSink: '#E8A13A', fossil: '#5B6B7F' },
+  data: { stock: '#5FBE6E', forgoneSink: '#E8A13A', fossil: '#5B6B7F', total: '#CE5B4E' },
   bandOpacity: 0.18,
   negative: '#E5534B',
 }
@@ -41,6 +41,7 @@ function ctx(over: Partial<ChartContext> = {}): ChartContext {
     formatter: new CompactNumberFormatter(),
     breakpoint: 'lg',
     horizon: 'today',
+    baseline: 2015,
     rScenario: 'mid',
     timeRange: null,
     ...over,
@@ -76,7 +77,7 @@ interface AnySeries {
   data?: unknown[]
   lineStyle?: { type?: string; color?: string; opacity?: number }
   areaStyle?: { color?: string }
-  markLine?: { data?: Array<{ xAxis?: number }> }
+  markLine?: { data?: Array<{ xAxis?: number }>; label?: { formatter?: (p: { value: unknown }) => string } }
   markPoint?: { data?: unknown[] }
 }
 const seriesOf = (o: EChartsOption): AnySeries[] => o.series as unknown as AnySeries[]
@@ -133,6 +134,23 @@ describe('MainStackedOption', () => {
     expect(area.markLine?.data?.[0]?.xAxis).toBe(Date.UTC(2001, 0, 1))
   })
 
+  it('stock-only presentation (slide 2) → stock area + top-edge only; no forgone/band; legend = stock', () => {
+    const o = new MainStackedOption(dto(), ctx(), { metrics: ['stock'] }).build()
+    const s = seriesOf(o)
+    expect(s.find((x) => x.name === 'series.forgoneSink')).toBeUndefined()
+    expect(s.find((x) => x.name === '__bandUpper')).toBeUndefined()
+    expect(s.find((x) => x.name === '__bandLower')).toBeUndefined()
+    // stock area + stock top-edge
+    expect(s).toHaveLength(2)
+    expect((o.legend as { data?: string[] }).data).toEqual(['series.stock'])
+  })
+
+  it('+forgone presentation (slide 3) → full reveal (6 series) + legend gains forgone', () => {
+    const o = new MainStackedOption(dto(), ctx(), { metrics: ['stock', 'forgoneSink'] }).build()
+    expect(seriesOf(o)).toHaveLength(6)
+    expect((o.legend as { data?: string[] }).data).toEqual(['series.stock', 'series.forgoneSink'])
+  })
+
   it('is zoomable → embeds inside + slider dataZoom; timeRange seeds start/endValue', () => {
     const o = new MainStackedOption(dto(), ctx({ timeRange: [2005, 2015] })).build()
     const dz = o.dataZoom as Array<{ type?: string; startValue?: number; endValue?: number; filterMode?: string }>
@@ -178,6 +196,18 @@ describe('GlobalStackedAreaOption', () => {
     const lo = s.find((x) => x.name === '__bandLower')!
     expect(lo.data?.[0]).toEqual([Date.UTC(2001, 0, 1), 35]) // aggregateStock(30) + forgone.lower(5)
   })
+
+  it('stock-only presentation (main scene, slide 2 global) → domain layers + top-edge; no forgone/band', () => {
+    const o = new GlobalStackedAreaOption(dto(), ctx(), { metrics: ['stock'] }).build()
+    const s = seriesOf(o)
+    expect(s.find((x) => x.name === 'series.forgoneSink')).toBeUndefined()
+    expect(s.find((x) => x.name === '__bandUpper')).toBeUndefined()
+    // 2 domain areas + one solid total top-edge
+    expect(s).toHaveLength(3)
+    const edge = s.find((x) => x.name === PROJECTED_SUFFIX + 'total')!
+    expect(edge.lineStyle?.type).toBe('solid')
+    expect((o.legend as { data?: string[] }).data).toEqual(['stock:amazon', 'stock:congo'])
+  })
 })
 
 // --- CrossingOption ---------------------------------------------------------
@@ -192,6 +222,8 @@ describe('CrossingOption', () => {
     const s = seriesOf(new CrossingOption(input, ctx()).build())
     const stock = s.find((x) => x.name === 'series.stock')!
     expect(stock.markLine?.data?.[0]?.xAxis).toBe(Date.UTC(2001, 0, 1))
+    // the guide label reads the year, not the raw epoch-ms of the time axis
+    expect(stock.markLine?.label?.formatter?.({ value: Date.UTC(2001, 0, 1) })).toBe('2001')
     const forgone = s.find((x) => x.name === 'series.forgoneSink')!
     expect(forgone.markPoint?.data).toHaveLength(1)
   })
@@ -239,57 +271,111 @@ describe('RankingBumpOption', () => {
 // --- FootprintDonutOption ---------------------------------------------------
 
 describe('FootprintDonutOption', () => {
-  const dto = (): ReferenceDTO => ({
+  // Symmetric window [baseline 2015, horizonTargetYear('20y') = 2046] (ADR-025). Every slice is a TRUE
+  // finite integral Σ over the window (§17.4, business §2.4 #2): stock/fossil AND forgone summed over
+  // the window (pre-baseline points excluded). Stock Σ = 30, fossil Σ = 180, forgone Σ = 100.
+  const main = (): GlobalResultDTO => ({
     params: globalParams,
-    referenceYear: 2001,
-    fossilTotal: series('fossil', [[2001, 200]]),
+    referenceYear: 2020,
+    perDomainStock: [],
+    perDomainForgoneSink: [],
+    // 2010 falls before the baseline → excluded; 2015+2020+2046 in-window → Σ = 30.
+    aggregateStock: series('stock:global', [[2010, 999], [2015, 5], [2020, 10], [2046, 15]]),
+    // forgone band mid 2015..2046 → 20+30+50 = 100 (a TRUE Σ, not rate × years).
+    aggregateForgoneSink: band('agg', [[2015, 15, 20, 25], [2020, 25, 30, 35], [2046, 45, 50, 55]]),
+    aggregateFullEmissions: series('aggFull', [[2020, 50]]),
+    multiplier: 1.6,
+    crossingYear: null,
+  })
+  const reference = (): ReferenceDTO => ({
+    params: globalParams,
+    referenceYear: 2020,
+    // 2010 pre-baseline → excluded; 2015+2020+2046 in-window → Σ = 180.
+    fossilTotal: series('fossil', [[2010, 999], [2015, 50], [2020, 60], [2046, 70]]),
     sharePercent: 8,
-    composition: { fossil: 200, stock: 10, forgoneSink: 6 },
+    composition: { fossil: 180, stock: 30, forgoneSink: 100 },
+  })
+  const data = () => ({ reference: reference(), main: main() })
+
+  it('full set (slide 5) → 3 slices (fossil, stock, forgone sink) as window totals', () => {
+    const s = seriesOf(new FootprintDonutOption(data(), ctx({ horizon: '20y' })).build())
+    expect(s[0]!.type).toBe('pie')
+    const slices = s[0]!.data as Array<{ name: string; value: number }>
+    expect(slices.map((d) => d.value)).toEqual([180, 30, 100]) // fossil Σ, stock Σ, forgone Σ
   })
 
-  it('always 3 slices (fossil, stock, forgone sink)', () => {
-    const s = seriesOf(new FootprintDonutOption(dto(), ctx()).build())
-    expect(s[0]!.type).toBe('pie')
-    expect(s[0]!.data).toHaveLength(3)
+  it('fossil removed (slide 6) → 2 deforestation slices (stock + forgone sink)', () => {
+    const s = seriesOf(
+      new FootprintDonutOption(data(), ctx({ horizon: '20y' }), {
+        metrics: ['stock', 'forgoneSink'],
+      }).build(),
+    )
+    const slices = s[0]!.data as Array<{ name: string; value: number }>
+    expect(slices.map((d) => d.name)).toEqual(['series.stock', 'series.forgoneSink'])
+    expect(slices.map((d) => d.value)).toEqual([30, 100])
   })
 })
 
 // --- FossilComparisonOption -------------------------------------------------
 
 describe('FossilComparisonOption', () => {
+  // Symmetric window [baseline 2015, horizonTargetYear('20y') = 2046] (ADR-025). All three magnitudes
+  // are TRUE finite integrals Σ over the window (§17.4, business §2.4 #2): stock Σ = 30, fossil Σ =
+  // 180, forgone Σ = 100.
   const main: GlobalResultDTO = {
     params: globalParams,
-    referenceYear: 2001,
-    perDomainStock: [series('stock:amazon', [[2001, 10]]), series('stock:congo', [[2001, 20]])],
-    perDomainForgoneSink: [series('fs:amazon', [[2001, 3]]), series('fs:congo', [[2001, 4]])],
-    aggregateStock: series('stock:global', [[2001, 30]]),
-    aggregateForgoneSink: band('agg', [[2001, 5, 8, 11]]),
-    aggregateFullEmissions: series('aggFull', [[2001, 50]]),
+    referenceYear: 2020,
+    perDomainStock: [],
+    perDomainForgoneSink: [],
+    aggregateStock: series('stock:global', [[2010, 999], [2015, 5], [2020, 10], [2046, 15]]),
+    aggregateForgoneSink: band('agg', [[2015, 15, 20, 25], [2020, 25, 30, 35], [2046, 45, 50, 55]]),
+    aggregateFullEmissions: series('aggFull', [[2020, 50]]),
     multiplier: 1.6,
     crossingYear: null,
   }
   const reference: ReferenceDTO = {
     params: globalParams,
-    referenceYear: 2001,
-    fossilTotal: series('fossil', [[2001, 200]]),
+    referenceYear: 2020,
+    fossilTotal: series('fossil', [[2010, 999], [2015, 50], [2020, 60], [2046, 70]]),
     sharePercent: 25,
-    composition: { fossil: 200, stock: 30, forgoneSink: 20 },
+    composition: { fossil: 180, stock: 30, forgoneSink: 100 },
   }
 
-  it('deforestation bar = aggregateFullEmissions@refYear; two bars on paired grids', () => {
-    const opt = new FossilComparisonOption({ reference, main }, ctx()).build()
+  it('slide 5 (fossil present) → deforestation stacked (stock+forgone) + fossil bar; two categories, axis dominated by fossil', () => {
+    const opt = new FossilComparisonOption({ reference, main }, ctx({ horizon: '20y' })).build()
     const s = seriesOf(opt)
-    expect(s).toHaveLength(2)
-    expect(s[0]!.data).toEqual([50])
-    expect(s[1]!.data).toEqual([200])
+    expect(s).toHaveLength(3)
+    const stockBar = s.find((x) => x.name === 'series.stock')!
+    const forgoneBar = s.find((x) => x.name === 'series.forgoneSink')!
+    const fossilBar = s.find((x) => x.name === 'series.fossil')!
+    expect(stockBar.stack).toBe('defo')
+    expect(forgoneBar.stack).toBe('defo')
+    expect(stockBar.data).toEqual([30, null]) // stock Σ over window, fossil slot null
+    expect(forgoneBar.data).toEqual([100, null]) // forgone Σ over window
+    expect(fossilBar.stack).toBeUndefined()
+    expect(fossilBar.data).toEqual([null, 180]) // fossil Σ over window
+    const x = opt.xAxis as unknown as { data?: string[] }
+    expect(x.data).toEqual(['fossil.deforestation', 'fossil.fossil'])
+    const y = opt.yAxis as unknown as AxisLike
+    expect(y.max).toBe(200) // dominated by fossil 180 → nice 200
+    expect(y.interval).toBe(50)
   })
 
-  it('both Y axes share one nice max + interval (overriding auto-scale)', () => {
-    const opt = new FossilComparisonOption({ reference, main }, ctx()).build()
-    const [left, right] = opt.yAxis as unknown as AxisLike[]
-    expect(left!.max).toBe(200)
-    expect(left!.interval).toBe(50)
-    expect(right!.max).toBe(left!.max)
-    expect(right!.interval).toBe(left!.interval)
+  it('slide 6 (fossil removed) → only the deforestation category; single Y-axis rescales to its range', () => {
+    const opt = new FossilComparisonOption(
+      { reference, main },
+      ctx({ horizon: '20y' }),
+      { metrics: ['stock', 'forgoneSink'] },
+    ).build()
+    const s = seriesOf(opt)
+    expect(s).toHaveLength(2)
+    expect(s.find((x) => x.name === 'series.fossil')).toBeUndefined()
+    expect(s.find((x) => x.name === 'series.stock')!.data).toEqual([30])
+    expect(s.find((x) => x.name === 'series.forgoneSink')!.data).toEqual([100])
+    const x = opt.xAxis as unknown as { data?: string[] }
+    expect(x.data).toEqual(['fossil.deforestation'])
+    const y = opt.yAxis as unknown as AxisLike
+    expect(y.max).toBe(150) // rescaled from 200 → deforestation total 130 → nice 150
+    expect(y.interval).toBe(50)
   })
 })

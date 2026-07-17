@@ -16,8 +16,10 @@ code is written this round.
 
 ```
                  ┌──────────────────────────── Browser (SSR-hydrated SPA) ────────────────────────────┐
+                 │  StoryPage (/story/:slug, persistent) → SlideFactory(SlideDef+sceneState+DTO)         │
+                 │        │  → GenericSlide → SlideLayout (text | viz-text | duo-viz-text)               │
                  │  Vue 3 components (dumb)  ← props ─ Pinia getters ← Pinia state ← Pinia actions      │
-                 │        │              typed props + useChartContext → BaseChartOption                    │
+                 │        │              typed props + useChartContext → BaseChartOption(metrics)           │
                  │        │ intents (actions)                 │            │ Option                       │
                  │        ▼                                   ▼            ▼                              │
                  │  client Axios instance ───────────────► BaseChart.vue (<VChart>, client-only)         │
@@ -39,10 +41,14 @@ code is written this round.
 - Components never fetch or hold data (ADR-003); they read Pinia and emit intents.
 - The store never talks to World Bank; only to our BFF via client Axios (ADR-004/008).
 - Chart-option classes are pure; data is injected via constructor from a chart component's typed
-  props + the `useChartContext` bundle (ADR-007/009).
+  props + the `useChartContext` bundle + the slide's **metric selection** (ADR-007/009/024).
 - Services depend on the adapter *interface*, not a concrete adapter (ADR-008/009).
 - The statistics module is pure and isomorphic; it runs on the server (single authoritative
   derivation path, ADR-005).
+- **The story deck (slides/scenes) is a frontend-only presentation layer (ADR-021):** authored
+  `SlideDef[]` config + a `SlideFactory` + generic slide components. It selects *which metrics* each
+  visualisation shows (a client-side presentation transform over the fetched DTO) and never adds a
+  server route, DTO or param. The server does not know slides exist. See §17.
 
 ---
 
@@ -53,30 +59,36 @@ code is written this round.
 ├─ nuxt.config.ts                 # modules, i18n, primevue, nuxt-echarts, nitro preset
 ├─ app.config.ts                  # theme tokens (shared with ECharts), runtime UI config
 ├─ app/
+│  ├─ pages/
+│  │  └─ story/[slug].vue          # the ONE persistent StoryPage route (does NOT remount; ADR-023)
+│  ├─ story/                       # story deck config + factory (frontend-only, ADR-021)
+│  │  ├─ slides.ts                 # authored SlideDef[] (6 slides, 4 scenes) — i18n keys, no copy
+│  │  └─ SlideFactory.ts           # SlideDef + sceneState + DTO(s) → RenderableSlide
 │  ├─ components/
-│  │  ├─ shell/                    # AppHeader, ControlPanel, MainCanvas, MagnitudePanels, ...
-│  │  ├─ controls/                 # ScopeDomainSelect, HorizonSelect, RScenarioToggle, ...
+│  │  ├─ deck/                     # AppHeader, DeckNav, ProgressIndicator, GenericSlide, SlideLayout,
+│  │  │                            #   SlideHeading, SlideText, MultiplierBadge, MethodologyDisclosure
+│  │  ├─ controls/                 # HorizonSelect, DomainSelect, BaselineControl, TimeRangeZoom
 │  │  └─ charts/
 │  │     ├─ BaseChart.vue          # tier 1: dumb <VChart> wrapper (autoresize, emits timeRange)
-│  │     ├─ MainStackedChart.vue   # tier 2: per-chart components (Pinia-unaware, typed props)
+│  │     ├─ MainStackedChart.vue   # tier 2: per-chart components (Pinia-unaware, typed props+metrics)
 │  │     ├─ GlobalStackedAreaChart.vue
 │  │     ├─ CrossingChart.vue
-│  │     ├─ RankingBumpChart.vue
-│  │     ├─ FossilComparisonChart.vue
-│  │     └─ FootprintDonut.vue
-│  ├─ charts/                      # tier 3: chart-option classes (pure)
+│  │     ├─ FossilComparisonChart.vue   # one grid, two categories (ADR-024)
+│  │     ├─ FootprintDonut.vue
+│  │     └─ RankingBumpChart.vue   # DEFERRED from the deck (built, on no slide — business §4.6)
+│  ├─ charts/                      # tier 3: chart-option classes (pure; take a metrics/presentation arg)
 │  │  ├─ BaseChartOption.ts        # abstract base
 │  │  ├─ MainStackedOption.ts
 │  │  ├─ GlobalStackedAreaOption.ts
 │  │  ├─ CrossingOption.ts
-│  │  ├─ RankingBumpOption.ts
 │  │  ├─ FootprintDonutOption.ts
-│  │  └─ FossilComparisonOption.ts
+│  │  ├─ FossilComparisonOption.ts # one grid, two categories
+│  │  └─ RankingBumpOption.ts      # DEFERRED (built, unused)
 │  ├─ composables/
 │  │  └─ useChartContext.ts        # Pinia-aware ChartContext bundle (i18n+theme+formatter+view)
 │  ├─ stores/                      # Pinia: single source of truth
-│  │  ├─ useViewStore.ts           # control/view state (scope, horizon, R, baseline, timeRange)
-│  │  ├─ useDataStore.ts           # fetched/derived DTOs + param-keyed cache + in-flight map
+│  │  ├─ useViewStore.ts           # per-scene control state: sceneState Map<sceneId,{params,timeRange}> (ADR-023)
+│  │  ├─ useDataStore.ts           # fetched/derived DTOs + param-keyed dtoCache + in-flight map
 │  │  └─ useUiStore.ts             # locale, theme, loading/error UI state
 │  ├─ services/
 │  │  └─ apiClient.ts              # client Axios wrapper exposing typed BFF calls
@@ -213,12 +225,22 @@ defaultReferenceCountry`): `sk` → Slovakia, else → UK. The equivalence UX el
 current language (Pinia), re-resolving the country + `countryEquivalent.times` with no new fetch of
 the deforestation series. Car factor + countries are `revisable` config edits (business §4.4/§12).
 
+**Restaged on slide 6 (ADR-025).** This config is no longer dormant: slide 6's `EquivalenceStrip`
+(§17.4) reuses `carAnnualTonsCO2` and the locale-driven reference-country resolution as the basis of
+its **unit switcher** (`mtco2`/`car`/`country`, default `car`). The strip's four magnitudes are derived
+**client-side** from the footprint scene's global DTO over the symmetric window
+`[baseline, horizonTargetYear(horizon)]` (`sceneWindow(baseline, horizon)`) — the forgone-sink figure a
+TRUE finite integral `Σ` over that window (business §2.4 #2), consistent with stock/fossil — so no
+`EquivalenceDTO` fetch is required for the strip itself.
+
 ### 2.4 Scope / Domain selector config (`scopeSelector.ts`)
 The scope and domain axes stay two independent state variables (`DerivationParams.scope` +
 `domainId`, §3.2). The time horizon (§2.3, §3.2) is the third derivation axis that replaced the old
-official↔full accounting switch — **the data model otherwise unchanged.** The merge is **purely a UI convenience**: one
-dropdown (UI §3/§3.1) rendered from this constant, whose entries are the sole mapping from the
-single control back onto the two variables.
+official↔full accounting switch — **the data model otherwise unchanged.** In the story deck the app
+is **global-first**: only the **main scene** surfaces a `DomainSelect` (the crossing/footprint scenes
+are forced global, §17.1). This constant drives that select — its entries are the sole mapping from
+the single control back onto the two variables (a `Global` entry = `scope:'global'`; a domain entry =
+`scope:'local'` + `domainId`).
 ```ts
 interface ScopeSelectorOption {
   labelKey: string;                       // i18n key — never a literal label
@@ -236,9 +258,10 @@ const SCOPE_SELECTOR_OPTIONS: readonly ScopeSelectorOption[] = [
   { labelKey: 'scope.global',        divider: true,  scope: 'global', domainId: null },  // DEFAULT
 ];
 ```
-`ScopeDomainSelect` (UI §11) renders one item per entry, drawing a delimiter before any entry with
-`divider:true`; the last (Global) entry is the default selection. Selecting an entry copies **both**
-`scope` and `domainId` onto `useViewStore`, which is the only place the two axes are held.
+`DomainSelect` (the main scene's control, UI §5/§11) renders one item per entry, drawing a delimiter
+before any entry with `divider:true`; the Global entry is the deck's default (global-first). Selecting
+an entry copies **both** `scope` and `domainId` onto the **current scene's** params in `useViewStore`
+(§10.1), the only place the two axes are held.
 
 ---
 
@@ -342,10 +365,11 @@ interface EquivalenceDTO {             // GET /api/equivalence
 }
 ```
 **Note.** With the accounting switch removed there is a **single accounting ('full')**; the forgone
-sink, `fullEmissions`, `multiplier` and `crossingYear` are **always present** (business §2.6). The
-`multiplier` (`fullEmissions ÷ WB stock` at the reference year, business §2.5) is **always shown**
-and is **not** horizon-reactive in V1 (computed on measured data — §12 open item). `ReferenceDTO`
-(donut + share %) is fetched in every global-scope view (no fossil-reference toggle — business §4.1).
+sink, `fullEmissions`, `multiplier` and `crossingYear` are **always present on the DTO** (business
+§2.6). The `multiplier` (`fullEmissions ÷ WB stock` at the reference year, business §2.5) is always
+computed and is **not** horizon-reactive in V1 (measured data — §12 open item); the deck **surfaces
+the badge from slide 3** with the forgone-sink reveal (§11.2, UI §6.6). `ReferenceDTO` (donut +
+share %) is fetched in every global-scope view (no fossil-reference toggle — business §4.1).
 
 **Design note (consistency with business §2.5):** all headline quantities that feed magnitude
 panels and equivalences are **annual flows** (Mt CO₂/yr); the forgone sink is the annual deficit
@@ -375,6 +399,17 @@ trend differ per domain, and this is exactly what reshuffles the ranking. The pr
 `meta.projectedFrom = <last measured year>`; composite scalars (`multiplier`, `referenceYear`, donut,
 share, equivalence annual rate) are computed on **measured data only**, never on projected points
 (business §7.1a). `horizon='today'` skips projection entirely (`projectedFrom = null`).
+
+**These DTOs are the deck's whole server contract — unchanged by the story reframe (ADR-021).** The
+story deck (§17) is a **frontend-only presentation layer**: `SlideDef[]`, scenes and slides live in
+`app/story/` and are invisible to the server. Each visualisation names a **metric subset** of the DTO
+it already receives (e.g. slide 2 draws `stock` only; slide 3 adds `forgoneSink`/`fullEmissions` from
+the *same* `DomainResultDTO`; slide 6 pulls `forgoneSink` out of the deforestation bar). Metric
+selection is a **client-side presentation transform** applied by the chart-option class (§11) over a
+DTO the store already holds — it adds **no route, DTO field or `DerivationParams` key**, and never
+triggers a refetch. Only the deck controls tagged *server-refetch* (`domain`, `baseline`, `horizon`)
+change `DerivationParams` and thus the cache key; `timeRange` (ECharts `dataZoom`) and metric
+selection are pure view state (§10.1, ADR-023).
 
 ---
 
@@ -538,13 +573,13 @@ and stubable in tests.
 Thin Nitro handlers: **parse/validate params → cache wrapper → service call → DTO**. All accept
 `DerivationParams` as query params; all are deterministic and cacheable.
 
-| Route | DTO | Applies to (mode matrix) |
+| Route | DTO | Applies to (scene) |
 |---|---|---|
-| `GET /api/domain/[id]` | `DomainResultDTO` | local scope main chart, crossing, multiplier |
-| `GET /api/global` | `GlobalResultDTO` | global scope main chart, crossing, multiplier |
-| `GET /api/ranking` | `RankingDTO` | global ranking reshuffle (today → chosen horizon) |
-| `GET /api/reference` | `ReferenceDTO` | global fossil reference + share-of-footprint |
-| `GET /api/equivalence` | `EquivalenceDTO` | equivalence panel (driven by the global horizon) |
+| `GET /api/domain/[id]` | `DomainResultDTO` | main scene, local domain (main chart, multiplier) |
+| `GET /api/global` | `GlobalResultDTO` | main scene (global) + crossing scene, multiplier |
+| `GET /api/ranking` | `RankingDTO` | ranking reshuffle (today → horizon) — **deferred from deck (§4.6)** |
+| `GET /api/reference` | `ReferenceDTO` | footprint scene: donut + fossil bar + share-of-footprint |
+| `GET /api/equivalence` | `EquivalenceDTO` | equivalence — **not fetched for the slide-6 strip** (its 4 magnitudes are client-derived from the global DTO, §17.4); reused only for the locale-driven reference-country scalar behind the `country` unit |
 
 **Param validation:** reject `baseline < 1990`; require `domainId` when `scope=local`; enumerate
 `horizon` (`today`/`20y`/`30y`/`50y`/`75y`/`100y`) and `rScenario`. Invalid → 400 with a
@@ -559,7 +594,7 @@ change. Every endpoint must therefore be a deterministic function of its query p
 
 **Parallelism / errors (ADR-010):** handlers may resolve several service calls with `Promise.all`;
 partial gaps travel in `meta.gaps`, not as failures. A genuine upstream failure → 502 with a
-retryable localized error; per-endpoint isolation keeps the rest of the composer alive.
+retryable localized error; per-endpoint isolation keeps the rest of the deck alive.
 
 ---
 
@@ -576,74 +611,95 @@ retryable localized error; per-endpoint isolation keeps the rest of the composer
 
 ## 10. Pinia stores (single source of truth, ADR-003)
 
-Three stores; all displayed data lives here; no component-local data.
+Three stores; all displayed data lives here; no component-local data. Because the deck is a single
+persistent route (§17, ADR-023), control/view state is **keyed per scene**, not held as one flat
+current-view — revisiting a scene restores its state (reset policy A), first entry uses the slide's
+authored defaults.
 
-**Preset (opening state, business §4):** `scope='global'`, `horizon='today'`, `rScenario='mid'`,
-`baseline=1990`, `timeRange=null` (full range). Opens at `horizon='today'` (measured data only, no
-projection); pushing the horizon out is the signature interaction that reveals the forward debt.
+**Authored scene defaults (business §4.1):** the *main* scene opens at `scope='global'`,
+`horizon='today'`, `domainId='amazon'` (surfaced control), `rScenario='mid'`, `baseline=1990`,
+`timeRange=null`; the *crossing* and *footprint* scenes are `forced` to `scope='global'`. Opening at
+`horizon='today'` (measured data only, no projection) and pushing the horizon out is the signature
+interaction that reveals the forward debt.
 
-### 10.1 `useViewStore` — control/view state
+### 10.1 `useViewStore` — per-scene control/view state
 ```ts
 type EndpointKey = 'domain' | 'global' | 'ranking' | 'reference' | 'equivalence';
-state: {
-  scope: 'global' | 'local';           // preset 'global'
-  domainId: DomainConfig['id'];        // meaningful only in local
-  horizon: Horizon;                    // preset 'today' — the signature control (replaced accounting)
-  rScenario: 'conservative' | 'mid' | 'high';   // default 'mid'
-  baseline: number;                    // default 1990
+type SceneId = 'intro' | 'main' | 'crossing' | 'footprint';
+
+interface SceneState {
+  params: DerivationParams;            // scope/domainId/horizon/rScenario/baseline for THIS scene
   timeRange: [number, number] | null;  // ECharts dataZoom view-state ONLY — no refetch, no data crop (ADR-005)
 }
-getters: { derivationParams: () => DerivationParams }   // the cache key
+state: {
+  currentScene: SceneId;
+  sceneState: Map<SceneId, SceneState>;   // seeded from authored SlideDef.params/forced on first entry
+}
+getters: {
+  derivationParams: () => DerivationParams;   // = sceneState.get(currentScene).params — the cache key
+  timeRange:        () => [number, number] | null;
+}
+actions: {
+  enterScene(id);                       // set currentScene; seed sceneState from SlideDef if absent (policy A)
+  setControl(key, value);               // mutate current scene's params; server-refetch controls only
+  setTimeRange(range);                  // mutate current scene's timeRange — pure view state, never refetch
+}
 ```
-No `fossilReference` field — the share-of-footprint donut is always shown in global scope (business
-§4.1). No separate `equivalenceHorizon` — the equivalence panel is driven by the same `horizon`
-(business §4.4). Changing any field except `timeRange` produces a new `derivationParams` → the data
-store fetches. `horizon` **is** a refetch trigger (server projects the series): unlike the old
-official↔full toggle (instant client re-layer), pushing the horizon out fetches the projected DTOs
-(then cached — instant on re-select).
+Controls are tagged by **derivation mode** (ADR-021): `domain`, `baseline`, `horizon` are
+*server-refetch* (they change `derivationParams` → the data store fetches); `timeRange` is
+*client-only* (pure view state). There is no `fossilReference`/`equivalenceHorizon` field — the donut
+is always shown in global scope and slide 6's equivalence strip (§17.4) reads `baseline` + `horizon`
+directly (its symmetric window is `[baseline, horizonTargetYear(horizon)]`, `sceneWindow`); its
+**unit** choice is a separate client-only
+view field (`mtco2`/`car`/`country`, default `car`), not a `DerivationParam`. Metric selection
+(stock-only vs +forgone) is **not** stored here: it is authored per-slide in the `VizConfig` (§17)
+and applied as a presentation transform in the option class (§11). Slides 2→3 and 5→6 therefore
+**stay in the same scene with the same `params`** — only the visualisation's metric set changes, so
+the chart animates in place (ADR-022) with no refetch.
 
-**URL sync (ADR-017).** A router-sync layer maps `derivationParams ↔ route.query` (replace, not
-push): on load the store initializes from the query, falling back to the preset for any
-missing/invalid key (validation reuses the server param validation, §8); each derivation change
-rewrites the query. `horizon` **is** in the URL (it is part of `DerivationParams`); only `timeRange`
-stays out (pure view state). Selecting a new scope/domain **resets `timeRange` to `null`** (domains span
-different x-ranges).
+**URL sync (ADR-017/023).** A router-sync layer maps the **current scene's** `derivationParams ↔
+route.query` (replace, not push) plus the active slug: on load the store initializes the scene from
+the query, falling back to authored defaults for any missing/invalid key (validation reuses the
+server param validation, §8); each server-refetch control change rewrites the query. `horizon` **is**
+in the URL (part of `DerivationParams`); `timeRange` stays out (pure view state). Entering a scene
+whose `params` differ **resets that scene's `timeRange` to `null`** (scenes span different x-ranges).
 
 ### 10.2 `useDataStore` — fetched/derived DTOs + caching
 ```ts
 state: {
-  cache: Map<string, DomainResultDTO | GlobalResultDTO | RankingDTO | ReferenceDTO | EquivalenceDTO>;
+  dtoCache: Map<string, DomainResultDTO | GlobalResultDTO | RankingDTO | ReferenceDTO | EquivalenceDTO>;
   inFlight: Map<string, Promise<unknown>>;   // dedupe concurrent identical fetches
   loading: Record<EndpointKey, boolean>;
   errors:  Record<EndpointKey, StoreError | null>;
 }
 actions: {
-  loadForCurrentView();   // reads viewStore.derivationParams, fetches the needed endpoints
-                          // for the current mode matrix IN PARALLEL (Promise.all), deduped.
+  loadForScene(params);   // fetches the endpoints a scene needs IN PARALLEL (Promise.all), deduped.
+  prefetch(params);       // idle-time warm of the next slide's scene params (ADR-023)
 }
 getters: {
-  currentMainResult;      // domain or global DTO for current params
-  currentRanking; currentReference; currentEquivalence;
+  currentMainResult;      // domain or global DTO for current scene's params
+  currentReference; currentEquivalence; currentRanking;   // ranking deferred (§4.6); equivalence restaged on slide 6 (strip §17.4, mostly client-derived from the global DTO)
   multiplier;             // from the DTO
 }
 ```
-**Caching key** = `endpoint + JSON(derivationParams)`. On a control change the action computes the
-key; a cache hit returns instantly (server-authoritative first fetch warmed both caches → instant
-re-select of an already-visited horizon/scope, ADR-005). `inFlight` dedupes simultaneous identical
-requests. The **time-range zoom** only updates
-`viewStore.timeRange`, which is bound to the chart's ECharts `dataZoom`; the series data is untouched
-and nothing refetches.
+**Caching key** = `endpoint + JSON(derivationParams)`. On a scene entry or a server-refetch control
+change the action computes the key; a cache hit returns instantly (server-authoritative first fetch
+warms `dtoCache` → instant re-select of an already-visited horizon/scene, ADR-005). `inFlight`
+dedupes simultaneous identical requests, and `prefetch` warms the next slide's params on idle so
+forward navigation is instant. The **time-range zoom** only updates the current scene's `timeRange`,
+bound to the chart's ECharts `dataZoom`; the series data is untouched and nothing refetches.
 
 ### 10.3 `useUiStore` — locale, theme, presentation
 Locale (SK/EN, synced with `@nuxtjs/i18n`), active theme tokens (**fixed dark in V1** — no
 light-mode toggle, ADR-002), the injected `Formatter` (§11.5), global loading/error surfaces.
 
-**SSR (ADR-001):** stores are per-request; `loadForCurrentView` may run inside `useAsyncData` during
-SSR so the preset data is in the hydration payload; the client rehydrates without a duplicate fetch.
+**SSR (ADR-001):** stores are per-request; `loadForScene` may run inside `useAsyncData` during SSR so
+the first slide's scene data is in the hydration payload; the client rehydrates without a duplicate
+fetch.
 
 ---
 
-## 11. Chart-option class system (ADR-007)
+## 11. Chart-option class system (ADR-007/024)
 
 ### 11.1 Abstract base (`app/charts/BaseChartOption.ts`)
 ```ts
@@ -655,8 +711,17 @@ interface ChartContext {
   horizon: Horizon;                       // drives projection extent + which years are dashed
   rScenario: 'conservative' | 'mid' | 'high';
 }
+// A slide's authored VizConfig (§17) → the presentation transform each option class applies.
+// `metrics` names the DTO-metric subset this visualisation renders; the same DTO drives slide 2
+// (['stock']) and slide 3 (['stock','forgoneSink']) → the option class emits fewer/more series and
+// ECharts animates in place (ADR-022/024). Empty/omitted = the option's default full metric set.
+interface VizPresentation {
+  metrics: string[];                      // e.g. ['stock'] | ['stock','forgoneSink'] | ['deforestation','fossil']
+}
 abstract class BaseChartOption<TData> {
-  constructor(protected data: TData, protected ctx: ChartContext) {}
+  constructor(protected data: TData, protected ctx: ChartContext,
+              protected presentation: VizPresentation) {}
+  protected has(metric: string): boolean; // presentation.metrics gate (empty = show all)
   protected baseGrid(): object;           // shared grid/axis/tooltip/legend scaffolding
   protected themeColors(): string[];      // theme tokens → ECharts palette
   protected axisTypeFor(seriesType: SeriesType): 'value' | 'log' | 'time';
@@ -670,6 +735,10 @@ abstract class BaseChartOption<TData> {
   build(): EChartsOption;                 // assembles baseGrid + buildSeries into a full Option
 }
 ```
+The `presentation` (metric selection) is a **client-side transform** authored per slide (§17) — it
+carries no data and never triggers a refetch; the DTO is unchanged (§3.2). Keeping the *same*
+DTO/`ctx` and varying only `presentation.metrics` is exactly what lets slides 2→3 and 5→6 update via
+`setOption` on a preserved chart instance (ADR-022) instead of remounting.
 Centralizes ECharts boilerplate, theme→color mapping, i18n labels, number/unit formatting, the
 measured-vs-estimate visual distinction (solid stock vs dashed forgone sink + band), the
 **measured-vs-projected split** (a metric is emitted as two series at `meta.projectedFrom` — same
@@ -684,32 +753,41 @@ series** starting at the join year with the same color and stack, `estimateStyle
 opacity. Only the measured series appear in `legend.data` (the projected twins are name-suffixed and
 omitted) so the legend stays clean. This is a **binding contract** with UI §4.5.
 
-### 11.2 Concrete subclasses (one responsibility: data → complete `Option`)
-- **`MainStackedOption`** (local): stock (solid) + forgone-sink (dashed + band), each split into a
-  measured + dashed-lighter projected segment at `projectedFrom` when `horizon !== 'today'`. (The
-  "side by side" stock-vs-forgone variant is **deferred** from V1 — §16, business §12.)
+### 11.2 Concrete subclasses (one responsibility: data + presentation → complete `Option`)
+Each takes the `presentation.metrics` set (§11.1) so the deck can reveal metrics in place:
+- **`MainStackedOption`** (main scene): stock (solid) always; forgone-sink (dashed + band) and the
+  `fullEmissions` framing appear **only when `metrics` includes `forgoneSink`** — this is the whole
+  slide-2→slide-3 reveal (business §4.3, UI §6.1). Each series is split into a measured +
+  dashed-lighter projected segment at `projectedFrom` when `horizon !== 'today'`. Same DTO/`ctx` on
+  both slides → the added series animate in (ADR-022), no remount.
 - **`GlobalStackedAreaOption`**: per-domain stacked area + one aggregate band; each layer split
   measured/projected at its own join year, with a single join-year divider.
-- **`CrossingOption`**: **annual stock impulse** vs **cumulative forgone-sink level** + marked
-  crossing point (semantics unchanged — business §4.3). The extended horizon window is what finally
-  gives it enough span to reach the crossing; the projected tail is dashed-lighter.
-- **`RankingBumpOption`**: **two-column bump chart** — `RankingDTO.today` → `RankingDTO.atHorizon`
-  ranks; the reshuffle is driven by the chosen horizon (business §4.3).
-- **`FootprintDonutOption`**: composition donut of total emissions — **always 3 slices** (fossil,
-  stock, forgone sink); reads `ReferenceDTO.composition`.
-- **`FossilComparisonOption`** (**global only**): two side-by-side bars/columns — total deforestation
-  emissions (stock + forgone sink) vs. global fossil emissions, at the reference year — on a
-  **shared Y-axis** (identical `max` + tick interval). It builds one `Option` with two grids and
-  applies `sharedYAxis()` (below) to both `yAxis`, **overriding** ECharts' per-axis auto-scale so the
-  two panels are visually comparable. Consumes `currentReference` (fossil) + `currentMainResult`
-  (aggregate deforestation).
+- **`CrossingOption`** (crossing scene, global): **annual stock impulse** vs **cumulative
+  forgone-sink level** + marked crossing point (semantics unchanged — business §4.4). The extended
+  horizon window is what finally gives it enough span to reach the crossing; the projected tail is
+  dashed-lighter.
+- **`FootprintDonutOption`** (footprint scene): composition donut. Slide 5 shows **3 slices**
+  (fossil, stock, forgone sink); slide 6 drops `fossil` from `metrics` → the donut animates to the
+  **2 deforestation slices** (stock + forgone sink) and rescales. Reads `ReferenceDTO.composition`.
+- **`FossilComparisonOption`** (footprint scene, **global only**): **one grid, two categories**
+  (`deforestation`, `fossil`) sharing a **single Y-axis** (ADR-024) — restructured from the old
+  two-grid design specifically so slide 6 can animate. Slide 5 draws both category bars (deforestation
+  = stock + forgone sink; fossil at the reference year). Slide 6 drops `fossil` from `metrics` → the
+  fossil bar leaves and the deforestation bar splits its `forgoneSink` out as its own stacked layer
+  (or sibling bar) over `stock`, the shared axis rescaling to the deforestation-only range ("zoom
+  in", UI §6.3). Consumes `currentReference` (fossil) + `currentMainResult` (aggregate deforestation).
+- **`RankingBumpOption`** (**DEFERRED from the V1 deck** — built, on no slide, business §4.6):
+  two-column bump chart `RankingDTO.today → RankingDTO.atHorizon`; reshuffle driven by the horizon.
 
-**Shared-scale helper.** A protected `sharedYAxis(...seriesGroups): { max: number; interval: number }`
-computes a single "nice" maximum and tick interval across all supplied series and is written into
-every `yAxis` of the paired grids (also reusable as a standalone util for any future paired chart).
+**Single-axis rescale.** `FossilComparisonOption` uses one `yAxis` whose `max`/`interval` are derived
+from the **visible** categories via `sharedYAxis()`, so removing `fossil` recomputes the axis to the
+deforestation range (the animated rescale). A protected
+`sharedYAxis(...seriesGroups): { max: number; interval: number }` computes the "nice" maximum + tick
+interval across the supplied (visible) series.
 
-All are **pure** (no fetch, no Vue reactivity, no side effects) → directly unit-testable by
-asserting the produced `Option` (ADR-013).
+All are **pure** (no fetch, no Vue reactivity, no side effects) → directly unit-testable by asserting
+the produced `Option` for a given `(data, ctx, presentation)` triple, including the metric-reveal and
+metric-drop transforms (ADR-013).
 
 ### 11.3 `useChartContext` (the shared injection bundle, ADR-009)
 ```ts
@@ -717,31 +795,43 @@ function useChartContext(): ComputedRef<ChartContext> {
   const view = useViewStore(); const ui = useUiStore();
   const { t } = useI18n();
   return computed(() => ({ t, theme: ui.theme, formatter: useFormatter(),
-                           breakpoint: ui.breakpoint, horizon: view.horizon,
-                           rScenario: view.rScenario, timeRange: view.timeRange }));
+                           breakpoint: ui.breakpoint, horizon: view.derivationParams.horizon,
+                           rScenario: view.derivationParams.rScenario }));
 }
 ```
-This composable is **Pinia-aware** and lives in the parent (shell) components. It bundles the
-cross-cutting context (i18n, theme, formatter, breakpoint, horizon, R, timeRange) that every option
-class needs. The chart components themselves are **Pinia-unaware**: a parent reads the DTOs from the
-data store and passes them, together with `ctx`, as **typed props**. There is no central factory —
-each chart component instantiates its own option class from its props (§11.4).
+This composable is **Pinia-aware** and lives in the parent (deck) components. It bundles the
+cross-cutting context (i18n, theme, formatter, breakpoint, horizon, R) that every option class needs
+— all read from the **current scene's** params (§10.1). It carries neither the metric selection (that
+is the slide's authored `VizPresentation`, §11.1/§17) nor `timeRange` (bound directly to `dataZoom`,
+§11.4). The chart components themselves are **Pinia-unaware**: `GenericSlide` reads the DTOs from the
+data store and passes them, together with `ctx` and the slide's `presentation`, as **typed props**.
 
 ### 11.4 Rendering tiers
 - **`BaseChart.vue`** (tier 1): props `{ option, loading, theme }`; wraps `<VChart :option
-  :autoresize />` inside the module's client-only rendering; no domain logic; responsive. The two
+  :autoresize />` inside the module's client-only rendering; no domain logic; responsive. The
   zoomable charts bind ECharts `dataZoom` and emit a `timeRange` event upward (never touch Pinia).
 - **Per-chart components** (tier 2, Pinia-unaware): take typed props `{ <dto>, ctx: ChartContext,
-  loading? }`, build their option class in a local `computed`, and pass `:option`/`:loading` to
-  `BaseChart`. They hold no math and read no store. The main/global charts also re-emit `timeRange`.
-- **Shell parents** (Pinia-aware owners: `MainCanvas`, `MagnitudePanels`): read the DTOs +
-  `useChartContext()` from the stores, pass them down as props, and persist the charts' `timeRange`
-  emits back to `viewStore.setTimeRange`.
+  presentation: VizPresentation, loading? }`, build their option class in a local `computed`, and
+  pass `:option`/`:loading` to `BaseChart`. They hold no math and read no store. The main/global/
+  crossing charts also re-emit `timeRange`.
+- **`GenericSlide`** (the deck's Pinia-aware chart owner, §17): from a `RenderableSlide` it reads the
+  DTOs + `useChartContext()` from the stores, and for each `VizConfig` renders the matching tier-2
+  component **keyed by `viz.id`** with its `presentation` (metrics). It persists the charts'
+  `timeRange` emits back to `viewStore.setTimeRange`.
 
-**Reactivity:** each chart wraps its option in a `computed` over its props; the parent's DTO getters
-and `ctx` are themselves `computed` over Pinia state. When state (data or view) changes, the props
-update → the `Option` recomputes → `<VChart>` updates. R/horizon changes flow: control → viewStore →
-data fetch/cache → parent getters → props → chart `computed` → new `Option` → chart update.
+**Chart identity (ADR-022).** The tier-2 chart is `:key`ed on `viz.id`, a stable id **shared across
+the slides of one scene**. Within a scene (slides 2→3, 5→6) the id is unchanged, so Vue preserves the
+`<VChart>` instance and only the recomputed `:option` flows through → ECharts `setOption` animates
+(series added/removed, axis rescaled) with no canvas reload. Crossing a **scene boundary** uses a
+different `viz.id` → a fresh mount. This keying is a binding contract with UI §7 and §17.
+
+**Reactivity:** each chart wraps its option in a `computed` over its props (`dto`, `ctx`,
+`presentation`); `GenericSlide`'s DTO getters and `ctx` are themselves `computed` over Pinia state.
+When state (data, scene params, or authored metrics) changes, the props update → the `Option`
+recomputes → `<VChart>` updates. A horizon/domain/baseline change flows: control → viewStore (scene
+params) → data fetch/cache → `GenericSlide` getters → props → chart `computed` → new `Option`. A
+metric reveal (2→3, 5→6) flows purely: next slide's `presentation` → same-keyed chart → new `Option`
+→ in-place animation, no fetch.
 
 ### 11.5 Number formatting (`app/format/`, ADR-018)
 A small class hierarchy is the **single** path for turning a number into display text; components
@@ -812,10 +902,11 @@ visually consistent and dark-mode-correct from one source.
 | `stats.ts` | Vitest | movingAvg/detrend/diff/cumulative, forgoneSink+band (asymmetric CI), fullEmissions, aggregate band with two-sided deviation combine (asymmetric-safe), crossingYear, ranking, equivalence; `projectSeries` (slope+clamp≥0, `projectedFrom` set, `today`/target≤last → unchanged), `sumSeries`; correlation guards reject state×state levels; determinism |
 | `WdiAdapter` | Vitest + fixtures | `response[1]` parsing, aggregate filtering, `mrnev`/holes (null preserved), gap recording, normalization to `DataPoint`/meta (incl. `projectedFrom: null`) |
 | Services | Vitest + stub adapter | DTO shape, `referenceYear` = min common data year, forgone-sink family always present, composite scalars on measured data only (horizon-invariant), per-domain projection before aggregation, ranking `today`→`atHorizon` reshuffle, committed equivalence (annualRate × horizonYears), parallel fan-out, partial-failure tolerance |
-| Chart-option classes | Vitest | produced `Option`: series count, estimate styling (dashed+band), measured/projected split at `projectedFrom` (twin series, projected omitted from `legend.data`, divider markLine), axis types from seriesType, i18n/format usage |
+| Chart-option classes | Vitest | produced `Option` for a `(data, ctx, presentation)` triple: series count under a metric set, metric-reveal (stock→stock+forgone) and metric-drop (donut/bar lose fossil, axis rescale), estimate styling (dashed+band), measured/projected split at `projectedFrom` (twin series, projected omitted from `legend.data`, divider markLine), fossil-comparison one-grid two-category shared axis, axis types from seriesType, i18n/format usage |
 | Config integrity | Vitest | domain `r = rAboveground × allometricFactor` (factor = 1.24), CI ordering low≤mid≤high, indicator seriesType coverage, `horizonTargetYear`/`horizonYears` mapping |
-| Store flow | Vue Test Utils | control change → correct `derivationParams` (incl. `horizon`) → correct apiClient call/params → getters; `timeRange` (`dataZoom`) does NOT refetch; horizon DOES refetch (then cache hit/dedupe) |
-| Critical components | Vue Test Utils | mode-matrix visibility (scope × horizon), horizon='today' hides projection + divider, multiplier always shown |
+| Story config + factory | Vitest | `slides.ts` well-formed (6 slides / 4 scenes, valid layout preset + VizKind + metrics per VizConfig, forced-global on crossing/footprint); `SlideFactory` → `RenderableSlide` (resolves scene params, layout, viz list); `viz.id` stable within a scene, distinct across scenes; server-refetch vs client-only control tagging |
+| Store flow | Vue Test Utils | per-scene `sceneState`: entering a scene seeds authored defaults / restores prior state (policy A); server-refetch control → correct `derivationParams` → apiClient call → `dtoCache`; `timeRange` (`dataZoom`) and metric selection do NOT refetch; horizon/domain/baseline DO (then cache hit/dedupe); URL query sync of current scene's params |
+| Deck components | Vue Test Utils | `GenericSlide` renders the layout preset + controls a scene surfaces; charts keyed by `viz.id` (same key 2→3 & 5→6, new key across scene boundary); the 5→6 `duo-viz-text`→`duo-viz-equiv` preset change does **not** remount the `viz.id`-keyed charts (stable `#viz` outlet, ADR-025); horizon='today' hides projection + divider; multiplier appears from slide 3; deferred ranking renders on no slide; `EquivalenceStrip` renders on slide 6 only (4 colour-coded values, unit switcher converts all four, default `car`) |
 
 Fixtures for the adapter are captured during the live spike (business §10).
 
@@ -908,12 +999,13 @@ Every new element checked against the earlier documents; conflicts resolved for 
     No `fossilReference` field exists in state, DTOs or params. **Consistent** — a single always-on
     presentation, no hidden mode.
 
-16. **Multiplier badge — always shown (single accounting).**
-    *Resolution (§3.2, UI §3/§7, business §2.5/§4.2):* with the official↔full switch removed,
-    `multiplier` is **non-optional on the DTOs and always shown** — `fullEmissions ÷ WB stock` at the
-    reference year (how many times official numbers understate the impact). It is computed on
-    **measured data** and is **not** horizon-reactive in V1 (a flagged, revisable §12 open item).
-    **Consistent** — one always-visible headline multiplier, never a trivial 1×.
+16. **Multiplier — always on the DTO; badge surfaced from slide 3.**
+    *Resolution (§3.2, UI §6.6, business §2.5/§4.2):* with the official↔full switch removed,
+    `multiplier` is **non-optional on the DTOs** — `fullEmissions ÷ WB stock` at the reference year
+    (how many times official numbers understate the impact). It is computed on **measured data** and is
+    **not** horizon-reactive in V1 (a flagged, revisable §12 open item). The deck **shows the badge
+    from slide 3** (the forgone-sink reveal), not on the stock-only slide 2 (§23). **Consistent** — one
+    headline multiplier, never a trivial 1×.
 
 17. **Allometric factor as a free parameter vs. a locked constant.**
     *Resolution (business §6, §2.1, ADR-012):* `allometricFactor` is **locked = 1.24**
@@ -927,19 +1019,20 @@ Every new element checked against the earlier documents; conflicts resolved for 
     control); at `horizon='today'` only the annual rate shows (`cumulativeCO2 = null`). **Consistent**
     with point 5 and the "permanent debt" framing.
 
-19. **Single Scope/Domain dropdown vs. two-axis data model.**
-    *Resolution (§2.4, UI §3/§3.1):* scope and domain remain **two independent state variables**
-    (`DerivationParams.scope` + `domainId`); the merge is **UI-only**. One `ScopeDomainSelect`
-    renders `SCOPE_SELECTOR_OPTIONS` (four local domains, delimiter, default Global) and each entry
-    maps back onto both variables. No change to DTOs, params, endpoints or the cache key.
-    **Consistent** — the mode matrix and server contract are untouched.
+19. **Single Domain control vs. two-axis data model (global-first deck).**
+    *Resolution (§2.4/§17.1, UI §5):* scope and domain remain **two independent state variables**
+    (`DerivationParams.scope` + `domainId`). The deck is **global-first**: only the **main scene**
+    surfaces a `DomainSelect` (rendered from `SCOPE_SELECTOR_OPTIONS` — four local domains, delimiter,
+    default Global), each entry mapping back onto both variables; the crossing/footprint scenes
+    **force `scope:'global'`**. No change to DTOs, params, endpoints or the cache key. **Consistent** —
+    server contract untouched; there is no standalone scope toggle.
 
-20. **URL-synced composer state vs. cache key and view-only time range.**
-    *Resolution (ADR-017, §10.1, UI §10):* only `DerivationParams` is synced to `route.query`
-    (replace) — and `horizon` **is** in `DerivationParams`, so it is shareable in the URL. Only
-    `timeRange` stays out (pure view state). The query signature is exactly the cache key (ADR-014), so
-    sharing a URL warms the same cache. **Consistent** — no new contract, `timeRange` stays client-only
-    (point 13).
+20. **URL-synced deck state vs. cache key and view-only time range.**
+    *Resolution (ADR-017/023, §10.1, UI §4):* the active slug + the **current scene's**
+    `DerivationParams` are synced to `route.query` (replace) — and `horizon` **is** in
+    `DerivationParams`, so it is shareable. `timeRange` and metric selection stay out (pure view
+    state). The query signature is exactly the cache key (ADR-014), so sharing a URL warms the same
+    cache. **Consistent** — no new contract, `timeRange`/metrics stay client-only (point 13/#34).
 
 21. **"Fully localized" vs. international (non-localized) numbers.**
     *Resolution (ADR-018, §11.5, UI §1/§4.4):* **copy, labels and units localize** (i18n keys);
@@ -947,15 +1040,17 @@ Every new element checked against the earlier documents; conflicts resolved for 
     `Formatter`. This is a deliberate scoping of localization, not a contradiction. **Consistent.**
 
 22. **Non-interactive legend vs. layer visibility + projected twin series.**
-    *Resolution (UI §4.4/§4.5, §3, §11.1):* the legend is **display-only**; layer visibility is
-    driven solely by scope (single accounting — no per-layer toggle). The dashed **projected** twin of
-    each metric is **excluded from `legend.data`** so the legend shows one entry per metric regardless
-    of horizon. A clickable legend would reintroduce contradictory per-layer state. **Consistent.**
+    *Resolution (UI §6.5/§7, §3, §11.1):* the legend is **display-only**; which layers show is driven
+    by the **slide's authored metric selection** (the 2→3 reveal, the 5→6 fossil-removal — §11.2), not
+    a per-layer toggle. The dashed **projected** twin of each metric is **excluded from `legend.data`**
+    so the legend shows one entry per metric regardless of horizon. A clickable legend would
+    reintroduce contradictory per-layer state. **Consistent.**
 
-23. **Multiplier in header vs. above canvas.**
-    *Resolution (UI §2/§4/§7, per user F8):* a **single** `MultiplierBadge` instance lives
-    **top-right above the canvas**, **always shown** (single accounting); it is **not** duplicated in
-    the header. **Consistent** — one source of truth for the headline number.
+23. **Multiplier badge placement + when it appears.**
+    *Resolution (UI §6.6, §11.2):* a **single** `MultiplierBadge` instance lives **top-right of the
+    main chart**; it **appears from slide 3** (with the forgone-sink reveal — it is meaningless on the
+    stock-only slide 2) and is not duplicated in the header. **Consistent** — one source of truth for
+    the headline number, surfaced when the full accounting is on screen.
 
 24. **Local "side by side" variant referenced but deferred.**
     *Resolution (per user F7a; business §4.2/§12, UI §4.1/§13, §11.2):* the local stock-vs-forgone
@@ -1035,12 +1130,165 @@ Every new element checked against the earlier documents; conflicts resolved for 
     domain is never dropped from the global aggregate — a path that never fired in practice).
     **Consistent** — one country set per domain, one place that decides it.
 
+34. **Story-deck presentation vs. the unchanged server contract.**
+    *Resolution (ADR-021, §0/§3.2/§17, business §4, UI §3):* the guided six-slide deck is a
+    **frontend-only** presentation layer — `SlideDef[]` config, `SlideFactory`, `GenericSlide`,
+    `SlideLayout` — living in `app/story/` + `components/deck/`. It adds **no** route, DTO field or
+    `DerivationParams` key; the server does not know slides exist. "Which metrics a slide shows"
+    (stock-only vs +forgone; donut/bar with-or-without fossil) is a **client-side presentation
+    transform** authored as `VizConfig.metrics` and applied by the option class over a DTO the store
+    already holds — never a refetch. Only `domain`/`baseline`/`horizon` (server-refetch controls)
+    change `DerivationParams`; `timeRange` and metric selection are pure view state.
+    **Consistent** — story architecture is additive on the frontend, server contract intact.
+
+35. **In-place chart animation vs. route/component remounting.**
+    *Resolution (ADR-022/023, §10.1/§11.4/§17, UI §7):* the deck is **one persistent `/story/:slug`
+    route** that does not remount, and each visualisation carries a stable **`viz.id` shared across
+    the slides of one scene**. Slides 2→3 and 5→6 stay in the same scene with the same `params` and
+    the same `viz.id`, so Vue preserves the `<VChart>` instance and only the recomputed `:option`
+    flows through → ECharts `setOption` **animates** (series added/removed, axis rescaled) with no
+    canvas reload; crossing a **scene boundary** uses a new `viz.id` → a fresh mount. No shared-element
+    morph in V1 (`prefers-reduced-motion` drops the transition). **Consistent** — chart identity is
+    the single mechanism for the two authored animations.
+
+36. **Fossil-comparison restructured to one grid, two categories.**
+    *Resolution (ADR-024, §11.2, UI §6.3):* the deforestation-vs-fossil chart is rebuilt from the old
+    two-grid/shared-axis design into **one grid with two categories** (`deforestation`, `fossil`) on a
+    **single Y-axis** — specifically so slide 6 can animate: dropping `fossil` from the visible metric
+    set removes the fossil bar, splits the deforestation bar's `forgoneSink` into its own stacked
+    layer over `stock`, and rescales the one axis to the deforestation range ("zoom in"). This
+    supersedes audit #25's two-grid `sharedYAxis` wording for the deck; `sharedYAxis()` is retained as
+    the axis-nicing helper across the visible categories. **Consistent** — restructure serves the
+    5→6 in-place animation, same data, no new endpoint.
+
 No unresolved contradiction remains. Any future element must be checked against this section and
 the earlier documents before adoption.
 
 ---
 
-## 17. Traceability (element → decision → business source)
+## 17. Story deck orchestration layer (frontend, ADR-021/022/023/024)
+
+The presentation is a **linear six-slide deck** ("Story of Deforestation" / "Príbeh deforestácie",
+business §4). This layer is **entirely on the frontend** and additive over §§10–11: it authors the
+slides, resolves them into renderable units, drives one persistent route, and keys charts for
+in-place animation. It touches **no** server code, DTO or param (§16.34).
+
+### 17.1 Authored config (`app/story/slides.ts`)
+```ts
+type SceneId   = 'intro' | 'main' | 'crossing' | 'footprint';
+type LayoutPreset = 'text' | 'viz-text' | 'duo-viz-text' | 'duo-viz-equiv';  // closed set (ADR-024/025)
+type VizKind   = 'mainStacked' | 'globalStackedArea' | 'crossing' | 'donut' | 'fossilComparison';
+type ControlKey = 'horizon' | 'domain' | 'baseline' | 'timeRange';  // deck-surfaced controls only
+
+interface VizConfig {
+  id: string;                 // STABLE chart identity; SHARED across a scene's slides (ADR-022)
+  kind: VizKind;              // which tier-2 chart component + option class
+  metrics: string[];          // presentation transform (§11.1): e.g. ['stock'] → ['stock','forgoneSink']
+}
+interface SlideDef {
+  slug: string;               // URL slug (/story/:slug)
+  scene: SceneId;             // slides in the same scene share params + chart instances
+  layout: LayoutPreset;
+  headingKey?: string;        // optional heading above the text block
+  textKeys: string[];         // i18n keys for the text block BELOW the viz
+  visualizations: VizConfig[];// 0 (intro) | 1 (main/crossing) | 2 (footprint)
+  controls?: ControlKey[];    // controls this slide surfaces (subset of its scene's controls)
+  params?: Partial<DerivationParams>;  // authored defaults seeded on first scene entry (policy A)
+  forced?: Partial<DerivationParams>;  // immutable overrides (e.g. crossing/footprint → scope:'global')
+}
+```
+The six slides map to four scenes: `intro`(text) · `main`(2 slides: reveal) · `crossing` ·
+`footprint`(2 slides: fossil-removal). Copy is **only** i18n keys (ADR-011); `slides.ts` holds no
+prose. The V1 deck stages the **`RankingBumpChart` on no `SlideDef`** (still deferred, business §4.6),
+but the **equivalence panel is restaged on slide 6** as a redesigned `EquivalenceStrip` (ADR-025, §17.4)
+— it is a **scene widget**, not a `VizConfig` chart, so it lives outside the `visualizations[]` list.
+
+**Footprint scene controls (ADR-025).** Slides 5–6 both carry `controls: ['baseline','horizon']`; the
+per-scene state (ADR-023) shares those values across the two slides. Only `scope:'global'` stays
+`forced` (the old `forced.horizon:'today'` is dropped so the horizon is reader-driven and feeds the
+strip's window). Slide 6's `SlideDef` uses `layout:'duo-viz-equiv'` with a `captionKey` and **no**
+text-block `textKeys`.
+
+### 17.2 Factory & rendering (`app/story/SlideFactory.ts`, `components/deck/`)
+`SlideFactory(slideDef, sceneState, dtoStore) → RenderableSlide` resolves the authored slide against
+the current scene's params (§10.1) and the fetched DTOs (§10.2) into a render-ready unit:
+```ts
+interface RenderableSlide {
+  layout: LayoutPreset;
+  headingKey?: string; textKeys: string[];
+  controls: ControlKey[];              // filtered by scene + tagged server-refetch/client-only (ADR-021)
+  visuals: Array<{ id: string; component: Component; props: { dto; ctx; presentation } }>;
+}
+```
+- **`StoryPage`** (`pages/story/[slug].vue`): the ONE persistent route; on slug change it swaps the
+  active `SlideDef` and `viewStore.enterScene(scene)` **without** remounting the page (ADR-023).
+- **`GenericSlide`**: renders `SlideLayout[preset]` with `SlideHeading`/`SlideText` (text below) and
+  the scene's controls; mounts each `visuals[]` tier-2 chart **keyed by `viz.id`** with its
+  `presentation` (§11.4) — the source of the 2→3 / 5→6 in-place animation.
+- **`SlideLayout`**: the four closed presets — `text` (text only), `viz-text` (one viz above a
+  full-width text block), `duo-viz-text` (two vizzes side-by-side above the text block), and
+  `duo-viz-equiv` (slide 6: a thin `#caption` line + controls + two vizzes + a full-width
+  `#equivalence` strip, **no** text block). **Binding re-render contract (ADR-025):** `SlideLayout`
+  renders **one unconditional stage** `<div class="slide__stage"><slot name="viz"/></div>` for every
+  preset; presets differ only by CSS (grid template / sizing) and by which *surrounding* slots
+  (`caption`/`text`/`equivalence`) render. This keeps the `#viz` outlet at the same vnode position
+  across `duo-viz-text`→`duo-viz-equiv`, so the `viz.id`-keyed `<VChart>` instances are **not**
+  remounted and the 5→6 `setOption` animation survives the layout change. A structural `v-if` fork that
+  moved the outlet is forbidden (it re-inits ECharts).
+- **`DeckNav`/`ProgressIndicator`**: Next/Back + keyboard/scroll navigation over the slide order,
+  updating the slug (§4). Forward navigation triggers `dtoStore.prefetch(nextParams)` on idle.
+
+### 17.3 State, animation & routing (bindings)
+- **Per-scene state (§10.1, ADR-023):** `viewStore.sceneState: Map<SceneId,{params,timeRange}>`;
+  entering a scene seeds authored `params`/`forced` on first visit and **restores** them on return
+  (reset policy A). Server-refetch controls mutate the scene's `params` → `dtoStore.loadForScene`;
+  `timeRange` and metric selection stay pure view state.
+- **Chart identity (§11.4, ADR-022):** same `viz.id` within a scene → preserved `<VChart>` →
+  `setOption` animation; new `viz.id` across a scene boundary → fresh mount. No shared-element morph
+  in V1; `prefers-reduced-motion` drops transitions (UI §12). **The 5→6 layout-preset change
+  (`duo-viz-text`→`duo-viz-equiv`) does not affect identity** because the `#viz` outlet is unconditional
+  (ADR-025, §17.2): the donut/fossil instances persist and only animate.
+- **URL (§10.1, ADR-017/023):** the slug + the current scene's `DerivationParams` live in the route
+  (replace, not push); `timeRange` and metric selection stay out.
+- **Presentation transform (§3.2/§11.1, ADR-021):** `VizConfig.metrics` → `VizPresentation` → option
+  class emits the chosen metric subset; no refetch, DTO unchanged.
+
+### 17.4 Slide-6 equivalence strip (`EquivalenceStrip`, ADR-025)
+A **scene widget** (not a chart / `VizConfig`), mounted only on slide 6 via the `duo-viz-equiv`
+preset's `#equivalence` slot. Pinia-driven and reactive to the footprint scene's `horizon` (§10.1),
+the loaded global DTO (§10.2) and the UI locale — no new endpoint, no refetch beyond the existing
+controls (ADR-025). Its magnitude **window is a symmetric window** `[baseline,
+horizonTargetYear(horizon)]` — it **opens at the `baseline` year** and closes at the chosen horizon
+(`sceneWindow(baseline, horizon)` in `derivation.ts` is the single source of truth). The `baseline`
+control both shapes the forgone-sink rate (server-side cumulative-loss integration) **and** defines the
+lower edge of this window; at horizon `today` the window is `[baseline, anchor]` → every magnitude
+reads its cumulative-to-today value (never 0).
+
+- **Four magnitudes** (all Mt CO₂ before unit conversion), each a **client-side reduction** over the
+  already-fetched **global** DTO series, colour-coded to the chart grammar:
+  | # | Value | Derivation (symmetric window `[baseline, horizonTargetYear(horizon)]`) | Colour token |
+  |---|---|---|---|
+  | 1 | Stock over the window | Σ `aggregateStock` across the window | `data.stock` (green) |
+  | 2 | Forgone sink, annual | `aggregateForgoneSink` annual rate at the **last measured year** (`referenceYear`) | `data.forgoneSink` (amber) |
+  | 3 | Forgone sink over the window | the TRUE finite integral Σ `aggregateForgoneSink` across the window (business §2.4 #2), consistent with stock/fossil | `data.forgoneSink` (amber) |
+  | 4 | Combined total | value 1 + value 3 (stock + forgone over the window) | `data.total` (new red-adjacent) |
+  Values 1, 3, 4 are baseline/horizon-reactive (they move with those controls); value 2 is a
+  measured-year scalar. Reduction helpers (`sumWindow`/`levelAt`) live in `equivalenceStrip.ts` and
+  mirror the donut / fossil-bar window totals (which read the SAME window as true Σ integrals); the
+  option layer's DOM widget is untouched.
+- **Unit switcher (`UnitToggle`, client-only view state).** Three units — `mtco2` · `car` · `country`
+  — converting **all four** values at once; **default `car`**. `car` divides by
+  `equivalenceConfig.carAnnualTonsCO2` (4.6 t → convert Mt↔t); `country` divides by the **reference
+  country's annual CO₂** (locale-driven SVK/UK via `resolveReferenceCountry`, §2.3), reusing the
+  existing equivalence resolution — re-resolved on locale change with **no** deforestation refetch. The
+  chosen unit is not a `DerivationParam` and stays out of the URL (like `timeRange`, ADR-017).
+- **`data.total` token (new).** Added to `ThemeTokens.data` (shared theme type + `app.config.ts`): a
+  red-adjacent hue **distinct from the error red** `negative` `#E5534B`, so the "everything combined"
+  figure never reads as a fault state (design §2.3).
+
+---
+
+## 18. Traceability (element → decision → business source)
 
 | Element | Decision | Business source |
 |---|---|---|
@@ -1048,26 +1296,37 @@ the earlier documents before adoption.
 | Server-authoritative derivations + cache | ADR-005 | §9, §2.6 |
 | `stats.ts` pure module | ADR-005/008 | §8 |
 | Domain unit + config | ADR-012 | §3, §3.1, §6 |
-| Merged Scope/Domain dropdown (UI-only, `SCOPE_SELECTOR_OPTIONS`) | §2.4, UI §3.1 | §3 (two axes) |
+| Domain as a main-scene control (global-first deck; no standalone scope toggle) | §17.1, UI §5 | §3, §4.1 |
 | Time horizon (signature derivation axis, `today`/20y/…/100y), R scenario tri-state | §2.3/§3.2, §16.30 | §2.4a, §4.1, §5, §6 |
 | Per-domain forward projection (`projectSeries`, before ×R + aggregation) | §3.2/§5/§6, §16.30 | §2.4a, §8 |
 | Dashed projected series (twin series, legend allowlist, join divider) | §11.1/§11.2, §16.31 | §2.4a |
 | Forgone sink band + σ_total | stats/DTO | §2.2, §3 |
-| Multiplier (always shown, `fullEmissions ÷ WB stock`, measured data) | DTO/charts, §16.16 | §2.5, §4.2 |
+| Multiplier (always on DTO, badge from slide 3, `fullEmissions ÷ WB stock`, measured data) | DTO/charts, §16.16 | §2.5, §4.2 |
 | Crossing (annual impulse × cumulative level, semantics unchanged) | DTO/charts, §16.32 | §4.3 |
-| Ranking two-column bump (today → chosen horizon) | `RankingDTO`, §11.2 | §4.3 |
-| Fossil share donut + number always-on (no toggle) | UI §3/§7 | §4.1 |
+| Ranking two-column bump (today → chosen horizon) — **deferred from the deck** | `RankingDTO`, §11.2 | §4.3, §4.6 |
+| Fossil share donut + number always-on (no toggle) | UI §6.3 | §4.1 |
 | Equivalence driven by global horizon (committed = rate × horizonYears) | §2.3/§5, UI §6 | §4.4, §2.4 |
+| Slide-6 `EquivalenceStrip` (4 client-derived values, colour-coded; unit switcher car-default; symmetric window `[baseline, horizonTargetYear(horizon)]` with forgone as a true Σ integral, donut + fossil bar share the same window totals) | ADR-025, §17.4, UI §6.7 | §4.5 |
+| 4th layout preset `duo-viz-equiv`; layout change keeps `#viz` outlet stable → charts preserved 5→6 | ADR-025, §17.2/§17.3 | §4.5 |
+| Footprint scene shares `baseline`+`horizon` across slides 5–6; only `scope:'global'` forced | ADR-025, §17.1 | §4.5 |
+| `data.total` theme token (red-adjacent, distinct from error red) for the combined figure | ADR-025, §17.4, design §2.3 | §4.5 |
 | Reference year = min common data year | ADR-016 | §7.1a |
 | Single country coverage gate (union; stock & forgone share one country set; no domain exclusion) | ADR-020, §16.33 | §7.1 |
-| Time range = client-side ECharts dataZoom (slider+inside, reset on scope) | ADR-005, UI §11 | §9 |
-| Shareable state via URL query (horizon included, timeRange excluded) | ADR-017 | §9 (portfolio) |
+| Time range = client-side ECharts dataZoom (per-scene, reset on scene entry) | ADR-005/023, §10.1 | §9 |
+| Shareable state via URL query (slug + scene params; horizon in, timeRange/metrics out) | ADR-017/023, §10.1 | §9 (portfolio) |
 | Injectable `Formatter` hierarchy; international compact numbers | ADR-018 | (app requirement) |
 | Dark-only V1 (no light toggle) | ADR-002 | UI §1 |
-| Shared tooltip, non-interactive legend, toggle animation | UI §4.4 | §4.1–4.3 |
-| Single multiplier badge, top-right above canvas | UI §2/§4/§7 | §4.2 |
-| Composition donut (always 3 slices), `ReferenceDTO.composition` | §3.2, §11.2, UI §5 | §4.3 |
-| Global-only deforestation-vs-fossil, shared Y-scale (`sharedYAxis`) | §11.2/§11.3, UI §5/§8 | §4.3/§4.5 |
+| Shared tooltip, non-interactive legend, in-place reveal animation | UI §6.5/§7 | §4.3–4.5 |
+| Multiplier badge appears from slide 3 (reveal) | §11.2, UI §6.6 | §4.2/§4.3 |
+| Composition donut (3 slices → 2 on slide 6), `ReferenceDTO.composition` | §3.2, §11.2, UI §6.3 | §4.5 |
+| Global-only deforestation-vs-fossil, **one grid two categories**, single Y-axis rescale | §11.2, §16.36, UI §6.3 | §4.5 |
+| Linear six-slide story deck (frontend-only presentation) | ADR-021, §17, §16.34 | §4 |
+| Frontend-only `SlideDef[]`/`SlideFactory`/`GenericSlide`/`SlideLayout` (3 layout presets) | ADR-021/024, §17.1/§17.2 | §4 |
+| Metric selection = client presentation transform (`VizConfig.metrics`, no refetch) | ADR-021, §3.2/§11.1, §16.34 | §4.3/§4.5 |
+| In-place `setOption` animation via stable `viz.id` (slides 2→3, 5→6) | ADR-022, §11.4/§17.3, §16.35 | §4.3/§4.5 |
+| Single persistent `/story/:slug` route (no remount) | ADR-023, §10.1/§17.2 | §4 |
+| Per-scene `sceneState` + reset policy A; controls tagged server-refetch/client-only; prefetch | ADR-021/023, §10.1/§10.2/§17.3 | §4.1 |
+| Global-first deck; domain a control in the main scene; crossing/footprint forced-global | §17.1, UI §5 | §4.1/§4.4/§4.5 |
 | Local side-by-side variant deferred | §11.2, UI §13 | §12 |
 | `R` values provisionally locked (4 domains); asymmetric CI, two-sided aggregation | §2.1, §5 | §6 |
 | Seeded indicator registry (live-verified codes + coverageFrom) | §2.2 | §7.1 |

@@ -30,7 +30,7 @@ describe('MultiplierBadge', () => {
     const view = useViewStore()
     view.scope = 'global'
     const data = useDataStore()
-    data.cache.set(paramsKey('global', view.derivationParams), globalResult({ multiplier: 3.2 }))
+    data.dtoCache.set(paramsKey('global', view.derivationParams), globalResult({ multiplier: 3.2 }))
 
     const w = mount(MultiplierBadge)
     expect(w.find('.multiplier').exists()).toBe(true)

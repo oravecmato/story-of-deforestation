@@ -17,12 +17,23 @@ export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO> {
     const { theme, t } = this.ctx
     const forgone = this.data.aggregateForgoneSink
     const stock = this.data.aggregateStock
-    const join =
-      this.data.perDomainStock[0]?.meta.projectedFrom ?? forgone.meta.projectedFrom ?? null
+    // The forgone sink (extra stacked layer + band) appears only when the slide's metric set includes
+    // it — the main-scene reveal on the global chart, mirroring MainStackedOption (§11.2).
+    const showForgone = this.has('forgoneSink')
+    const stockJoin = this.data.perDomainStock[0]?.meta.projectedFrom ?? null
+    const join = stockJoin ?? (showForgone ? forgone.meta.projectedFrom : null) ?? null
     const endYear =
       this.data.perDomainStock[0]?.points.at(-1)?.year ?? forgone.points.at(-1)?.year ?? null
+    const projectionMarks =
+      join != null
+        ? {
+            markLine: this.projectionDivider(join),
+            ...(endYear != null ? { markArea: this.forecastZone(join, endYear) } : {}),
+          }
+        : {}
 
-    const domainAreas: SeriesOption[] = this.data.perDomainStock.map((s) => ({
+    const lastDomain = this.data.perDomainStock.length - 1
+    const domainAreas: SeriesOption[] = this.data.perDomainStock.map((s, i) => ({
       name: s.id,
       type: 'line',
       stack: 'stock',
@@ -32,7 +43,15 @@ export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO> {
       showSymbol: false,
       emphasis: { focus: 'series' },
       data: this.pairs(s),
+      // when the forgone layer is hidden it can't carry the projection divider, so the top domain does.
+      ...(!showForgone && i === lastDomain ? projectionMarks : {}),
     }))
+
+    if (!showForgone) {
+      // Stock-only: the stack's top surface is Σ domain stocks; a solid measured top-edge traces it.
+      const stockTop = this.stackedTop(...this.data.perDomainStock)
+      return [...domainAreas, ...this.edgeLines(stockTop, stockJoin, theme.data.stock, false, 'total')]
+    }
 
     const forgoneArea: SeriesOption = {
       name: t('series.forgoneSink'),
@@ -44,12 +63,7 @@ export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO> {
       itemStyle: { color: theme.data.forgoneSink },
       areaStyle: { color: this.rgba(theme.data.forgoneSink, 0.35) },
       data: this.pairs(forgone),
-      ...(join != null
-        ? {
-            markLine: this.projectionDivider(join),
-            ...(endYear != null ? { markArea: this.forecastZone(join, endYear) } : {}),
-          }
-        : {}),
+      ...projectionMarks,
     }
 
     // The whole stack's top surface is the forgone-sink top (Σ domain stocks + forgone). Its own
@@ -64,18 +78,14 @@ export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO> {
     ]
   }
 
-  // Legend shows the per-domain layers + the forgone sink; projected twins (name-suffixed) and band
-  // helpers (names prefixed '__') are omitted (§11.1).
+  // Legend shows the per-domain layers + (when present) the forgone sink; projected twins
+  // (name-suffixed) and band helpers (names prefixed '__') are omitted (§11.1).
   override build(): EChartsOption {
+    const data = [...this.data.perDomainStock.map((s) => s.id)]
+    if (this.has('forgoneSink')) data.push(this.ctx.t('series.forgoneSink'))
     return {
       ...super.build(),
-      legend: {
-        textStyle: { color: this.ctx.theme.text.mid },
-        data: [
-          ...this.data.perDomainStock.map((s) => s.id),
-          this.ctx.t('series.forgoneSink'),
-        ],
-      },
+      legend: { textStyle: { color: this.ctx.theme.text.mid }, data },
     }
   }
 }

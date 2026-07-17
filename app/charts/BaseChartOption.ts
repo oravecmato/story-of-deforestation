@@ -1,5 +1,5 @@
 import type { EChartsOption, SeriesOption, DataZoomComponentOption } from 'echarts'
-import type { Series, BandSeries, DataPoint, SeriesType, ThemeTokens, Horizon } from '../../shared/types'
+import type { Series, BandSeries, DataPoint, SeriesType, ThemeTokens, Horizon, VizPresentation } from '../../shared/types'
 import type { Formatter } from '../format/Formatter'
 
 /** Opacity applied to the projected (dashed) twin of a metric (design §2, business §2.4a). */
@@ -20,8 +20,12 @@ export interface ChartContext {
   formatter: Formatter
   /** responsive option tweaks. */
   breakpoint: 'sm' | 'md' | 'lg'
-  /** signature control (ADR-019): drives the projection extent + which years render dashed. */
+  /** signature control (ADR-019): drives the projection extent + which years render dashed. Together
+   *  with `baseline` it defines the slide-5/6 magnitude window `[baseline, horizonTargetYear(horizon)]`
+   *  the donut / fossil bar integrate over (§17.4, ADR-025). */
   horizon: Horizon
+  /** sink-integration origin (business §7.2): the lower bound of the slide-5/6 magnitude window. */
+  baseline: number
   rScenario: 'conservative' | 'mid' | 'high'
   /** current dataZoom selection [startYear, endYear] or null for the full range (ADR-005). */
   timeRange: [number, number] | null
@@ -33,7 +37,17 @@ export abstract class BaseChartOption<TData> {
   constructor(
     protected readonly data: TData,
     protected readonly ctx: ChartContext,
+    /** The slide's authored metric selection (§11.1/§17). Defaults to the empty set = the option's
+     *  full metric set, so non-deck callers keep the complete chart. */
+    protected readonly presentation: VizPresentation = { metrics: [] },
   ) {}
+
+  /** Whether a metric is in the current presentation transform (§11.1). An **empty** set means the
+   *  option's default FULL metric set → every metric shows (the reveal/drop is authored per slide). */
+  protected has(metric: string): boolean {
+    const m = this.presentation.metrics
+    return m.length === 0 || m.includes(metric)
+  }
 
   /** The only required per-chart method: map the DTO to ECharts series. */
   protected abstract buildSeries(): SeriesOption[]
@@ -254,6 +268,27 @@ export abstract class BaseChartOption<TData> {
   /** Value at a year, or 0 when absent (composite scalars, ADR-016). */
   protected valueAt(series: Series, year: number): number {
     return series.points.find((p) => p.year === year)?.value ?? 0
+  }
+
+  /** Σ of a series' non-null values over the inclusive year window `[from, to]`. The slide-5/6
+   *  magnitude diagrams read window totals here so they match the equivalence strip (§17.4). */
+  protected sumWindow(series: Series, from: number, to: number): number {
+    let sum = 0
+    for (const p of series.points) {
+      if (p.year >= from && p.year <= to && p.value != null) sum += p.value
+    }
+    return sum
+  }
+
+  /** The series' last real value at or before `year` (0 if none) — the measured annual level, used as
+   *  the constant rate for the forgone sink's forward-committed window total (§17.4). */
+  protected levelAt(series: Series, year: number): number {
+    let level = 0
+    for (const p of series.points) {
+      if (p.year > year) break
+      if (p.value != null) level = p.value
+    }
+    return level
   }
 
   /** hex → rgba string for the translucent CI band. */

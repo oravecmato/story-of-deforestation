@@ -15,8 +15,9 @@ export interface ThemeTokens {
   /** focus ring, active toggle, links, crossing marker */
   accent: string
   /** data-layer colors only — never UI state (design §2): measured stock, derived forgone sink,
-   *  fossil reference denominator */
-  data: { stock: string; forgoneSink: string; fossil: string }
+   *  fossil reference denominator, and the combined-total figure (red-adjacent, distinct from
+   *  `negative` — design §2.3a, ADR-025). */
+  data: { stock: string; forgoneSink: string; fossil: string; total: string }
   /** translucent band alpha for the forgone-sink CI */
   bandOpacity: number
   /** error red — negative crossings / data gaps (no separate warn/success in V1) */

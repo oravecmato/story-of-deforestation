@@ -63,8 +63,9 @@ const crossingInput = computed<CrossingInput | undefined>(() => {
       @retry="reload"
     >
       <FootprintDonut
-        v-if="reference"
+        v-if="reference && globalResult"
         :reference="reference"
+        :main="globalResult"
         :ctx="chartCtx"
         :loading="data.loading.reference"
       />

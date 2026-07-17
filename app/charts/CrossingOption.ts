@@ -41,6 +41,8 @@ export class CrossingOption extends BaseChartOption<CrossingInput> {
         symbol: 'none',
         silent: true,
         lineStyle: { color: theme.accent },
+        // The axis is `time`, so the raw markLine value is epoch-ms — format it back to the year.
+        label: { formatter: (p: { value: unknown }) => String(new Date(p.value as number).getUTCFullYear()) },
         data: markLineData,
       }
     }

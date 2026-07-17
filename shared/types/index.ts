@@ -5,6 +5,17 @@ export type { DomainId, RRange } from './domain'
 export type { ThemeTokens } from './theme'
 export type { Scope, Horizon, RScenario, DerivationParams } from './params'
 export type {
+  SceneId,
+  LayoutPreset,
+  EquivalenceUnit,
+  VizKind,
+  ControlKey,
+  DerivationMode,
+  VizConfig,
+  VizPresentation,
+  SlideDef,
+} from './story'
+export type {
   DomainResultDTO,
   GlobalResultDTO,
   RankingDTO,

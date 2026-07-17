@@ -29,6 +29,18 @@ export const horizonYears = (h: Horizon): number => HORIZON_YEAR_OFFSET[h]
 /** Absolute target year for the projected series' upper bound = anchor + offset. */
 export const horizonTargetYear = (h: Horizon): number => HORIZON_ANCHOR_YEAR + HORIZON_YEAR_OFFSET[h]
 
+/**
+ * The footprint-scene magnitude window (slides 5/6, ADR-025): a symmetric finite window that opens at
+ * the `baseline` year and closes at the horizon target year. Every scene figure (donut, fossil bar,
+ * equivalence strip) sums the TRUE finite integral over this one window (business §2.4 quantity #2),
+ * so stock, forgone and fossil are the same kind of quantity. `today` closes at the current-year
+ * anchor, so it still shows a meaningful cumulative-to-today (never zero).
+ */
+export const sceneWindow = (baseline: number, h: Horizon): { from: number; to: number } => ({
+  from: baseline,
+  to: horizonTargetYear(h),
+})
+
 /** Default domain when the user first switches to local scope (business §3.1). */
 export const DEFAULT_DOMAIN_ID: DomainId = 'amazon'
 

@@ -20,6 +20,7 @@ export function useChartContext(): ComputedRef<ChartContext> {
     formatter,
     breakpoint: ui.breakpoint,
     horizon: view.horizon,
+    baseline: view.baseline,
     rScenario: view.rScenario,
     timeRange: view.timeRange,
   }))

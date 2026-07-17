@@ -17,7 +17,10 @@ export class MainStackedOption extends BaseChartOption<DomainResultDTO> {
     const { theme, t } = this.ctx
     const stock = this.data.stock
     const forgone = this.data.forgoneSink
-    const join = stock.meta.projectedFrom ?? forgone.meta.projectedFrom
+    // The forgone sink (dashed + band) appears only when the slide's metric set includes it — the
+    // whole slide-2→slide-3 reveal (§11.2). Stock (solid) is always present.
+    const showForgone = this.has('forgoneSink')
+    const join = stock.meta.projectedFrom ?? (showForgone ? forgone.meta.projectedFrom : null)
     const endYear = stock.points.at(-1)?.year ?? forgone.points.at(-1)?.year ?? null
 
     const stockArea: SeriesOption = {
@@ -37,6 +40,14 @@ export class MainStackedOption extends BaseChartOption<DomainResultDTO> {
           }
         : {}),
     }
+
+    // Top-edge lines at absolute cumulative height: stock's top = stock; forgone's top = stock + forgone.
+    const series: SeriesOption[] = [
+      stockArea,
+      ...this.edgeLines(stock, stock.meta.projectedFrom, theme.data.stock, false, 'stock'),
+    ]
+    if (!showForgone) return series
+
     const forgoneArea: SeriesOption = {
       name: t('series.forgoneSink'),
       type: 'line',
@@ -48,26 +59,22 @@ export class MainStackedOption extends BaseChartOption<DomainResultDTO> {
       areaStyle: { color: this.rgba(theme.data.forgoneSink, 0.35) },
       data: this.pairs(forgone),
     }
-
-    // Top-edge lines at absolute cumulative height: stock's top = stock; forgone's top = stock + forgone.
-    return [
-      stockArea,
+    series.push(
       forgoneArea,
-      ...this.edgeLines(stock, stock.meta.projectedFrom, theme.data.stock, false, 'stock'),
       ...this.edgeLines(this.stackedTop(stock, forgone), forgone.meta.projectedFrom, theme.data.forgoneSink, true, 'forgone'),
       ...this.bandSeries(this.bandOnTop(stock, forgone)),
-    ]
+    )
+    return series
   }
 
-  // Legend shows only the two measured metrics — projected twins (name-suffixed) and band helpers
-  // (names prefixed '__') are omitted (§11.1).
+  // Legend shows only the measured metrics currently in the presentation — projected twins
+  // (name-suffixed) and band helpers (names prefixed '__') are omitted (§11.1).
   override build(): EChartsOption {
+    const data = [this.ctx.t('series.stock')]
+    if (this.has('forgoneSink')) data.push(this.ctx.t('series.forgoneSink'))
     return {
       ...super.build(),
-      legend: {
-        textStyle: { color: this.ctx.theme.text.mid },
-        data: [this.ctx.t('series.stock'), this.ctx.t('series.forgoneSink')],
-      },
+      legend: { textStyle: { color: this.ctx.theme.text.mid }, data },
     }
   }
 }

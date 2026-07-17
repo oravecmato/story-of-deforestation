@@ -64,6 +64,20 @@
     "cars": "osobných áut",
     "country": "ročných emisií krajiny {country}"
   },
+  "equivalenceStrip": {
+    "stockWindow": "Vykázaný stav za okno",
+    "forgoneAnnual": "Stratený záchyt, ročne",
+    "forgoneWindow": "Stratený záchyt do horizontu",
+    "combined": "Všetko dokopy",
+    "unit": {
+      "label": "Jednotka",
+      "mtco2": "Mt CO₂",
+      "car": "Autá",
+      "country": "Slovensko",
+      "carSuffix": "osobných áut",
+      "countrySuffix": "× ročných emisií {country}"
+    }
+  },
   "methodology": {
     "link": "Metodika",
     "title": "Metodika",
@@ -108,6 +122,40 @@
   "chart": {
     "crossing": {
       "point": "Prekríženie"
+    }
+  },
+  "deck": {
+    "title": "Príbeh deforestácie",
+    "next": "Ďalej",
+    "back": "Späť",
+    "progress": "Snímka {n} zo {total}"
+  },
+  "story": {
+    "intro": {
+      "heading": "Polovica príbehu, ktorú nerátame",
+      "p1": "Keď sa les vyrúbe, uhlík, ktorý ukladal, sa vykáže ako emisia. To vykázané číslo je skutočné — no je to len viditeľná polovica.",
+      "p2": "Druhou polovicou je záchyt, ktorý strácame: uhlík, ktorý by les ešte desaťročia pohlcoval. Táto ukážka robí túto skrytú cenu viditeľnou. Čítajte ju ako argument „minimálne toľko“."
+    },
+    "main": {
+      "heading": "Vykázané číslo",
+      "p1": "Toto je odlesňovanie tak, ako sa oficiálne ráta: stav uhlíka uvoľnený pri vyrúbaní lesa, sledovaný v čase. Preskúmajte ho podľa horizontu, regiónu a základného roku — no nezabúdajte na otázku, čo vynecháva."
+    },
+    "mainSink": {
+      "heading": "Skrytá cena",
+      "p1": "Teraz pridajte stratený záchyt — budúce ukladanie uhlíka stratené spolu s lesom. Kreslí sa nad vykázaný stav a úplný obraz je niekoľkonásobne väčší. Odznak ×N ukazuje, o koľko vykázané číslo skutočnosť podceňuje."
+    },
+    "crossing": {
+      "heading": "Keď strata prekoná uvoľnenie",
+      "p1": "Uvoľnenie stavu je jednorazový impulz; stratený záchyt sa hromadí rok čo rok. Predĺžte projekciu dostatočne ďaleko a rastúca strata záchytu prekoná jednorazové uvoľnenie. Priblížte rozsah a nájdite prekríženie."
+    },
+    "footprint": {
+      "heading": "Odlesňovanie v kontexte",
+      "p1": "Oproti fosílnym emisiám je odlesňovanie menším podielom — no zďaleka nie zanedbateľným, keď sa popri uvoľnenom stave započíta aj stratený záchyt."
+    },
+    "insight": {
+      "heading": "Priblíženie na odlesňovanie",
+      "p1": "Odstráňte fosílne a stopa odlesňovania vyplní celý obraz: uvoľnený stav nazeleno, stratený záchyt naoranžovo. Rovnaká gramatika ako hlavný graf — vykázané číslo a cena, ktorú nerátame.",
+      "caption": "Pri pohľade na absolútne čísla a po odmyslení fosílnych emisií sa deforestácia prestáva javiť tak bezvýznamnou…"
     }
   }
 }

@@ -10,7 +10,7 @@ export const THEME_TOKENS: ThemeTokens = {
   border: '#2A313B',
   text: { hi: '#E8ECF2', mid: '#A7B0BD', low: '#6E7681' },
   accent: '#3FB6A8',
-  data: { stock: '#5FBE6E', forgoneSink: '#E8A13A', fossil: '#5B6B7F' },
+  data: { stock: '#5FBE6E', forgoneSink: '#E8A13A', fossil: '#5B6B7F', total: '#CE5B4E' },
   bandOpacity: 0.18,
   negative: '#E5534B',
 }

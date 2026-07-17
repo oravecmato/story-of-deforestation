@@ -6,5 +6,5 @@ import { useApi } from './useApi'
 export const useReload = (): (() => Promise<void>) => {
   const data = useDataStore()
   const api = useApi()
-  return () => data.loadForCurrentView(api)
+  return () => data.loadForScene(api)
 }

@@ -64,6 +64,20 @@
     "cars": "passenger cars",
     "country": "of {country}'s annual emissions"
   },
+  "equivalenceStrip": {
+    "stockWindow": "Reported stock over the window",
+    "forgoneAnnual": "Forgone sink, per year",
+    "forgoneWindow": "Forgone sink to the horizon",
+    "combined": "Everything combined",
+    "unit": {
+      "label": "Unit",
+      "mtco2": "Mt CO₂",
+      "car": "Cars",
+      "country": "UK",
+      "carSuffix": "passenger cars",
+      "countrySuffix": "× {country}'s annual emissions"
+    }
+  },
   "methodology": {
     "link": "Methodology",
     "title": "Methodology",
@@ -108,6 +122,40 @@
   "chart": {
     "crossing": {
       "point": "Crossing"
+    }
+  },
+  "deck": {
+    "title": "Story of Deforestation",
+    "next": "Next",
+    "back": "Back",
+    "progress": "Slide {n} of {total}"
+  },
+  "story": {
+    "intro": {
+      "heading": "The half of the story we don't count",
+      "p1": "When a forest is cleared, the carbon it stored is reported as an emission. That reported number is real — but it is only the visible half.",
+      "p2": "The other half is the sink we lose: the carbon that forest would have kept absorbing for decades. This piece makes that hidden cost visible. Read it as an \"at least this much\" argument."
+    },
+    "main": {
+      "heading": "The reported number",
+      "p1": "This is deforestation as it is officially counted: the carbon stock released when forest is cleared, tracked over time. Explore it by horizon, region and baseline — but hold onto the question of what it leaves out."
+    },
+    "mainSink": {
+      "heading": "The hidden cost",
+      "p1": "Now add the forgone sink — the future sequestration lost with the forest. It draws on top of the reported stock, and the full picture is several times larger. The ×N badge shows how much the reported figure understates it."
+    },
+    "crossing": {
+      "heading": "When the loss overtakes the release",
+      "p1": "The stock release is a one-off impulse; the forgone sink keeps accumulating year after year. Run the projection far enough and the rising sink loss overtakes the one-time release. Zoom the range to find the crossing."
+    },
+    "footprint": {
+      "heading": "Deforestation in context",
+      "p1": "Against fossil emissions, deforestation is the smaller share — but it is far from negligible once the forgone sink is counted alongside the released stock."
+    },
+    "insight": {
+      "heading": "Zoom into deforestation",
+      "p1": "Remove fossil and the deforestation footprint fills the frame: the released stock in green, the forgone sink in amber. The same grammar as the main chart — the reported number, and the cost we don't count.",
+      "caption": "Looking at the absolute numbers, and with fossil emissions set aside, deforestation stops looking so insignificant…"
     }
   }
 }

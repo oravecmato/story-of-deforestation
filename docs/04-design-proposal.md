@@ -11,15 +11,21 @@ behavior-level, not pixel-level). No component code yet.
 
 ## 1. Design intent
 
-A serious, quiet, data-first portfolio piece — the *restraint* is the statement. The interface should
-feel like an honest instrument, not a dashboard shouting. The single dramatic moment is **pushing the
-time horizon out** (`today → +100y`), where the projected future debt grows and the magnitudes climb;
-everything else stays calm so that move lands.
+A serious, quiet, data-first portfolio piece — the *restraint* is the statement. The interface is a
+**guided linear story** ("Story of Deforestation" / "Príbeh deforestácie", business §4), not a
+composer dashboard: **one slide at a time**, a visualisation with a **text block below it**, advanced
+by Next/Back. The interface should feel like an honest instrument narrating an argument, not a
+dashboard shouting. The dramatic moments are the **two in-place animations** the deck stages — the
+**forgone sink revealing itself** on top of the reported stock (slide 2→3), and **fossil dropping
+away** from the footprint so only deforestation remains and the axis zooms in (slide 5→6). Everything
+else stays calm so those moves land.
 
 Three principles, inherited and made visual:
 1. **Honesty is legible.** Measured vs. estimated is encoded in *line style* (solid vs. dashed), and
    measured vs. **projected future** in a further *lighter dashed* step — never buried in a caption.
-2. **One hero action.** The time-horizon selector is the most prominent control on the page.
+2. **The story leads; controls are quiet.** No hero control bar — the reader advances slides; the few
+   per-scene controls (horizon, domain, baseline, time-range) sit unobtrusively near the chart and
+   never compete with the narration. The chart itself carries the drama via the two authored reveals.
 3. **Dark, restrained, tabular.** Dark-only V1 (ADR-002); numbers are international compact
    (`3.2M`, `×3.2`, ADR-018) in tabular figures so columns align and magnitudes read at a glance.
 
@@ -67,6 +73,14 @@ Kept minimal (this isn't a status app). **Split from the data layer (iteration #
 as a warning. Caveats, data-year and methodology notes use `text.low`; genuine problems (fetch fail,
 data gap) use error red `#E5534B`. No separate `warn` token and no `success` in V1.
 
+### 2.3a Combined-total color (`data.total`, iteration 5 / ADR-025)
+The slide-6 equivalence strip (§6) shows a fourth figure — the **combined total** (stock + forgone
+sink over the window). It gets its own **data-layer** token `data.total`: a **red-adjacent** hue that is
+deliberately **distinct from the error red** `#E5534B` (proposed `#CE5B4E`, a warm terracotta —
+`revisable`), so "everything added up" reads as *weight/severity of the figure*, never as a fault
+state. Like the amber rule, `data.total` is a **data color only, never a UI state**. It joins
+`data.stock` (green) and `data.forgoneSink` (amber) in `ThemeTokens.data`.
+
 ---
 
 ## 3. Typography
@@ -92,72 +106,118 @@ data gap) use error red `#E5534B`. No separate `warn` token and no `success` in 
 
 ## 5. Layout
 
-### 5.1 Desktop (≥1120px)
+The deck is a **single persistent shell** (tech spec §17, ADR-023): a slim header, one **slide stage**
+that swaps content as the reader advances, and deck navigation. There is **no** control bar / side rail
+/ secondary grid — every visualisation lives inside a slide, and the copy sits **below** it. Slides use
+one of **four closed layout presets** (tech spec §11/§17): `text`, `viz-text`, `duo-viz-text`,
+`duo-viz-equiv` (slide 6, ADR-025).
+
+### 5.1 Deck shell (desktop ≥1120px)
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│ HEADER   Title · one-line thesis                       SK|EN · Method▸ │
+│ HEADER  Story of Deforestation · slide 3 / 6            SK|EN · Method▸ │
 ├───────────────────────────────────────────────────────────────────────┤
-│ CONTROL BAR (sticky)                                                    │
-│  [ ScopeDomainSelect ▾ ]   « today·20·30·50·75·100y »   R:[c·m·h] ▸ baseline 1990 ⌄│
-├──────────────────────────────────────────────┬────────────────────────┤
-│  MAIN CANVAS (8 col)                 ×3.2 many│ SIDE RAIL (4 col)       │
-│  stacked time series (│ = join year),         │  ◐ Composition donut     │
-│  dataZoom below                              │    (always 3 slices)     │
-│                                              │  Share: 4.1% ...         │
-├──────────────────────────────────────────────┴────────────────────────┤
-│  SECONDARY GRID                                                         │
-│  [ Ranking today→horizon ] [ Deforestation vs fossil — global ] [ Equiv]│
+│  SLIDE STAGE (centered, max 1360)                                       │
+│                                                                         │
+│   ┌── viz-text ──────────────┐   ┌── duo-viz-text ───────────────────┐  │
+│   │  [ scene controls ]  ×3.2 │   │  ◐ donut        ▐ defo | fossil ▌  │  │
+│   │  ┌──────────────────────┐ │   │  ┌──────────┐   ┌──────────────┐  │  │
+│   │  │  main chart (viz.id) │ │   │  │  (viz.id)│   │   (viz.id)   │  │  │
+│   │  └──────────────────────┘ │   │  └──────────┘   └──────────────┘  │  │
+│   │  Heading                  │   │  Heading                          │  │
+│   │  full-width text block …  │   │  full-width text block …          │  │
+│   └───────────────────────────┘   └───────────────────────────────────┘  │
+│                                                                         │
+├───────────────────────────────────────────────────────────────────────┤
+│  ◀ Back            ● ● ○ ○ ○ ○  (progress)                     Next ▶   │
 └───────────────────────────────────────────────────────────────────────┘
 ```
-- **Control bar is sticky** and the horizon selector sits **centered and largest** — the hero action.
-  The scope dropdown anchors left; R scenario (segmented) and baseline (compact stepper/select) right.
-- **Multiplier badge (`×N`)** = single instance, **top-right above the canvas**, **always shown**
-  (single accounting; F8/A) — `fullEmissions ÷ WB stock` at the reference year, never a trivial "×1".
-- **Panel 1 (composition donut) stays in the side rail** as the persistent context (placement A),
-  always 3 slices, with the always-on share number beneath it.
-- **Deforestation-vs-fossil** panel appears in the secondary grid **only in global scope**; its slot
-  collapses (grid reflows) in local scope — no empty placeholder.
-- **Ranking** is a **two-column bump** — `today` ranks on the left, the chosen-horizon ranks on the
-  right; the crossing lines reshuffle as the horizon changes.
+- **Header** is slim: deck title, an unobtrusive `slide N / 6` progress read-out, `SK|EN` toggle, and
+  the "Methodology ▸" disclosure. No control bar.
+- **Slide stage** renders the active preset. `text` (slide 1) = heading + framing lines, no viz.
+  `viz-text` (slides 2–4) = one chart above a full-width text block. `duo-viz-text` (slide 5) =
+  donut (left) + deforestation-vs-fossil (right) above the text block. `duo-viz-equiv` (slide 6,
+  ADR-025) = a thin caption line, the controls row, the same donut + bar (which may **shrink** to make
+  room), and a **full-width equivalence strip** at the foot — **no** text block:
+```
+   ┌── duo-viz-equiv (slide 6) ───────────────────────┐
+   │  "…deforestation stops looking so insignificant…"  │  ← caption (one line)
+   │  [ baseline · horizon ]            [Mt CO₂|car|ctry]│  ← controls + unit switch (right)
+   │  ┌── ◐ donut ──┐  ┌── ▐ defo bar ──┐               │  ← two vizzes (can shrink)
+   │  └─────────────┘  └────────────────┘               │
+   │  ┌──────────────── equivalence strip ────────────┐ │
+   │  │ ▮stock/window  ▮sink/yr  ▮sink/window  ▮TOTAL │ │  ← 4 colour-coded figures
+   │  └───────────────────────────────────────────────┘ │
+   └────────────────────────────────────────────────────┘
+```
+  If vertical space is tight, height comes off the **viz cards** first (primitive charts), never the
+  strip. The `viz` slot outlet is the *same* element as `duo-viz-text`, so the 5→6 charts are preserved
+  and only animate (§7, tech spec §17.2).
+- **Scene controls** sit as a quiet inline row **just above the chart** — only what the scene surfaces
+  (main: horizon · domain · baseline; crossing: time-range · baseline). Small, `text.mid`, never a
+  hero bar. The domain control appears only in the main scene; crossing/footprint are forced global.
+- **Multiplier badge (`×N`)** appears **from slide 3** (when the forgone sink is revealed), top-right
+  of the main chart — `fullEmissions ÷ WB stock` at the reference year, never a trivial "×1". Absent
+  on slide 2 (stock only).
+- **Deck nav:** Back / Next + a dot **progress indicator**; also keyboard (←/→) and scroll. The route
+  is one persistent `/story/:slug`; the stage swaps, it does not reload (ADR-023).
 
 ### 5.2 Tablet (768–1119px)
-Side rail drops **below** the canvas (donut full-width). Secondary grid → 2-up then 1-up. Control bar
-keeps the **scope select + horizon selector** on one row (selector stays centered, still hero) and
-**collapses R-scenario + baseline behind a "▾ scenario & baseline" disclosure** (iteration #2) —
-they're secondary, so the hero row stays uncluttered. On the narrower tablet width the six horizon
-segments may wrap or condense to a compact `▾ horizon` select.
+Slide stage stays single-column and centered; `duo-viz-text`/`duo-viz-equiv` **stack** the two vizzes
+(donut above the bar) then the text block or equivalence strip. On `duo-viz-equiv` the strip's four
+cells wrap to a **2×2** grid. Scene controls wrap to a compact row above the chart; the six horizon
+segments may condense to a `▾ horizon` select. Deck nav stays pinned at the bottom.
 
 ### 5.3 Mobile (<768px)
-Single column, everything stacked. Control bar becomes: scope select (full width) → the horizon
-selector (full-width pill / compact select, still visually dominant) → a collapsible "▾ scenario &
-baseline" disclosure. Charts full-bleed to card edges; `dataZoom` slider retained (touch), inside-zoom
-enabled.
+Single column, full-bleed charts to card edges. `duo-viz-text`/`duo-viz-equiv` are fully stacked; the
+equivalence strip's cells stack **2×2** (or 1-up if very narrow), staying above the deck nav. Scene
+controls become a compact row / disclosure above the chart. Deck nav is a bottom bar (Back · dots ·
+Next); swipe gestures may advance slides. `dataZoom` slider retained (touch), inside-zoom enabled on
+the crossing.
 
 ---
 
 ## 6. Component treatment
 
-- **Header:** small — title `h1`, one muted thesis line, right-aligned `SK|EN` segmented toggle and a
-  "Methodology ▸" text link (opens the disclosure). No nav, no logo chrome.
-- **ScopeDomainSelect:** PrimeVue Select; items rendered from `SCOPE_SELECTOR_OPTIONS`; a thin divider
-  before the default **Global** entry (tech spec §2.4). Selected value shows the domain/global label.
-- **Horizon selector (`HorizonSelect`):** a wide pill with six segments
-  `today · 20y · 30y · 50y · 75y · 100y`, `today` preselected. Inactive segments `text.mid` on
-  `surface.2`; the active segment fills with a subtle accent-tinted surface and `text.hi`. A labeled
-  segmented control so the horizon is always visible; the segment labels are i18n keys
-  ("+20 rokov" / "+20 years"). This is the hero control — largest, centered.
-- **R scenario:** 3-segment control `conservative · mid · high`, `mid` preselected. Muted; secondary
-  to the horizon selector by size and contrast.
-- **Baseline:** compact select/stepper, floor 1990, label pattern "from loss after **{year}**".
+- **Header:** small — deck title `h1`, an unobtrusive `slide N / 6` read-out, right-aligned `SK|EN`
+  segmented toggle and a "Methodology ▸" text link (opens the disclosure). No nav, no logo chrome.
+- **Slide layout (`SlideLayout`):** the viz sits in a `surface.1` card (hairline border, radius 10);
+  the **text block is full-width below it** with an optional `h2` heading above the copy. `duo-viz-text`
+  places two cards side-by-side above the shared text block. Text is `text.mid` body, generous measure.
+- **Deck nav (`DeckNav` + `ProgressIndicator`):** Back / Next as quiet text/icon buttons at the stage
+  foot; a dot progress indicator (filled = visited, `accent` = current). Keyboard ←/→ mirror them.
+- **Scene controls (inline, quiet):** a small `text.mid` row just above the chart, only what the scene
+  surfaces:
+  - **Horizon (`HorizonSelect`):** a compact segmented pill `today · 20y · 30y · 50y · 75y · 100y`,
+    `today` default; active segment accent-tinted `surface.2` + `text.hi`; labels are i18n keys
+    ("+20 rokov" / "+20 years"). Main scene only. On narrow widths condenses to a `▾ horizon` select.
+  - **Domain (`DomainSelect`):** PrimeVue Select of the four domains; **main scene only** (global-first
+    deck; no standalone scope toggle — tech spec §17.1). Absent on crossing/footprint (forced global).
+  - **Baseline (`BaselineControl`):** compact select/stepper, floor 1990, "from loss after **{year}**".
+  - **Time-range (`TimeRangeZoom`):** the crossing scene's `dataZoom` control (§7); pure view state.
+  - **R scenario is NOT surfaced in the V1 deck** (tech spec §17.1) — it stays a param at its `mid`
+    default. (When later surfaced it would be a muted 3-segment control, secondary to the others.)
 - **Multiplier badge:** mono `×3.2`, `text.hi` on `surface.2`, accent hairline; a caption key beneath
-  ("full vs official at {referenceYear}"). **Always shown**; the number itself is horizon-invariant in
-  V1 (measured data), so it does not animate on horizon change (only on a scenario/scope change that
-  re-derives it).
+  ("full vs official at {referenceYear}"). **Appears from slide 3** with the forgone-sink reveal;
+  horizon-invariant in V1 (measured data), so it does not count-up on horizon change.
 - **Panels:** `surface.1` card, hairline border, radius 10, a `h2` title + optional `text.low`
   data-year note ("data to 2023"). The reference-year note lives here (ADR-016).
+- **Equivalence strip (`EquivalenceStrip`, slide 6 — §6.7 UI):** a full-width `surface.1` bar at the
+  slide foot, hairline top border, holding **four stat cells** in a row. Each cell = a big **mono**
+  number (IBM Plex Mono / tabular) over a small `text.mid` caption; a **left colour rule / dot** ties
+  the cell to its layer — `data.stock` green (stock/window), `data.forgoneSink` amber (sink/yr and
+  sink/window), `data.total` terracotta (combined total, the visually heaviest cell). Numbers via the
+  injected `Formatter`; units are localized labels appended by the caller. A small `text.low`
+  "data as of {referenceYear}" note sits under the annual cell. On narrow widths the four cells wrap to
+  a **2×2** grid (§5.2/§5.3).
+- **Unit toggle (`UnitToggle`):** a compact segmented pill at the strip's top-right (mirrors
+  `HorizonSelect`'s treatment) — `Mt CO₂ · car · country`, active segment accent-tinted `surface.2` +
+  `text.hi`, **default car**. Switching it retints/relabels **all four** cells at once (pure view
+  state; the country segment's label follows the locale — Slovakia / UK).
 - **Legend:** display-only, inline under the title, using the §2.2 swatches (solid green / dashed
   amber / slate). The **projected twin series carry no legend entry** — one entry per metric,
-  regardless of horizon. Non-interactive by decision (UI §4.4/§4.5) — scope is the only layer control.
+  regardless of horizon. Non-interactive by decision — the deck's slide reveal is what changes which
+  layers show, not a legend toggle.
 
 ---
 
@@ -179,23 +239,44 @@ enabled.
 - **Crossing marker:** thin accent vertical guide + a small accent dot where the annual stock impulse
   and the cumulative forgone-sink level cross; label in `text.mid`. The extended horizon is what gives
   the chart enough span to reach the crossing (which may sit in the projected tail).
-- **Ranking bump:** two category columns (`today` → chosen horizon), one line per domain in its stock
-  green tint, crossing lines where the horizon reshuffles the order; rank labels in `text.mid`.
+- **Ranking bump** *(deferred from the V1 deck — built, on no slide, business §4.6)*: two category
+  columns (`today` → chosen horizon), one line per domain in its stock green tint, rank labels
+  `text.mid`.
 - **dataZoom:** slider (bottom, minimal, accent handles) + inside; a "reset to full range" affordance;
-  time range resets on scope change (F6). Pure client view, distinct from the horizon — no refetch (ADR-005).
-- **Fossil-comparison panel:** two grids side-by-side sharing one computed `sharedYAxis()` max+interval
-  (F7b) so the deforestation bar and the fossil bar are honestly comparable at a glance.
+  time range is **per-scene** and resets on scene entry. Pure client view, distinct from the horizon —
+  no refetch (ADR-005/023).
+- **Footprint donut (slide 5→6):** 3 slices (fossil slate / stock green / forgone amber) on slide 5;
+  on slide 6 the **fossil slice leaves** and the remaining two (stock + forgone) grow to fill the ring
+  — the donut re-sweeps in place (same `viz.id`, `setOption`).
+- **Fossil-comparison bar — one grid, two categories (tech spec §11.2/§16.36):** a single grid with
+  two category columns, `deforestation` and `fossil`, on **one shared Y-axis** (via `sharedYAxis()`)
+  so they are honestly comparable. On **slide 6** the `fossil` column leaves, the `deforestation`
+  column splits its **forgone-sink amber** out as its own stacked layer over the green stock, and the
+  single axis **rescales to the deforestation range** — the "zoom in" that makes the hidden cost fill
+  the frame. Restructured from the old two-grid design specifically to enable this in-place animation.
 
 ---
 
 ## 8. Motion
 
-- **horizon change** (`today → +Ny`): single ECharts `setOption` transition ~**240ms** `cubic-out`
-  (F5); the projected dashed tail extends, the axis rescales smoothly, the join divider slides to the
-  new span. Because the data refetches, the transition runs on arrival of the (usually cached) DTO.
-- Everything else near-instant (≤120ms hovers/focus). Respect `prefers-reduced-motion`: drop the
-  transition and swap immediately.
-- No decorative/ambient animation anywhere — motion only ever communicates a data change.
+Motion is the deck's argument, so the **two authored in-place animations** are the only expressive
+moments; each is a single ECharts `setOption` on a **preserved chart instance** (same `viz.id`, no
+remount — tech spec §11.4/§17.3, ADR-022):
+
+- **Reveal the forgone sink** (slide 2→3): the amber dashed forgone-sink line + `alpha .18` band
+  **draw on** over the reported green stock; the axis grows to the full-emissions total and the `×N`
+  badge fades in. ~**320ms** `cubic-out`. Same DTO/params — no refetch.
+- **Remove fossil / zoom in** (slide 5→6): the fossil slate **leaves** both the donut slice and the
+  bar's fossil column; the deforestation bar's amber forgone-sink layer separates over green stock and
+  the single Y-axis **rescales to the deforestation range**. ~**320ms** `cubic-out`. Same DTO/params.
+- **Slide transitions** (Next/Back across scenes): a quiet ~**200ms** cross-fade/slide of the stage
+  content; crossing a scene boundary mounts a fresh chart (new `viz.id`).
+- **Horizon / domain / baseline change** (in-scene controls): single `setOption` ~**240ms** `cubic-out`
+  on arrival of the (usually cached) DTO — the projected dashed tail extends, the axis rescales, the
+  join divider slides.
+- Everything else near-instant (≤120ms hovers/focus). **Respect `prefers-reduced-motion`:** drop all
+  transitions (including the two authored reveals) and swap state immediately.
+- No decorative/ambient animation anywhere — motion only ever communicates a data or reveal change.
 
 ---
 
@@ -213,13 +294,34 @@ enabled.
   selector stay on the hero row (§5.2).
 
 **Resolved (iteration 3 — official↔full → time horizon):**
-- **Hero control:** the binary accounting switch is **removed**; the **time-horizon selector** (six
-  segments, `today` default) is the new hero (§1/§5/§6).
 - **Projected-future style:** measured-vs-projected is a **lighter dashed** step over the existing
   solid/dashed grammar (`opacity ×0.55`), with a **join-year divider** (§2.2/§7). Provisional — the
   lighter-dashed vs. estimate-dashed distinction is `revisable` (business §12).
-- **Multiplier badge:** now **always shown**, horizon-invariant in V1 (measured data) — so it no
-  longer count-up-animates on the hero action.
-- **Ranking:** two-column bump (`today` → horizon), reshuffling with the horizon (§5/§7).
+- **Multiplier badge:** horizon-invariant in V1 (measured data) — so it does not count-up on horizon.
+- **Time horizon** is retained as an in-scene control of the main scene (not a page hero).
 
-No open design questions remain for V1 (the flagged projection-styling nuance is a revisable default).
+**Resolved (iteration 4 — composer → guided story deck, ADR-021..024):**
+- **Layout model:** the sticky control bar + side rail + secondary grid are **removed**; the app is a
+  single-route **deck shell** — header · slide stage · deck nav — rendering one of three closed layout
+  presets (`text`, `viz-text`, `duo-viz-text`) with the **text block below the viz** (§5/§6).
+- **Controls demoted:** no hero control bar; the few per-scene controls sit as a quiet inline row above
+  the chart. Domain becomes a **main-scene control** (global-first; no standalone scope toggle); R is
+  **not surfaced** in V1 (§6).
+- **Drama = two authored in-place animations** (same `viz.id`, `setOption`): forgone-sink reveal
+  (2→3) and fossil-removal/zoom-in (5→6) — §7/§8. The fossil-comparison bar is restructured to **one
+  grid, two categories** to enable the 5→6 animation (§7).
+- **Multiplier badge** now **appears from slide 3** (the reveal), not always-on (§5/§6).
+- **Ranking bump is DEFERRED** from the V1 deck (built, on no slide — business §4.6); its styling notes
+  are retained for a later deck.
+
+**Resolved (iteration 5 — slide-6 insight restage, ADR-025):**
+- **Fourth layout preset `duo-viz-equiv`** for slide 6 (§5.1): caption · controls · duo-viz · full-width
+  equivalence strip, no text block. The `viz` slot outlet stays the same element as `duo-viz-text`, so
+  the 5→6 charts are preserved and only animate (§7).
+- **Footprint scene surfaces `baseline` + `horizon`,** shared across slides 5–6 (quiet inline row).
+- **Equivalence panel is restaged, not deferred:** a redesigned `EquivalenceStrip` (§6) — four
+  colour-coded figures (stock/window green, sink/yr + sink/window amber, combined total terracotta) with
+  a `Mt CO₂ · car · country` unit switcher (default car). New data token `data.total` (§2.3a).
+
+No open design questions remain for V1 (the projection-styling nuance and the exact `data.total` hex are
+revisable defaults).
