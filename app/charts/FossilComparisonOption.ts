@@ -1,11 +1,11 @@
 import type { EChartsOption, SeriesOption } from 'echarts'
-import type { GlobalResultDTO, ReferenceDTO } from '../../shared/types'
+import type { GlobalResultDTO, GlobalDerived, ReferenceDTO } from '../../shared/types'
 import { sceneWindow } from '../../shared/config/derivation'
 import { BaseChartOption } from './BaseChartOption'
 
 export interface FossilComparisonData {
   reference: ReferenceDTO
-  main: GlobalResultDTO
+  main: GlobalResultDTO & GlobalDerived
 }
 
 // Fossil comparison (§11.2, global only): ONE grid, TWO categories on a single shared Y-axis
@@ -13,14 +13,14 @@ export interface FossilComparisonData {
 // category is a stacked bar (official stock + forgone sink); fossil is its own bar. Slide 5 shows
 // both categories (metrics include 'fossil'); slide 6 drops 'fossil' → the fossil bar leaves, only
 // the deforestation category remains and the single Y-axis rescales to its range ("zoom in", UI §6.3).
-// All three magnitudes are the TRUE finite integral over the symmetric window `[baseline,
-// horizonTargetYear(horizon)]` (§17.4, ADR-025) — so the bar reads the same basis as the equivalence
-// strip and the donut: stock, forgone and fossil are each a genuine Σ over the one window (business
-// §2.4 quantity #2), the forgone sink included (not rate × years).
+// All three magnitudes are the TRUE finite integral over the forward window `[referenceYear,
+// referenceYear + horizonYears(horizon)]` (§17.4, ADR-025) — so the bar reads the same basis as the
+// equivalence strip and the donut: stock, forgone and fossil are each a genuine Σ over the one window
+// (business §2.4 quantity #2), the forgone sink included (not rate × years).
 export class FossilComparisonOption extends BaseChartOption<FossilComparisonData> {
   private totals(): { stock: number; forgone: number; fossil: number } {
     const { main, reference } = this.data
-    const { from, to } = sceneWindow(this.ctx.baseline, this.ctx.horizon)
+    const { from, to } = sceneWindow(main.referenceYear, this.ctx.horizon)
     return {
       stock: this.sumWindow(main.aggregateStock, from, to),
       forgone: this.sumWindow(main.aggregateForgoneSink, from, to),

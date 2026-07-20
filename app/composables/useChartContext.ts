@@ -5,7 +5,7 @@ import { useViewStore } from '../stores/view'
 import { useFormatter } from './useFormatter'
 
 // Chart context provider (tech-spec §11.3): the ONE Pinia-aware seam that assembles the injection
-// bundle (i18n `t`, theme, formatter, breakpoint + the current horizon/rScenario/timeRange) for the
+// bundle (i18n `t`, theme, formatter, breakpoint + the current horizon/baseline/rScenario) for the
 // pure chart-option classes. Parent panels call this and pass the resulting `ctx` down to the dumb
 // chart components as a prop, so the chart components themselves stay Pinia-unaware (ADR-007/013).
 export function useChartContext(): ComputedRef<ChartContext> {
@@ -22,6 +22,5 @@ export function useChartContext(): ComputedRef<ChartContext> {
     horizon: view.horizon,
     baseline: view.baseline,
     rScenario: view.rScenario,
-    timeRange: view.timeRange,
   }))
 }

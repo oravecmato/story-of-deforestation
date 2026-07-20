@@ -1,15 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { sumSeries, equivalence, MT_TO_T } from '../server/utils/stats'
-import { EQUIVALENCE_CONFIG } from '../shared/config/equivalences'
-import type { DerivationParams } from '../shared/types'
+import { sumSeries } from '../shared/utils/stats'
 import { mkSeries, values, years } from './helpers/series'
-
-const PARAMS: DerivationParams = {
-  scope: 'global',
-  horizon: 'today',
-  rScenario: 'mid',
-  baseline: 1990,
-}
 
 describe('sumSeries (pure)', () => {
   it('sums contributors pointwise over the union of years, stamping geo/id', () => {
@@ -56,52 +47,5 @@ describe('sumSeries (pure)', () => {
     const sum = sumSeries([a, b], 'dom')
     expect(sum.meta.gaps).toContainEqual({ geo: 'AAA', reason: 'x' })
     expect(sum.meta.gaps).toContainEqual({ geo: 'BBB', reason: 'y' })
-  })
-})
-
-describe('equivalence', () => {
-  it('today horizon: no cumulative, car + country from the annual rate', () => {
-    const dto = equivalence({
-      params: PARAMS,
-      referenceYear: 2022,
-      horizon: 'today',
-      annualRateCO2: 100, // Mt/yr
-      referenceCountry: { iso3: 'GBR' },
-      referenceCountryAnnualCO2: 400, // Mt/yr
-      cfg: EQUIVALENCE_CONFIG,
-    })
-    expect(dto.cumulativeCO2).toBeNull()
-    expect(dto.annualRateCO2).toBe(100)
-    expect(dto.carEquivalent).toBeCloseTo((100 * MT_TO_T) / 4.6, 3)
-    expect(dto.countryEquivalent).toEqual({ iso3: 'GBR', times: 100 / 400 })
-    expect(dto.referenceYear).toBe(2022)
-  })
-
-  it('30y preset: forward-committed = annualRate × 30 drives the equivalents', () => {
-    const dto = equivalence({
-      params: PARAMS,
-      referenceYear: 2022,
-      horizon: '30y',
-      annualRateCO2: 100,
-      referenceCountry: { iso3: 'SVK' },
-      referenceCountryAnnualCO2: 30,
-      cfg: EQUIVALENCE_CONFIG,
-    })
-    expect(dto.cumulativeCO2).toBe(3000)
-    expect(dto.carEquivalent).toBeCloseTo((3000 * MT_TO_T) / 4.6, 3)
-    expect(dto.countryEquivalent).toEqual({ iso3: 'SVK', times: 3000 / 30 })
-  })
-
-  it('returns NaN times when the reference country has zero emissions', () => {
-    const dto = equivalence({
-      params: PARAMS,
-      referenceYear: 2022,
-      horizon: 'today',
-      annualRateCO2: 100,
-      referenceCountry: { iso3: 'XXX' },
-      referenceCountryAnnualCO2: 0,
-      cfg: EQUIVALENCE_CONFIG,
-    })
-    expect(Number.isNaN(dto.countryEquivalent.times)).toBe(true)
   })
 })

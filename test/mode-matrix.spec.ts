@@ -6,8 +6,10 @@ import MultiplierBadge from '../app/components/shell/MultiplierBadge.vue'
 import MagnitudePanels from '../app/components/shell/MagnitudePanels.vue'
 import { useDataStore } from '../app/stores/data'
 import { useViewStore } from '../app/stores/view'
+import { deriveGlobal } from '../app/composables/useDerived'
 import { paramsKey } from '../shared/config/derivation'
 import type { GlobalResultDTO } from '../shared/types'
+import { mkSeries } from './helpers/series'
 
 // Critical-component mode-matrix tests (tech-spec §15, UI §8, ADR-019 — single accounting): the
 // multiplier shows whenever it is present; the share/fossil panels are global-only while the
@@ -26,15 +28,36 @@ const globalResult = (over: Partial<GlobalResultDTO> = {}): GlobalResultDTO =>
 describe('MultiplierBadge', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('renders ×N when the multiplier is present', () => {
+  it('renders ×N when the multiplier is derivable', () => {
     const view = useViewStore()
     view.scope = 'global'
     const data = useDataStore()
-    data.dtoCache.set(paramsKey('global', view.derivationParams), globalResult({ multiplier: 3.2 }))
+    // The multiplier is CLIENT-DERIVED from the baseline-independent DTO at the live baseline
+    // (ADR-026) — so feed a real per-domain area + aggregate stock and assert the derived ×N shows.
+    const dto = globalResult({
+      params: view.derivationParams,
+      referenceYear: 2020,
+      perDomainArea: [
+        mkSeries('area:amazon', [[2000, 1000], [2010, 900], [2020, 800]], {
+          indicatorId: 'forestArea',
+          unit: 'km2',
+          seriesType: 'state',
+          latestDataYear: 2020,
+        }),
+      ],
+      aggregateStock: mkSeries('aggregateStock', [[2000, 100], [2010, 100], [2020, 100]], {
+        indicatorId: 'deforestationStock',
+        unit: 'Mt CO2',
+        seriesType: 'flow',
+        latestDataYear: 2020,
+      }),
+    })
+    data.dtoCache.set(paramsKey('global', view.derivationParams), dto)
+    const expected = deriveGlobal(dto, view.baseline).multiplier
 
     const w = mount(MultiplierBadge)
     expect(w.find('.multiplier').exists()).toBe(true)
-    expect(w.text()).toContain('×3.2')
+    expect(w.text()).toContain('×' + expected.toFixed(1))
   })
 
   it('is hidden when no multiplier is available', () => {

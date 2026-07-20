@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { DomainResultDTO, GlobalResultDTO } from '../../../shared/types'
+import type {
+  DomainResultDTO,
+  GlobalResultDTO,
+  DomainDerived,
+  GlobalDerived,
+  Series,
+} from '../../../shared/types'
 import AsyncPanel from './AsyncPanel.vue'
 import FootprintDonut from '../charts/FootprintDonut.vue'
 import FossilComparisonChart from '../charts/FossilComparisonChart.vue'
 import CrossingChart from '../charts/CrossingChart.vue'
 import type { CrossingInput } from '../../charts/CrossingOption'
+import { sharePercent } from '../../../shared/utils/stats'
 import { useDataStore } from '../../stores/data'
 import { useViewStore } from '../../stores/view'
 import { useChartContext } from '../../composables/useChartContext'
@@ -31,19 +38,40 @@ const mainEndpoint = computed(() => (isGlobal.value ? 'global' : 'domain'))
 
 const reference = computed(() => data.currentReference)
 const globalResult = computed(() => data.currentMainResult as GlobalResultDTO | undefined)
-const share = computed(() => reference.value?.sharePercent ?? null)
+const globalDerived = computed(() => data.currentDerived as GlobalDerived | undefined)
+
+const valueAt = (s: Series, year: number): number =>
+  s.points.find((p) => p.year === year)?.value ?? 0
+
+/** Share of the global footprint that is deforestation, at referenceYear (business §4.3). Now derived
+ *  CLIENT-SIDE at the live baseline (ADR-026): defo = aggregateStock + derived aggregateForgoneSink;
+ *  share = defo / (fossil + defo). */
+const share = computed<number | null>(() => {
+  const ref = reference.value
+  const g = globalResult.value
+  const gd = globalDerived.value
+  if (!ref || !g || !gd) return null
+  const ry = ref.referenceYear
+  const defo = valueAt(g.aggregateStock, ry) + valueAt(gd.aggregateForgoneSink, ry)
+  const fossil = valueAt(ref.fossilTotal, ry)
+  return sharePercent(defo, fossil + defo)
+})
 
 /** Scope-agnostic crossing input: global aggregates its stock/forgone sink, local uses the domain's
- *  own — so CrossingChart never sees a scope-specific DTO shape. */
+ *  own — so CrossingChart never sees a scope-specific DTO shape. The forgone sink + crossing year are
+ *  baseline-derived (ADR-026); the stock curve is the baseline-independent DTO. */
 const crossingInput = computed<CrossingInput | undefined>(() => {
   const main = data.currentMainResult
-  if (!main) return undefined
+  const derived = data.currentDerived
+  if (!main || !derived) return undefined
   if (view.scope === 'global') {
     const g = main as GlobalResultDTO
-    return { stock: g.aggregateStock, forgoneSink: g.aggregateForgoneSink, crossingYear: g.crossingYear }
+    const gd = derived as GlobalDerived
+    return { stock: g.aggregateStock, forgoneSink: gd.aggregateForgoneSink, crossingYear: gd.crossingYear }
   }
   const d = main as DomainResultDTO
-  return { stock: d.stock, forgoneSink: d.forgoneSink, crossingYear: d.crossingYear }
+  const dd = derived as DomainDerived
+  return { stock: d.stock, forgoneSink: dd.forgoneSink, crossingYear: dd.crossingYear }
 })
 </script>
 
@@ -60,9 +88,10 @@ const crossingInput = computed<CrossingInput | undefined>(() => {
       @retry="reload"
     >
       <FootprintDonut
-        v-if="reference && globalResult"
+        v-if="reference && globalResult && globalDerived"
         :reference="reference"
         :main="globalResult"
+        :derived="globalDerived"
         :ctx="chartCtx"
         :loading="data.loading.reference"
       />
@@ -85,9 +114,10 @@ const crossingInput = computed<CrossingInput | undefined>(() => {
       @retry="reload"
     >
       <FossilComparisonChart
-        v-if="reference && globalResult"
+        v-if="reference && globalResult && globalDerived"
         :reference="reference"
         :main="globalResult"
+        :derived="globalDerived"
         :ctx="chartCtx"
         :loading="data.loading.reference || data.loading.global"
       />

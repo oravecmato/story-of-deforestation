@@ -24,8 +24,9 @@ const LAYOUTS: ReadonlySet<LayoutPreset> = new Set([
   'viz-text',
   'duo-viz-text',
   'duo-viz-equiv',
+  'lab',
 ])
-const SCENES: ReadonlySet<SceneId> = new Set(['intro', 'main', 'crossing', 'footprint'])
+const SCENES: ReadonlySet<SceneId> = new Set(['intro', 'main', 'crossing', 'footprint', 'baseline'])
 const VIZ_KINDS: ReadonlySet<VizKind> = new Set([
   'mainStacked',
   'globalStackedArea',
@@ -33,7 +34,12 @@ const VIZ_KINDS: ReadonlySet<VizKind> = new Set([
   'donut',
   'fossilComparison',
 ])
-const CONTROL_KEYS: ReadonlySet<ControlKey> = new Set(['horizon', 'domain', 'baseline', 'timeRange'])
+const CONTROL_KEYS: ReadonlySet<ControlKey> = new Set([
+  'horizon',
+  'domain',
+  'baseline',
+  'baselineSlider',
+])
 const METRICS: ReadonlySet<string> = new Set(['stock', 'forgoneSink', 'fossil'])
 
 const localParams: DerivationParams = {
@@ -41,15 +47,14 @@ const localParams: DerivationParams = {
   domainId: 'amazon',
   horizon: 'today',
   rScenario: 'mid',
-  baseline: 1990,
 }
-const globalParams: DerivationParams = { scope: 'global', horizon: 'today', rScenario: 'mid', baseline: 1990 }
+const globalParams: DerivationParams = { scope: 'global', horizon: 'today', rScenario: 'mid' }
 
 // --- slides.ts (authored config) -------------------------------------------
 
 describe('slides.ts — authored deck config', () => {
-  it('is a six-slide deck across the four scenes', () => {
-    expect(SLIDES).toHaveLength(6)
+  it('is a seven-slide deck across the five scenes', () => {
+    expect(SLIDES).toHaveLength(7)
     expect(new Set(SLIDES.map((s) => s.scene))).toEqual(SCENES)
   })
 
@@ -61,6 +66,7 @@ describe('slides.ts — authored deck config', () => {
       'crossing',
       'footprint',
       'deforestation-insight',
+      'baseline',
     ])
     expect(new Set(SLUGS).size).toBe(SLUGS.length)
     expect(FIRST_SLUG).toBe('intro')
@@ -79,7 +85,7 @@ describe('slides.ts — authored deck config', () => {
     }
   })
 
-  it('has 0 (intro) / 1 (main, crossing) / 2 (footprint) visualisations per slide', () => {
+  it('has 0 (intro) / 1 (main, crossing) / 2 (footprint, baseline lab) visualisations per slide', () => {
     const count = (slug: string) => getSlide(slug)!.visualizations.length
     expect(count('intro')).toBe(0)
     expect(count('main')).toBe(1)
@@ -87,14 +93,28 @@ describe('slides.ts — authored deck config', () => {
     expect(count('crossing')).toBe(1)
     expect(count('footprint')).toBe(2)
     expect(count('deforestation-insight')).toBe(2)
+    expect(count('baseline')).toBe(2)
   })
 
-  it('forces global scope on the crossing and footprint scenes', () => {
-    for (const slug of ['crossing', 'footprint', 'deforestation-insight']) {
+  it('forces global scope on the crossing, footprint and baseline scenes', () => {
+    for (const slug of ['crossing', 'footprint', 'deforestation-insight', 'baseline']) {
       expect(getSlide(slug)!.forced?.scope).toBe('global')
     }
     // the main scene does NOT force scope (domain is a live control there)
     expect(getSlide('main')!.forced?.scope).toBeUndefined()
+  })
+
+  it('merges the baseline lab into one `lab` slide: stacked main+crossing + equivalence (ADR-026)', () => {
+    const lab = getSlide('baseline')!
+    expect(lab.scene).toBe('baseline')
+    expect(lab.layout).toBe('lab')
+    expect(lab.captionKey).toBe('story.baselineLab.caption')
+    expect(lab.controls).toEqual(['baselineSlider', 'horizon'])
+    expect(lab.params?.horizon).toBe('100y')
+    expect(lab.baseline).toBe(1990)
+    // two vizzes stacked in the main column: the main stock+forgone chart above the crossing chart
+    expect(lab.visualizations.map((v) => v.id)).toEqual(['baseline-main', 'baseline-crossing'])
+    expect(lab.visualizations.map((v) => v.kind)).toEqual(['mainStacked', 'crossing'])
   })
 
   it('surfaces the shared baseline+horizon controls on the footprint scene (ADR-025)', () => {
@@ -135,11 +155,14 @@ describe('slides.ts — navigation helpers', () => {
   it('resolves index / next / prev within the deck', () => {
     expect(slideIndex('intro')).toBe(0)
     expect(slideIndex('deforestation-insight')).toBe(5)
+    expect(slideIndex('baseline')).toBe(6)
     expect(slideIndex('nope')).toBe(-1)
     expect(nextSlug('intro')).toBe('main')
-    expect(nextSlug('deforestation-insight')).toBeNull()
+    expect(nextSlug('deforestation-insight')).toBe('baseline')
+    expect(nextSlug('baseline')).toBeNull()
     expect(prevSlug('intro')).toBeNull()
     expect(prevSlug('main')).toBe('intro')
+    expect(prevSlug('baseline')).toBe('deforestation-insight')
     expect(nextSlug('nope')).toBeNull()
     expect(prevSlug('nope')).toBeNull()
   })
@@ -169,13 +192,10 @@ describe('SlideFactory.renderSlide', () => {
     expect(main.controls).toEqual([
       { key: 'horizon', mode: 'server-refetch' },
       { key: 'domain', mode: 'server-refetch' },
-      { key: 'baseline', mode: 'server-refetch' },
+      { key: 'baseline', mode: 'client-only' }, // ADR-026: baseline no longer refetches
     ])
     const crossing = renderSlide(getSlide('crossing')!, globalParams)
-    expect(crossing.controls).toEqual([
-      { key: 'timeRange', mode: 'client-only' },
-      { key: 'baseline', mode: 'server-refetch' },
-    ])
+    expect(crossing.controls).toEqual([{ key: 'baseline', mode: 'client-only' }])
   })
 
   it('applies forced overrides on top of the scene params', () => {

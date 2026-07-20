@@ -3,10 +3,13 @@ import type {
   DerivationParams,
   DomainResultDTO,
   GlobalResultDTO,
+  DomainDerived,
+  GlobalDerived,
   ReferenceDTO,
   EquivalenceDTO,
 } from '../../shared/types'
 import { paramsKey } from '../../shared/config/derivation'
+import { deriveDomain, deriveGlobal } from '../composables/useDerived'
 import { useViewStore } from './view'
 import { useUiStore } from './ui'
 import type { ApiClient, StoreError } from '../services/apiClient'
@@ -15,7 +18,7 @@ import type { ApiClient, StoreError } from '../services/apiClient'
 // signature; a hit returns instantly (server-authoritative first fetch warmed the CDN + this cache →
 // instant re-select of an already-visited horizon/scene, ADR-005). `inFlight` dedupes simultaneous
 // identical requests; `prefetch` warms the next slide's scene params on idle so forward deck
-// navigation is instant (ADR-023). `timeRange` never touches this store (pure view state).
+// navigation is instant (ADR-023).
 // `loadForScene`/`prefetch` take the ApiClient explicitly (DI, so the store stays free of Nuxt globals
 // and is unit-testable); callers pass `useApi()`.
 
@@ -104,8 +107,18 @@ export const useDataStore = defineStore('data', {
         | EquivalenceDTO
         | undefined
     },
+    /** The baseline-dependent tail (ADR-026 §3.2a) re-derived off the current DTO at the live
+     *  `view.baseline` via the isomorphic core — recomputed on every slider frame, no refetch. */
+    currentDerived(): DomainDerived | GlobalDerived | undefined {
+      const view = useViewStore()
+      const main = this.currentMainResult
+      if (!main) return undefined
+      return view.scope === 'global'
+        ? deriveGlobal(main as GlobalResultDTO, view.baseline)
+        : deriveDomain(main as DomainResultDTO, view.baseline)
+    },
     multiplier(): number | undefined {
-      return this.currentMainResult?.multiplier
+      return this.currentDerived?.multiplier
     },
   },
 

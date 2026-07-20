@@ -1,5 +1,5 @@
 import type { EChartsOption, SeriesOption } from 'echarts'
-import type { GlobalResultDTO } from '../../shared/types'
+import type { GlobalResultDTO, GlobalDerived } from '../../shared/types'
 import { BaseChartOption } from './BaseChartOption'
 
 // Global main chart (§11.2, §4.2): per-domain stacked area + the aggregate forgone sink as one more
@@ -8,11 +8,7 @@ import { BaseChartOption } from './BaseChartOption'
 // the forgone sink stacks LAST so it stays on top. The measured-vs-projected cue is a faded
 // forecast-zone shade + join-year divider (from the last measured year) + the forgone's own
 // dashed-lighter top-edge line; the aggregate CI band hugs the upper edge (business §3, §5, §2.4a).
-export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO> {
-  protected override zoomable(): boolean {
-    return true
-  }
-
+export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO & GlobalDerived> {
   protected buildSeries(): SeriesOption[] {
     const { theme, t } = this.ctx
     const forgone = this.data.aggregateForgoneSink

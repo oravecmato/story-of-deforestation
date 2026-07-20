@@ -1,6 +1,7 @@
-import type { EChartsOption, SeriesOption, DataZoomComponentOption } from 'echarts'
+import type { EChartsOption, SeriesOption } from 'echarts'
 import type { Series, BandSeries, DataPoint, SeriesType, ThemeTokens, Horizon, VizPresentation } from '../../shared/types'
 import type { Formatter } from '../format/Formatter'
+import { sumWindow } from '../../shared/utils/stats'
 
 /** Opacity applied to the projected (dashed) twin of a metric (design §2, business §2.4a). */
 export const PROJECTED_OPACITY = 0.55
@@ -20,15 +21,14 @@ export interface ChartContext {
   formatter: Formatter
   /** responsive option tweaks. */
   breakpoint: 'sm' | 'md' | 'lg'
-  /** signature control (ADR-019): drives the projection extent + which years render dashed. Together
-   *  with `baseline` it defines the slide-5/6 magnitude window `[baseline, horizonTargetYear(horizon)]`
-   *  the donut / fossil bar integrate over (§17.4, ADR-025). */
+  /** signature control (ADR-019): drives the projection extent + which years render dashed, and the
+   *  WIDTH of the forward magnitude window `[referenceYear, referenceYear + horizonYears(horizon)]` the
+   *  donut / fossil bar integrate over (§17.4, ADR-025). */
   horizon: Horizon
-  /** sink-integration origin (business §7.2): the lower bound of the slide-5/6 magnitude window. */
+  /** sink-integration origin (business §7.2): sets the DEPTH of the forgone sink (via cumulative loss),
+   *  ORTHOGONAL to the horizon window. Carried for chart annotations; the derive layer applies it. */
   baseline: number
   rScenario: 'conservative' | 'mid' | 'high'
-  /** current dataZoom selection [startYear, endYear] or null for the full range (ADR-005). */
-  timeRange: [number, number] | null
 }
 
 type YearPoint = [number, number | null]
@@ -53,7 +53,7 @@ export abstract class BaseChartOption<TData> {
   protected abstract buildSeries(): SeriesOption[]
 
   /** Assembles the shared scaffolding + `buildSeries()` into a full Option. Subclasses that need
-   *  extra structure (two grids, dataZoom, markPoint…) override and spread `super.build()`. */
+   *  extra structure (two grids, markPoint…) override and spread `super.build()`. */
   build(): EChartsOption {
     return { ...this.baseGrid(), series: this.buildSeries() }
   }
@@ -176,44 +176,14 @@ export abstract class BaseChartOption<TData> {
     }
   }
 
-  /** Time-series charts opt into the dataZoom time-range control; static charts (bars/pie/bump) don't. */
-  protected zoomable(): boolean {
-    return false
-  }
-
-  /** Embedded dataZoom on the x (year) axis: a scroll/pinch `inside` + a `slider` handle, both with
-   *  `filterMode: 'none'` so zooming only rescales the axis and never crops series data (ADR-005).
-   *  The current `timeRange` (if any) seeds start/endValue so the selection survives option rebuilds. */
-  protected timeZoom(): DataZoomComponentOption[] {
-    const { theme, timeRange } = this.ctx
-    const range = timeRange ? { startValue: this.toMs(timeRange[0]), endValue: this.toMs(timeRange[1]) } : {}
-    return [
-      { type: 'inside', filterMode: 'none', ...range },
-      {
-        type: 'slider',
-        filterMode: 'none',
-        bottom: 8,
-        height: 18,
-        borderColor: theme.border,
-        fillerColor: this.rgba(theme.accent, 0.15),
-        handleStyle: { color: theme.accent },
-        moveHandleStyle: { color: theme.accent },
-        dataBackground: { lineStyle: { color: theme.border }, areaStyle: { color: theme.surface2 } },
-        textStyle: { color: theme.text.low },
-        ...range,
-      },
-    ]
-  }
-
   /** Shared grid/axis/tooltip/legend defaults, all coloured from the theme tokens. */
   protected baseGrid(): EChartsOption {
     const { theme } = this.ctx
-    const zoom = this.zoomable()
     return {
       color: this.themeColors(),
       backgroundColor: 'transparent',
       textStyle: { color: theme.text.mid },
-      grid: { left: 48, right: 24, top: 32, bottom: zoom ? 64 : 48, containLabel: true },
+      grid: { left: 48, right: 24, top: 32, bottom: 48, containLabel: true },
       xAxis: {
         type: 'time',
         axisLine: { lineStyle: { color: theme.border } },
@@ -235,7 +205,6 @@ export abstract class BaseChartOption<TData> {
         textStyle: { color: theme.text.hi },
       },
       legend: { textStyle: { color: theme.text.mid } },
-      ...(zoom ? { dataZoom: this.timeZoom() } : {}),
     }
   }
 
@@ -270,14 +239,11 @@ export abstract class BaseChartOption<TData> {
     return series.points.find((p) => p.year === year)?.value ?? 0
   }
 
-  /** Σ of a series' non-null values over the inclusive year window `[from, to]`. The slide-5/6
-   *  magnitude diagrams read window totals here so they match the equivalence strip (§17.4). */
+  /** Σ of a series' non-null values over the inclusive year window `[from, to]`. Delegates to the one
+   *  shared `stats.sumWindow` so the slide-5/6 magnitude diagrams match the equivalence strip and the
+   *  ×N multiplier exactly (§17.4). */
   protected sumWindow(series: Series, from: number, to: number): number {
-    let sum = 0
-    for (const p of series.points) {
-      if (p.year >= from && p.year <= to && p.value != null) sum += p.value
-    }
-    return sum
+    return sumWindow(series, from, to)
   }
 
   /** The series' last real value at or before `year` (0 if none) — the measured annual level, used as

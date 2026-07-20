@@ -130,6 +130,7 @@ function buildSeries(
       points.length === 0 ? [{ geo: iso3, reason: failure ?? 'no-data' }] : [],
     isEstimate: false,
     projectedFrom: null,
+    reconstructedBefore: null,
   }
   return { id: `${indicatorCode}:${iso3}`, points, meta }
 }

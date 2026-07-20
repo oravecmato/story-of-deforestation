@@ -148,6 +148,12 @@ the horizon; it never triggers a refetch and never manipulates the series data.
 paths / drift risk); precompute-all-scenarios server-side (larger payload). Server-authoritative
 chosen for a single source of truth, with store caching to recover interactivity.
 
+**Superseded in part (ADR-026).** For the **`baseline` dimension only**, the rejected "client-side recompute
+via a shared isomorphic module" alternative is now **adopted**: `baseline` leaves this cache-key signature
+and its dependent derivations run on the client/SSR from a shipped baseline-independent `area` series (there
+is no math drift because the *same* isomorphic `stats` module runs both tiers). `scope`, `horizon`,
+`rScenario` remain server-refetch as decided here.
+
 ---
 
 ## ADR-006 — ECharts integration: the `nuxt-echarts` module
@@ -409,10 +415,14 @@ contracts (technical spec) enforceable at compile time.
 ~2022). Composite scalars (full emissions, multiplier, share %, equivalence annual rate) must not
 silently mix years.
 
-**Decision.** All composite scalars are computed at a **reference year = the most recent year where
+**Decision.** All composite scalars are anchored on a **reference year = the most recent year where
 every required series has a value** (`min` of the per-series `latestDataYear`). The reference year
 is returned in the DTO and **always surfaced in the UI** ("data as of {X}"). Time-series charts
-still draw each series over its own full range; only the scalars use the common reference year.
+still draw each series over its own full range. The **forgone-annual rate** is read at this year; the
+**multiplier** and the footprint-scene window integrals (donut / fossil bar / equivalence strip) use
+it as the **lower edge of the forward window** `[referenceYear, referenceYear + horizonYears(horizon)]`
+they sum over (ADR-019/ADR-025, §17.4) — so `today` reduces to the single reference-year value while a
+longer horizon widens the window.
 
 **Rationale.** Prevents mixing different years inside one composite number; matches the
 honest-explorer stance (business §7.1a).
@@ -441,6 +451,11 @@ existing parameter signature, so no new contract surface.
 
 **Consequences.** A small router-sync layer maps `viewStore.derivationParams ↔ route.query`
 (replace, not push, to avoid history spam); only `timeRange` deliberately stays out of the URL.
+
+**Amended (ADR-026).** `baseline` **stays in the URL query** (shareable/bookmarkable, SSR-read) but is
+**re-tagged client-transform**: it is no longer part of the DTO cache-key signature and **never triggers a
+refetch** — it drives client/SSR-side recomputation of the baseline-dependent series. So the URL still
+carries `baseline`; the *refetch* signature no longer does. `timeRange` remains fully out of the URL.
 
 ---
 
@@ -487,8 +502,13 @@ cumulative forgone sink) only reaches its crossing point once the window extends
   series is extrapolated to the horizon's target year (`stats.projectSeries`: recent mean + fitted
   slope over the last ~9 measured years, clamped ≥ 0), **then** multiplied by `R_domain` and
   aggregated. Projection is applied **per domain, before aggregation** — *not* as a single fit on the
-  pre-aggregated series — because `R` and the trend differ per domain. Composite scalars (multiplier,
-  share, equivalence rate, reference year) are computed on **measured data only**, never on projected points.
+  pre-aggregated series — because `R` and the trend differ per domain. The **reference year** anchor
+  (`min` common `latestDataYear`, ADR-016) and the **forgone-annual rate** shown at it are measured
+  quantities; the **multiplier** and the footprint-scene window integrals (donut / fossil bar /
+  equivalence strip) are **horizon-reactive `Σ` over the forward window** `[referenceYear,
+  referenceYear + horizonYears(horizon)]` and therefore span projected years when the horizon is
+  pushed forward (ADR-025, §17.4). `today` collapses that window to the single reference year, so the
+  measured-year ratio is preserved.
 - **Dashed rendering via separate series (ECharts workaround).** ECharts cannot switch a single line
   from solid to dashed mid-series (no per-segment dash; `visualMap` only recolours). So each
   projected metric is emitted as a **separate series** starting at the join year (`meta.projectedFrom`),
@@ -509,8 +529,11 @@ not share). Separate dashed series is the only clean ECharts path.
   forgone-sink family non-optional; the multiplier is
   always shown (§3.2, §16.30–32 of the technical spec).
 - The projection is a server-only derivation (single authoritative path, ADR-005).
-- **Revisable V1 choices (business §12):** the multiplier is not horizon-reactive; the CI band is not
-  widened for projection uncertainty; join-divider styling is provisional.
+- **Revised (ADR-025, §17.4):** the multiplier is now **horizon-reactive** — `Σfull / Σstock` over the
+  forward window `[referenceYear, referenceYear + horizonYears(horizon)]` (was a single-year ratio at
+  the reference year). `today` collapses to that single year, preserving the original value.
+- **Revisable V1 choices (business §12):** the CI band is not widened for projection uncertainty;
+  join-divider styling is provisional.
 
 **Alternatives.** Keep the official↔full toggle (rejected — the horizon subsumes and improves it);
 project the pre-aggregated global series with one fit (rejected — loses the per-domain granularity and
@@ -617,12 +640,13 @@ A `SlideFactory` turns a `SlideDef` + the current scene state + the fetched DTO(
   transforms over the already-fetched DTO** — they never refetch. The **server keeps only
   authoritative scientific derivations**.
 - **Controls carry an explicit derivation mode.** Each scene control is tagged **client-transform**
-  (no refetch — e.g. `timeRange`) vs. **server-refetch** (cached — e.g. `horizon`, `domain`,
-  `baseline`). This is cheap future-proofing: a future scene could make, say, a baseline-hindcast a
-  client-side control without reworking the model.
-- **Refetch analysis (V1).** Client-only (no refetch): `timeRange`. Server-refetch (cached DTO):
-  `scope`/`domain`, `baseline`, `horizon` (and `rScenario` if ever surfaced). Mitigation: prefetch the
-  next slide's DTO(s) on idle (ADR-023); server-refetch controls are fetch-then-animate.
+  (no refetch — e.g. `timeRange`, and now `baseline` per ADR-026) vs. **server-refetch** (cached — e.g.
+  `horizon`, `domain`). This foresaw exactly the ADR-026 move: "a future scene could make a
+  baseline-hindcast a client-side control without reworking the model" — now realized.
+- **Refetch analysis (V1, amended by ADR-026).** Client-only (no refetch): `timeRange`, **`baseline`**
+  (client/SSR-recomputed from the shipped baseline-independent `area` series). Server-refetch (cached DTO):
+  `scope`/`domain`, `horizon` (and `rScenario` if ever surfaced). Mitigation: prefetch the next slide's
+  DTO(s) on idle (ADR-023); server-refetch controls are fetch-then-animate; `baseline` is instant (slider).
 
 **Rationale.** The narrative is a *view* concern; keeping it entirely on the frontend means the BFF
 contract, cache keys and tests are untouched (the deck is additive). One authoritative derivation path
@@ -715,7 +739,8 @@ Back).
 different metric subsets on different slides; the fossil bar must animate 5→6.
 
 **Decision.**
-- **Three layout presets, closed for V1** (later extended to a fourth, `duo-viz-equiv`, by ADR-025)**:**
+- **Three layout presets, closed for V1** (later extended to a fourth, `duo-viz-equiv`, by ADR-025, and
+  to `caption-viz`/`viz-equiv` for the baseline scene by ADR-026)**:**
   `text`, `viz-text`, `duo-viz-text` — all with the **text
   block below** the visualisation(s) and an **optional heading above the text** (business §4, UI §3.2).
   A single generic **`SlideLayout`** component renders a preset from named slots (`heading`, `viz`,
@@ -778,20 +803,25 @@ branch would relocate the `#viz` slot outlet and **remount** the charts, destroy
      token, deliberately **distinct from the error red** `#E5534B` so it never reads as a fault).
   A **unit switcher** (Mt CO₂ · passenger-car annual · reference-country annual, locale-driven SVK/UK,
   **default cars**) converts all four values at once. The magnitudes are **client-side reductions** over
-  the already-fetched global DTO series (**symmetric window** = `[baseline, horizonTargetYear(horizon)]`,
-  i.e. it **opens at the `baseline` year and closes at the chosen horizon**; keyed by `DerivationParams`
-  — no new endpoint, no refetch beyond the existing controls). The car factor comes from
-  `equivalences.ts`; the reference-country annual scalar reuses the existing locale-driven equivalence
-  resolution (re-resolved on locale change with no deforestation refetch).
+  the already-fetched global DTO series (**forward window** = `[referenceYear, referenceYear +
+  horizonYears(horizon)]`, i.e. it **opens at the last measured year and spans the chosen horizon's
+  forward reach**; keyed by `DerivationParams` — no new endpoint, no refetch beyond the existing
+  controls). The car factor comes from `equivalences.ts`; the reference-country annual scalar reuses the
+  existing locale-driven equivalence resolution (re-resolved on locale change with no deforestation
+  refetch).
 
   The **donut and fossil-comparison bar on slides 5/6 read the same window basis**: every slice / bar is
   the **TRUE finite integral** — stock, fossil AND the forgone sink each summed (`Σ`) over
-  `[baseline, horizonTargetYear(horizon)]` (business §2.4 quantity #2), so all three magnitudes are the
-  same kind of quantity. `sceneWindow(baseline, horizon)` in `derivation.ts` is the single source of
-  truth for the window edges. The **`baseline` control both shapes the server-side forgone-sink rate**
-  (cumulative-loss integration) **and defines the lower edge of the magnitude window**. Consequence: at
-  horizon **today** the window is `[baseline, anchor]` and every scene magnitude reads its
-  **cumulative-to-today** value (never 0) — the scene reads meaningfully at every horizon.
+  `[referenceYear, referenceYear + horizonYears(horizon)]` (business §2.4 quantity #2), so all three
+  magnitudes are the same kind of quantity. `sceneWindow(referenceYear, horizon)` in `derivation.ts` is
+  the single source of truth for the window edges (shared with the ×N multiplier, ADR-019). **`horizon`
+  and `baseline` are orthogonal:** the horizon sets the **width** of this forward window; the `baseline`
+  sets the **depth** of the forgone sink (via cumulative-loss integration, ADR-026) that is already
+  baked into the series being summed. Fossil is **projected server-side to the horizon target year**
+  (ReferenceService, identity for `today`) so its integral spans the same forward range as stock and
+  forgone. Consequence: at horizon **today** the window collapses to `[referenceYear, referenceYear]`, a
+  single-year snapshot that keeps continuity with the measured ratio; a longer horizon widens it and
+  every scene magnitude grows — the scene reads meaningfully at every horizon.
 
 **Rationale.** One unconditional viz outlet is the minimal, robust way to add a structurally different
 slide without losing the signature animation. Client-side magnitude reduction reuses data the scene
@@ -805,13 +835,115 @@ already holds and keeps the server contract unchanged (ADR-021).
 - Footprint `SlideDef`s (slides 5,6) gain `controls:['baseline','horizon']`; slide 6 uses
   `duo-viz-equiv` with a `captionKey` and no text-block `textKeys`.
 - Tests: 5→6 does not remount the `viz.id`-keyed charts across the preset change; strip renders 4 values
-  with the correct colour tokens; the unit switch converts all four; window reduction spans the symmetric
-  window `[baseline, horizonTargetYear(horizon)]` as a true `Σ` for all three metrics (donut + fossil bar
-  read the same window totals).
+  with the correct colour tokens; the unit switch converts all four; window reduction spans the forward
+  window `[referenceYear, referenceYear + horizonYears(horizon)]` as a true `Σ` for all three metrics
+  (donut + fossil bar read the same window totals); ReferenceService projects fossil to the horizon
+  target.
 
 **Alternatives.** A dedicated slide-6 layout component or a `v-if` structural fork (rejected — relocates
 the viz outlet, remounts ECharts, kills the zoom). A new `/api/equivalence`-shaped endpoint for the four
 magnitudes (rejected — they are pure reductions over data the scene already holds; ADR-021).
+
+---
+
+## ADR-026 — Back-projection of the forgone sink to 1800 (LUH2 reconstruction); `baseline` becomes a client-transform control; baseline-dependent derivations move to the isomorphic core
+
+**Context.** The product must let a user drag the **`baseline` year back to 1800** on an interactive
+**slider** and see every chart / magnitude update **in real time**. Two facts collide:
+1. Today `baseline` is a **server-refetch** `DerivationParam` (ADR-005/017/025): it is part of the DTO
+   cache key and shapes the **server-side** forgone-sink rate (cumulative-loss integration). A slider that
+   refetched per drag frame would be unusable.
+2. The World Bank forest-area indicator (`AG.LND.FRST.K2`) only starts in **1990**, so there is no measured
+   area to integrate before it. The 1800–1990 curve must be reconstructed, and it is **non-linear** — it
+   must be *aware of the breakpoints* where the historical trend steepened/eased
+   (temperate-led 1700–1920 → tropical acceleration in the 20th century → global peak in the 1980s →
+   post-1990 decline; business §7.2a / research memo).
+
+**Decision.**
+- **Reconstruct pre-1990 forest area per domain from LUH2** (Hurtt et al. 2020), not OWID/Williams. OWID/
+  Williams is **global decadal** only (Williams = decadal global loss rates; OWID's long-run series is a
+  global shape plus HYDE per-country *cropland* as a proxy — **not** forest). Our four domains have
+  **different `R`**, so `R × area` per domain requires **genuine per-domain forest area**. Only LUH2 (a
+  0.25° grid) provides it: `forestArea = Σcells (primf + secdf) × carea` over each domain's mask, per year
+  850–2015. We use **1800–1990**; WB covers 1990→present.
+- **Anchor + splice, do not blend blindly.** Compute the LUH2 value at 1990, apply an additive/
+  multiplicative **offset** so it matches WB `AG.LND.FRST.K2` at 1990 exactly, then splice: reconstructed
+  1800–1990 · measured 1990→latest · projected future (ADR-019). OWID explicitly warns against merging
+  Williams+FAO into one continuous series; anchoring to the measured 1990 value is the sanctioned bridge.
+- **LUH2 extraction is a one-time OFFLINE build asset, never runtime.** A preprocessing script
+  (Python `xarray`/`netCDF4`) downloads `states.nc` + `staticData_quarterdeg.nc`, masks grid cells to each
+  domain (domain ISO lists in `shared/config/domains.ts` + a country-boundary raster), sums
+  `(primf+secdf)×carea` per domain per year, and exports a **small static JSON per domain** bundled in the
+  repo. The app consumes only the JSON; the pipeline is not on any request path.
+- **`baseline` is re-tagged from *server-refetch* to *client-transform* (ADR-021 taxonomy).** The BFF ships
+  the **full per-domain annual `area` series (1800→projected horizon)**; the DTO is **no longer keyed by
+  `baseline`** and the server performs **no** baseline-dependent derivation. `baseline` stays in the URL
+  query (shareable, SSR-readable — it is a meaningful view state, unlike the excluded `timeRange`) but it
+  **never triggers a refetch**. `BASELINE_FLOOR` moves **1990 → 1800**. (The stock floor stays 2000 — WB
+  `.DF` coverage — so `stock`/`fullEmissions` still begin at `max(baseline, 2000)`; only `area`/
+  `cumulativeLoss`/`forgoneSink` reach back to `baseline`.)
+- **Baseline-dependent derivations move to the isomorphic core, run in SSR and browser alike.**
+  `cumulativeLoss → forgoneSink → fullEmissions → multiplier → crossingYear` are already **pure/isomorphic**
+  (`shared/utils/stats.ts` — relocated from `server/utils/` to `shared/` under ADR-026 so the SAME pure
+  module is imported by the server services AND the client/SSR `useDerived` layer, no math drift; written
+  isomorphic precisely for this per ADR-005's consequence, though ADR-005
+  kept it server-only). **ADR-026 supersedes ADR-005 for the `baseline` dimension only**: ADR-005's rejected
+  alternative ("client-side recompute via a shared isomorphic module") is now adopted *for `baseline`*, while
+  `scope`/`horizon`/`rScenario` stay server-refetch. They are recomputed from the shipped `area` (+ per-domain
+  `R` from config) in a **client/SSR derivation layer** (Pinia getter/composable). Because `stats` is isomorphic the
+  **same** derivation runs during SSR (honouring the URL `baseline` on first paint) and on every slider
+  frame in the browser — **zero server round-trips** on drag. This is the natural extension of ADR-005's
+  "`timeRange` is client-only" and ADR-021's client-side magnitude reductions.
+- **Carbon methodology: `R × cumulativeLoss` for the whole 1800→present range, `mid` is a CENTRAL
+  estimate.** The pre-1990 band uses the **same `R` low/mid/high** as post-1990 — no "upper-bound"
+  relabelling. This is a **conscious editorial decision** (user): the mature-forest `R` is, per the
+  official literature, itself an **under-estimate** of true sequestration, so treating the back-projected
+  `R × area` as central (not an upper bound) is defensible. `forgoneSink` is already a `BandSeries`, so it
+  simply extends backward with identical band logic. (Bookkeeping ELUC/GCB was rejected: it is a *different
+  quantity*, would require shipping a pre-1990 carbon series that **cannot** be recomputed from `baseline`,
+  and would therefore **break** both the real-time slider and the single-metric contract.)
+- **Reconstruction uncertainty: one LUH2 curve, no area envelope.** The pre-1990 segment is drawn with the
+  **same dashed styling as the projected-future segment** (ADR-019): solid 1990+, **dashed 1800–1990**, a
+  divider `markLine` at 1990, excluded from the legend. Only the existing **`R` band** is shown; a
+  second min–max envelope across reconstructions (LUH2 vs KK10 vs Houghton) is **rejected** for V1 (extra
+  NetCDF preprocessing + two overlapping uncertainty bands on one chart).
+
+**Rationale.** Shipping the baseline-independent `area` series once and recomputing the cheap, pure,
+already-isomorphic tail on the client is the minimal way to make the slider real-time without a new server
+contract per drag frame. Re-tagging `baseline` as client-transform is consistent with the existing
+control taxonomy (ADR-021) and with `timeRange` being client-only (ADR-005).
+
+**Consequences.**
+- `BASELINE_FLOOR = 1800`; `baseline` leaves the server derivation cache key and the `DerivationParams`
+  that shape the DTO, but stays a URL-synced client-transform control (ADR-017 note updated: `timeRange`
+  **and** `baseline` are excluded from *refetch*; `baseline` remains in the query for shareability).
+- DTO shape changes: `DomainResultDTO`/`GlobalResultDTO` carry the **full-range `area`** (and per-domain
+  area for global) as the shipped baseline-independent series; the previously server-derived
+  `cumulativeLoss`/`forgoneSink`/`fullEmissions`/`multiplier`/`crossingYear` become **client/SSR-derived**
+  (tech-spec §3.2 / §6 updated).
+- New offline `scripts/luh2/` preprocessing pipeline + bundled static `area` JSON per domain; new
+  service/composition wiring that splices reconstruction + measured + projection.
+- New **baseline slider** control (UI §… / mode-matrix) driving the client derivation; charts gain the
+  dashed pre-1990 segment + 1990 divider `markLine`.
+- **UI realization (deck).** A `BaselineSlider` (PrimeVue `Slider`, `BASELINE_FLOOR`→`BASELINE_MAX`) is
+  added as the **full-range alternative** to the coarse `BaselineControl` select (which stays
+  1990→`BASELINE_MAX`); both are `client-only` controls setting the same `view.baseline`. A new
+  **`baseline` scene** with two sibling slides is appended to the deck (now **8 slides / 5 scenes**):
+  slide 7 (`baseline`) = the slider + live horizon picker over the main stock+forgone chart (fixed
+  global); slide 8 (`baseline-impact`, same scene/state) = the crossing chart above the equivalence
+  strip — both reflecting the live baseline. Two new closed layout presets support them: **`caption-viz`**
+  (caption on top + controls + one full-width viz, no copy) and **`viz-equiv`** (controls + one
+  full-width viz + a full-width equivalence strip, no caption/copy).
+- ADR-025's equivalence strip window `[baseline, horizonTargetYear(horizon)]` is unchanged in meaning but
+  now **entirely client-side** (its `baseline` edge no longer implies a server rate).
+- Tests: reconstruction anchors to WB at 1990; isomorphic derive gives identical results in SSR vs client;
+  moving `baseline` does not refetch; pre-1990 segment is dashed + excluded from legend; the `R` band is
+  identical pre/post 1990.
+
+**Alternatives.** OWID/Williams global reconstruction (rejected — no genuine per-domain area, weakens
+`R × area`); keeping `baseline` server-refetch with per-drag debounce (rejected — not real-time, hammers
+WB/BFF); bookkeeping ELUC for pre-1990 carbon (rejected — different quantity, breaks the slider + single
+metric); min–max reconstruction envelope (rejected for V1 — cost + double band).
 
 ---
 
@@ -844,3 +976,4 @@ magnitudes (rejected — they are pure reductions over data the scene already ho
 | 023 | Route & store | Single persistent `/story/:slug` route (no remount); two-layer store (`dtoCache` + per-scene `sceneState`); reset policy A; control state in URL query; prefetch next slide |
 | 024 | Slide layout & options | Closed layout presets (`text`/`viz-text`/`duo-viz-text`) via generic `SlideLayout`; presentation-configurable option classes (metric selection); fossil bar = one grid, two categories |
 | 025 | Slide-6 insight | 4th preset `duo-viz-equiv` (caption · duo-viz · equivalence strip, no text); the layout change keeps the `#viz` outlet unconditional → charts preserved 5→6 (ADR-022); footprint shares `baseline`+`horizon`; restaged 4-value equivalence strip (client-derived, unit switcher, new `data.total` token) |
+| 026 | Back-projection to 1800 | LUH2 per-domain reconstruction 1800–1990 anchored to WB 1990 (dashed pre-1990); `BASELINE_FLOOR`=1800; `baseline` re-tagged server-refetch → **client-transform** (URL-synced, never refetches); baseline-dependent derivations move to the isomorphic core, run in SSR + browser (real-time slider, zero refetch); `R × cumulativeLoss` kept as **central** estimate, `R` band identical pre/post 1990; single curve, no area envelope; deck gains a `baseline` scene (slides 7–8: `BaselineSlider` + main chart, then crossing + equivalence strip) and two closed presets `caption-viz`/`viz-equiv` |

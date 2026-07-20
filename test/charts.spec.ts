@@ -5,7 +5,9 @@ import type {
   BandSeries,
   DerivationParams,
   DomainResultDTO,
+  DomainDerived,
   GlobalResultDTO,
+  GlobalDerived,
   ReferenceDTO,
   ThemeTokens,
 } from '../shared/types'
@@ -41,7 +43,6 @@ function ctx(over: Partial<ChartContext> = {}): ChartContext {
     horizon: 'today',
     baseline: 2015,
     rScenario: 'mid',
-    timeRange: null,
     ...over,
   }
 }
@@ -50,7 +51,7 @@ function series(id: string, rows: Array<[number, number | null]>, projectedFrom:
   return {
     id,
     points: rows.map(([year, value]) => ({ source: 'X', geo: 'G', year, value })),
-    meta: { indicatorId: id, seriesType: 'flow', unit: 'MtCO2', latestDataYear: rows.at(-1)?.[0] ?? null, gaps: [], isEstimate: false, projectedFrom },
+    meta: { indicatorId: id, seriesType: 'flow', unit: 'MtCO2', latestDataYear: rows.at(-1)?.[0] ?? null, gaps: [], isEstimate: false, projectedFrom, reconstructedBefore: null },
   }
 }
 
@@ -61,12 +62,12 @@ function band(id: string, rows: Array<[number, number, number, number]>, project
     points: rows.map(([year, , mid]) => ({ source: 'D', geo: 'G', year, value: mid })),
     lower: rows.map(([year, lo]) => ({ source: 'D', geo: 'G', year, value: lo })),
     upper: rows.map(([year, , , up]) => ({ source: 'D', geo: 'G', year, value: up })),
-    meta: { indicatorId: id, seriesType: 'flow', unit: 'MtCO2', latestDataYear: rows.at(-1)?.[0] ?? null, gaps: [], isEstimate: true, projectedFrom },
+    meta: { indicatorId: id, seriesType: 'flow', unit: 'MtCO2', latestDataYear: rows.at(-1)?.[0] ?? null, gaps: [], isEstimate: true, projectedFrom, reconstructedBefore: null },
   }
 }
 
-const localParams: DerivationParams = { scope: 'local', domainId: 'amazon', horizon: 'today', rScenario: 'mid', baseline: 1995 }
-const globalParams: DerivationParams = { scope: 'global', horizon: 'today', rScenario: 'mid', baseline: 1990 }
+const localParams: DerivationParams = { scope: 'local', domainId: 'amazon', horizon: 'today', rScenario: 'mid' }
+const globalParams: DerivationParams = { scope: 'global', horizon: 'today', rScenario: 'mid' }
 
 interface AnySeries {
   name?: string
@@ -89,7 +90,7 @@ interface AxisLike {
 // --- MainStackedOption ------------------------------------------------------
 
 describe('MainStackedOption', () => {
-  const dto = (): DomainResultDTO => ({
+  const dto = (): DomainResultDTO & DomainDerived => ({
     params: localParams,
     referenceYear: 2001,
     area: series('area', [[2000, 100]]),
@@ -148,31 +149,17 @@ describe('MainStackedOption', () => {
     expect(seriesOf(o)).toHaveLength(6)
     expect((o.legend as { data?: string[] }).data).toEqual(['series.stock', 'series.forgoneSink'])
   })
-
-  it('is zoomable → embeds inside + slider dataZoom; timeRange seeds start/endValue', () => {
-    const o = new MainStackedOption(dto(), ctx({ timeRange: [2005, 2015] })).build()
-    const dz = o.dataZoom as Array<{ type?: string; startValue?: number; endValue?: number; filterMode?: string }>
-    expect(dz.map((z) => z.type)).toEqual(['inside', 'slider'])
-    expect(dz.every((z) => z.filterMode === 'none')).toBe(true)
-    expect(dz[0]).toMatchObject({ startValue: Date.UTC(2005, 0, 1), endValue: Date.UTC(2015, 0, 1) })
-  })
-
-  it('no timeRange → dataZoom present without a fixed range (full extent)', () => {
-    const o = new MainStackedOption(dto(), ctx({ timeRange: null })).build()
-    const dz = o.dataZoom as Array<{ startValue?: number; endValue?: number }>
-    expect(dz).toHaveLength(2)
-    expect(dz[0]!.startValue).toBeUndefined()
-  })
 })
 
 // --- GlobalStackedAreaOption -----------------------------------------------
 
 describe('GlobalStackedAreaOption', () => {
-  const dto = (): GlobalResultDTO => ({
+  const dto = (): GlobalResultDTO & GlobalDerived => ({
     params: globalParams,
     referenceYear: 2001,
+    perDomainArea: [],
     perDomainStock: [series('stock:amazon', [[2001, 10]]), series('stock:congo', [[2001, 20]])],
-    perDomainForgoneSink: [series('fs:amazon', [[2001, 3]]), series('fs:congo', [[2001, 4]])],
+    perDomainForgoneSink: [band('fs:amazon', [[2001, 2, 3, 4]]), band('fs:congo', [[2001, 3, 4, 5]])],
     aggregateStock: series('stock:global', [[2001, 30]]),
     aggregateForgoneSink: band('agg', [[2001, 5, 8, 11]]),
     aggregateFullEmissions: series('aggFull', [[2001, 50]]),
@@ -241,18 +228,20 @@ describe('CrossingOption', () => {
 // --- FootprintDonutOption ---------------------------------------------------
 
 describe('FootprintDonutOption', () => {
-  // Symmetric window [baseline 2015, horizonTargetYear('20y') = 2046] (ADR-025). Every slice is a TRUE
-  // finite integral Σ over the window (§17.4, business §2.4 #2): stock/fossil AND forgone summed over
-  // the window (pre-baseline points excluded). Stock Σ = 30, fossil Σ = 180, forgone Σ = 100.
-  const main = (): GlobalResultDTO => ({
+  // Forward window [referenceYear 2020, 2020 + horizonYears('20y') = 2040] (§17.4, ADR-025). Every
+  // slice is a TRUE finite integral Σ over the window (business §2.4 #2): stock/fossil AND forgone
+  // summed over the window (pre-referenceYear and past-target points excluded). Stock Σ = 30, fossil
+  // Σ = 180, forgone Σ = 100.
+  const main = (): GlobalResultDTO & GlobalDerived => ({
     params: globalParams,
     referenceYear: 2020,
+    perDomainArea: [],
     perDomainStock: [],
     perDomainForgoneSink: [],
-    // 2010 falls before the baseline → excluded; 2015+2020+2046 in-window → Σ = 30.
-    aggregateStock: series('stock:global', [[2010, 999], [2015, 5], [2020, 10], [2046, 15]]),
-    // forgone band mid 2015..2046 → 20+30+50 = 100 (a TRUE Σ, not rate × years).
-    aggregateForgoneSink: band('agg', [[2015, 15, 20, 25], [2020, 25, 30, 35], [2046, 45, 50, 55]]),
+    // 2010 pre-referenceYear and 2050 past-target → excluded; 2020+2030+2040 in-window → Σ = 30.
+    aggregateStock: series('stock:global', [[2010, 999], [2020, 5], [2030, 10], [2040, 15], [2050, 999]]),
+    // forgone band mid 2020..2040 → 20+30+50 = 100 (a TRUE Σ, not rate × years).
+    aggregateForgoneSink: band('agg', [[2020, 15, 20, 25], [2030, 25, 30, 35], [2040, 45, 50, 55], [2050, 994, 999, 1004]]),
     aggregateFullEmissions: series('aggFull', [[2020, 50]]),
     multiplier: 1.6,
     crossingYear: null,
@@ -260,10 +249,8 @@ describe('FootprintDonutOption', () => {
   const reference = (): ReferenceDTO => ({
     params: globalParams,
     referenceYear: 2020,
-    // 2010 pre-baseline → excluded; 2015+2020+2046 in-window → Σ = 180.
-    fossilTotal: series('fossil', [[2010, 999], [2015, 50], [2020, 60], [2046, 70]]),
-    sharePercent: 8,
-    composition: { fossil: 180, stock: 30, forgoneSink: 100 },
+    // 2010 pre-referenceYear and 2050 past-target → excluded; 2020+2030+2040 in-window → Σ = 180.
+    fossilTotal: series('fossil', [[2010, 999], [2020, 50], [2030, 60], [2040, 70], [2050, 999]]),
   })
   const data = () => ({ reference: reference(), main: main() })
 
@@ -289,16 +276,17 @@ describe('FootprintDonutOption', () => {
 // --- FossilComparisonOption -------------------------------------------------
 
 describe('FossilComparisonOption', () => {
-  // Symmetric window [baseline 2015, horizonTargetYear('20y') = 2046] (ADR-025). All three magnitudes
-  // are TRUE finite integrals Σ over the window (§17.4, business §2.4 #2): stock Σ = 30, fossil Σ =
+  // Forward window [referenceYear 2020, 2020 + horizonYears('20y') = 2040] (§17.4, ADR-025). All three
+  // magnitudes are TRUE finite integrals Σ over the window (business §2.4 #2): stock Σ = 30, fossil Σ =
   // 180, forgone Σ = 100.
-  const main: GlobalResultDTO = {
+  const main: GlobalResultDTO & GlobalDerived = {
     params: globalParams,
     referenceYear: 2020,
+    perDomainArea: [],
     perDomainStock: [],
     perDomainForgoneSink: [],
-    aggregateStock: series('stock:global', [[2010, 999], [2015, 5], [2020, 10], [2046, 15]]),
-    aggregateForgoneSink: band('agg', [[2015, 15, 20, 25], [2020, 25, 30, 35], [2046, 45, 50, 55]]),
+    aggregateStock: series('stock:global', [[2010, 999], [2020, 5], [2030, 10], [2040, 15], [2050, 999]]),
+    aggregateForgoneSink: band('agg', [[2020, 15, 20, 25], [2030, 25, 30, 35], [2040, 45, 50, 55], [2050, 994, 999, 1004]]),
     aggregateFullEmissions: series('aggFull', [[2020, 50]]),
     multiplier: 1.6,
     crossingYear: null,
@@ -306,9 +294,7 @@ describe('FossilComparisonOption', () => {
   const reference: ReferenceDTO = {
     params: globalParams,
     referenceYear: 2020,
-    fossilTotal: series('fossil', [[2010, 999], [2015, 50], [2020, 60], [2046, 70]]),
-    sharePercent: 25,
-    composition: { fossil: 180, stock: 30, forgoneSink: 100 },
+    fossilTotal: series('fossil', [[2010, 999], [2020, 50], [2030, 60], [2040, 70], [2050, 999]]),
   }
 
   it('slide 5 (fossil present) → deforestation stacked (stock+forgone) + fossil bar; two categories, axis dominated by fossil', () => {

@@ -63,20 +63,20 @@ const vizEndpoints = (component: ChartComponentName, scope: Scope): EndpointKey[
   }
 }
 
-/** The union of endpoints an entire slide needs. The slide-6 equivalence strip (`duo-viz-equiv`,
- *  ADR-025) additionally needs `equivalence` — its country-unit basis is the reference country's
- *  annual CO₂, back-computed from that DTO (§17.4). */
+/** The union of endpoints an entire slide needs. The equivalence-led presets (`duo-viz-equiv` slide 6,
+ *  `lab` slide 7) additionally need `equivalence` — its country-unit basis is the reference country's
+ *  annual CO₂, back-computed from that DTO (§17.4, ADR-026). */
 const endpointsFor = (s: RenderableSlide): EndpointKey[] => {
   const set = new Set<EndpointKey>()
   for (const v of s.visuals) for (const e of vizEndpoints(v.component, s.params.scope)) set.add(e)
-  if (s.layout === 'duo-viz-equiv') set.add('equivalence')
+  if (s.layout === 'duo-viz-equiv' || s.layout === 'lab') set.add('equivalence')
   return [...set]
 }
 
 /** Enter the active slide's scene (seed on first visit, restore on return — policy A). On the very
  *  first render we hydrate the scene from the URL query so deep links land on the right params. */
 const applyScene = (initial: boolean) => {
-  const seed = { params: def.value.params, forced: def.value.forced }
+  const seed = { params: def.value.params, forced: def.value.forced, baseline: def.value.baseline }
   if (initial) view.initSceneFromQuery(def.value.scene, route.query, seed)
   else view.enterScene(def.value.scene, seed)
 }
@@ -117,7 +117,7 @@ await useAsyncData('story-slide', runLoad, { watch: [loadKey] })
 if (import.meta.client) prefetchNext()
 
 // Keep the current scene's derivation params in the URL (replace, no history spam). The slug is the
-// path; timeRange and metric selection stay out (ADR-017/021).
+// path; metric selection stays out (ADR-017/021).
 watch(
   () => view.query,
   (query) => {

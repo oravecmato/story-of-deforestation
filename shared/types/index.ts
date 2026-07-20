@@ -18,6 +18,8 @@ export type {
 export type {
   DomainResultDTO,
   GlobalResultDTO,
+  DomainDerived,
+  GlobalDerived,
   ReferenceDTO,
   EquivalenceDTO,
 } from './dto'

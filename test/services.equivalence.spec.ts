@@ -9,7 +9,6 @@ import { AggregationService } from '../server/services/AggregationService'
 import { EquivalenceService } from '../server/services/EquivalenceService'
 import { CoverageGate } from '../server/utils/coverage'
 import { EQUIVALENCE_CONFIG } from '../shared/config/equivalences'
-import { MT_TO_T } from '../server/utils/stats'
 import { mkSeries } from './helpers/series'
 
 const FOREST_CODE = 'AG.LND.FRST.K2'
@@ -50,7 +49,7 @@ function makeEquiv(): EquivalenceService {
       return Promise.all(isoList.map((iso3) => this.fetchIndicator(iso3, code, opts)))
     },
   }
-  const forest = new ForestAreaService(adapter, DOMAINS_1)
+  const forest = new ForestAreaService(adapter, DOMAINS_1, { forDomain: () => [] })
   const emissions = new EmissionsService(adapter)
   const agg = new AggregationService(forest, emissions, DOMAINS_1, new CoverageGate())
   return new EquivalenceService(agg, EQUIVALENCE_CONFIG)
@@ -61,36 +60,35 @@ const localToday: DerivationParams = {
   domainId: 'amazon',
   horizon: 'today',
   rScenario: 'mid',
-  baseline: 1990,
 }
 
 describe('EquivalenceService', () => {
-  it('today, en locale → UK reference country; annual headline, no committed total', async () => {
+  it('en locale → UK reference country basis at referenceYear (baseline-independent)', async () => {
     const svc = makeEquiv()
     const dto = await svc.equivalence(localToday, 'en')
 
     expect(dto.referenceYear).toBe(2002)
-    // headline is the FULL annual rate = reported stock (100) + forgone sink (single accounting)
-    expect(dto.annualRateCO2).toBeGreaterThan(100)
-    expect(dto.cumulativeCO2).toBeNull()
-    expect(dto.carEquivalent).toBeCloseTo((dto.annualRateCO2 * MT_TO_T) / 4.6, 3)
-    expect(dto.countryEquivalent.iso3).toBe('GBR')
-    expect(dto.countryEquivalent.times).toBeCloseTo(dto.annualRateCO2 / 400, 9)
+    expect(dto.referenceCountry.iso3).toBe('GBR')
+    expect(dto.referenceCountryAnnualCO2).toBe(400)
+    // The baseline-dependent magnitudes are NOT computed here — the strip client-derives them.
+    expect('annualRateCO2' in dto).toBe(false)
+    expect('cumulativeCO2' in dto).toBe(false)
+    expect('carEquivalent' in dto).toBe(false)
+    expect('countryEquivalent' in dto).toBe(false)
   })
 
-  it('future horizon forward-commits annualRate × horizonYears (rate stays measured)', async () => {
+  it('is horizon-invariant (country basis reads referenceYear only)', async () => {
     const svc = makeEquiv()
     const today = await svc.equivalence(localToday, 'en')
     const h30 = await svc.equivalence({ ...localToday, horizon: '30y' }, 'en')
-    expect(h30.annualRateCO2).toBeCloseTo(today.annualRateCO2, 9) // horizon-invariant
-    expect(h30.cumulativeCO2).toBeCloseTo(today.annualRateCO2 * 30, 6)
-    expect(h30.countryEquivalent.times).toBeCloseTo((today.annualRateCO2 * 30) / 400, 9)
+    expect(h30.referenceYear).toBe(today.referenceYear)
+    expect(h30.referenceCountryAnnualCO2).toBe(today.referenceCountryAnnualCO2)
   })
 
   it('sk locale switches the reference country to Slovakia', async () => {
     const svc = makeEquiv()
     const dto = await svc.equivalence(localToday, 'sk')
-    expect(dto.countryEquivalent.iso3).toBe('SVK')
-    expect(dto.countryEquivalent.times).toBeCloseTo(dto.annualRateCO2 / 30, 9)
+    expect(dto.referenceCountry.iso3).toBe('SVK')
+    expect(dto.referenceCountryAnnualCO2).toBe(30)
   })
 })

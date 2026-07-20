@@ -25,7 +25,7 @@ sink); the reveal is staged by the slide 2→3 animation (business §2.6).
 
 ## 1. Design principles
 
-1. **A guided story, not a composer.** The app is a linear **deck of six slides**, not an open
+1. **A guided story, not a composer.** The app is a linear **deck of eight slides**, not an open
    dashboard the reader reconfigures. The reader advances (Next / Back, keyboard, scroll); each slide
    reveals one step. A few slides carry interactive controls scoped to their scene.
 2. **Preserve chart identity within a scene.** Sibling slides that share a visualisation keep the
@@ -62,7 +62,7 @@ as the reader moves between slides — only the slide's content changes reactive
 - **Scene controls** — the interactive controls the current scene exposes (§5), placed with the
   visualisation (design doc owns exact placement). Absent on text-only / control-less slides.
 - **Deck navigation** (persistent) — Next / Back affordances and a **progress indicator** (which of
-  the six slides, §4).
+  the eight slides, §4).
 - **Footer / disclosure** — data sources, methodology caveats, data-year notes (localized).
 
 Loading, empty and error states are first-class (§9). The About/methodology disclosure surfaces the
@@ -73,7 +73,7 @@ label (business §3, §6, §7).
 
 ## 3. Slides and scenes (authoritative)
 
-### 3.1 The six slides
+### 3.1 The eight slides
 
 | # | Slide (slug) | Scene | Layout | Visualisation(s) | Metrics shown | Controls |
 |---|---|---|---|---|---|---|
@@ -83,19 +83,25 @@ label (business §3, §6, §7).
 | 4 | Crossing (`crossing`) | `crossing` | `viz-text` | crossing chart | stock impulse + forgone level | time-range, baseline |
 | 5 | Footprint (`footprint`) | `footprint` | `duo-viz-text` | donut + defo-vs-fossil bar | fossil + stock + forgone sink | baseline, horizon |
 | 6 | Deforestation zoom (`deforestation-insight`) | `footprint` | `duo-viz-equiv` | *same* donut + bar **+ equivalence strip** | stock + forgone sink | baseline, horizon |
+| 7 | Baseline lab (`baseline`) | `baseline` | `caption-viz` | main stacked chart (global) | stock + forgone sink | baseline **slider**, horizon |
+| 8 | Baseline impact (`baseline-impact`) | `baseline` | `viz-equiv` | crossing chart **+ equivalence strip** | stock impulse + forgone level | baseline **slider**, horizon |
 
-Slides 2→3 and 5→6 are **in-scene** transitions (chart instances preserved, `setOption` animates,
-§7). Slides 1→2, 3→4, 4→5 cross a scene boundary (fresh visualisations). Slides 5 and 6 **share the
+Slides 2→3, 5→6 and 7→8 are **in-scene** transitions (chart instances preserved, `setOption` animates,
+§7). Slides 1→2, 3→4, 4→5, 6→7 cross a scene boundary (fresh visualisations). Slides 5 and 6 **share the
 `baseline` + `horizon` controls** (footprint scene, reset policy A) — the reader's setting carries from
 5 to 6 and drives both the visualisations and the slide-6 equivalence strip (§6.7, ADR-025). Slide 6
 uses the **`duo-viz-equiv`** layout (§3.2): a thin caption line replaces the text block and a full-width
 equivalence strip is added at the foot; the layout change **does not remount** the donut/bar (§7).
+Slides 7 and 8 form the **`baseline` scene** (ADR-026): a full-range **baseline slider** (1800→present)
+plus the live horizon picker drive the client-side back-projection in real time; slide 7 shows the main
+stock+forgone chart, slide 8 the crossing chart above the equivalence strip — both fixed to the global
+view and sharing the slider/horizon state across 7↔8.
 
-### 3.2 Layout presets (closed set for V1)
+### 3.2 Layout presets (closed set)
 
-Four presets. The first three carry the **text block below** the visualisation(s) with an **optional
-heading above the text**; the fourth (slide 6) drops the text block for a thin caption on top plus a
-full-width equivalence strip at the foot:
+Six presets. The first three carry the **text block below** the visualisation(s) with an **optional
+heading above the text**; the caption/equivalence-led presets (slides 6–8) drop the text block for a
+thin caption on top and/or a full-width equivalence strip at the foot:
 
 - **`text`** — heading + body copy only (slide 1).
 - **`viz-text`** — one visualisation on top, full-width text block below (slides 2–4).
@@ -105,6 +111,10 @@ full-width equivalence strip at the foot:
   donut + bar as slide 5) · a **full-width equivalence strip** (§6.7). **No text block.** On a
   height-constrained viewport the strip keeps its needed height and the **viz cards shrink** (they are
   primitive charts), never the strip.
+- **`caption-viz`** — slide 7 only (ADR-026): a **thin caption line** on top · the **controls** row ·
+  **one full-width visualisation**. **No text block, no equivalence strip.**
+- **`viz-equiv`** — slide 8 only (ADR-026): the **controls** row · **one full-width visualisation** ·
+  a **full-width equivalence strip** (§6.7). **No caption, no text block.**
 
 A single generic `SlideLayout` component renders a preset from named slots (`caption`, `controls`,
 `viz`, `viz2`, `equivalence`, `heading`, `text`). The preset list is **closed for V1** — new narrative
@@ -130,12 +140,12 @@ shapes extend it deliberately. **Binding (§7, ADR-025):** the `viz` slot outlet
 ## 4. Navigation & routing
 
 - **Advance model.** The reader moves with **Next / Back** buttons, **keyboard** (←/→, PgUp/PgDn),
-  and **scroll/swipe**. A **progress indicator** shows position in the six-slide sequence. Advancing
+  and **scroll/swipe**. A **progress indicator** shows position in the eight-slide sequence. Advancing
   is the deck's top-level interaction.
 - **Single persistent route.** `/story/:slug` maps to one `StoryPage` component that does **not**
   remount between slides; a reactive `currentIndex`/`slug` drives which slide renders. Each slide
   advance is a `router.push` (so browser **Back/Forward** traverse slides). The six slugs are
-  `intro · main · main-sink · crossing · footprint · deforestation-insight` (§3.1).
+  `intro · main · main-sink · crossing · footprint · deforestation-insight · baseline · baseline-impact` (§3.1).
 - **Control state in the URL query.** A scene's control values live in the query
   (e.g. `/story/main?domain=amazon&baseline=2005`), defaulting when absent — so a configured slide is
   shareable/bookmarkable and SSR renders exactly the requested state (ADR-017). The **time range**
@@ -155,7 +165,7 @@ affects derivations triggers a (cached/deduped) fetch (ADR-005). A control that 
 |---|---|---|---|---|
 | **Time horizon** | SelectButton | today / +20 / +30 / +50 / +75 / +100 y | `main`, `footprint` | Sets the window's **upper edge**; *today* = last measured year, others extend a dashed forward projection (business §2.4a). Refetches (server projects). Default **today**. In the footprint scene it is the upper edge of the equivalence strip's window (§6.7). |
 | **Domain** | Select | Global (default) · Amazon · Congo Basin · SE Asia · Other tropical | `main` | Narrows the global aggregate to one domain (or back to global). Refetches. |
-| **Baseline year** | Select / year Slider | 1990 … latest | `main`, `crossing`, `footprint` | Start year of cumulative loss (window **lower** edge). **≥ 1990 only**; explicit label "forgone sink from loss after {X}"; default 1990. Refetches. In the footprint scene it is the lower edge of the equivalence strip's window (§6.7). |
+| **Baseline year** | **year Slider** (real-time) | **1800 … latest** | `main`, `crossing`, `footprint` | Start year of cumulative loss (window **lower** edge). **1800–present**: 1990→latest is measured, **1800–1990 is the LUH2 reconstruction (drawn dashed)**; explicit label "forgone sink from loss after {X}", and a "reconstructed before 1990" note when dragged below 1990. Default **1990** (reconstructed↔measured boundary). **Client-transform — no refetch** (ADR-026): dragging recomputes the curves **in real time** via the isomorphic derive layer; synced to the URL for sharing. In the footprint scene it is the lower edge of the equivalence strip's window (§6.7). |
 | **Time range (zoom)** | ECharts `dataZoom` (slider + inside) | any sub-range | `crossing` | **View state only — no refetch, no data crop** (`viewStore.timeRange`); a **reset-to-full** affordance. Helps frame the crossing. |
 | **Unit** (equivalence) | SelectButton | Mt CO₂ / car / country | `footprint` (slide 6) | **View state only — no refetch** — which unit the equivalence strip renders all four values in (§6.7). Locale-driven country (SVK/UK). Default **car**. Not in the URL. |
 | **Language** | Select in header | SK / EN | (deck-wide) | Switches locale; persisted via cookie. |
@@ -169,12 +179,14 @@ affects derivations triggers a (cached/deduped) fetch (ADR-005). A control that 
 
 **Interaction rules.**
 - The **footprint scene surfaces `baseline` + `horizon`** (slides 5 and 6, shared per-scene, reset
-  policy A). They refetch (donut/bar re-derive) and set the equivalence strip's window (§6.7). The
-  **unit** switcher (slide 6) is a client-only view toggle (no refetch, not in the URL).
+  policy A). `horizon` refetches; **`baseline` re-derives client-side in real time (no refetch, ADR-026)**;
+  both set the equivalence strip's window (§6.7). The **unit** switcher (slide 6) is a client-only view
+  toggle (no refetch, not in the URL).
 - The **domain control forces global** in the crossing/footprint scenes — it is simply not present
   there; those scenes always render the global aggregate.
-- The **time horizon, domain and baseline** are the controls that refetch (each part of the
-  derivation signature); the **time-range zoom** never refetches and never manipulates the series.
+- The **time horizon and domain** are the controls that refetch (each part of the derivation
+  signature); the **baseline slider** (client-transform, real-time re-derive — ADR-026) and the
+  **time-range zoom** never refetch and never manipulate the fetched series.
 - Controls never produce contradictory states (no layer checkboxes — which metrics show is authored
   per slide, §3.3).
 - Changing the **domain** resets the crossing scene's `timeRange` to full on entry (domains/global
@@ -212,8 +224,9 @@ Two visualisations side by side, shared across slides 5 and 6. **Both slides sur
 `duo-viz-equiv` (§3.2) — a thin caption instead of the text block, plus the equivalence strip (§6.7).
 - **Slide 5:** left = **composition donut** of the total carbon footprint with **three slices**
   (fossil, one-off deforestation stock, forgone sink); right = **deforestation-vs-fossil bar** — total
-  deforestation emissions (stock + forgone sink) next to global fossil emissions. Both evaluated at
-  the reference year on measured data (§9a). Global scope.
+  deforestation emissions (stock + forgone sink) next to global fossil emissions. Both integrate over
+  the forward window `[referenceYear, referenceYear + horizonYears(horizon)]` anchored at the
+  reference year (§9a) — the single measured year at *today*, growing with the horizon. Global scope.
 - **Slide 6 (same instances, animated → `deforestation-insight`):** **fossil is removed from both**
   visualisations. The donut animates from three slices to **two** (stock + forgone sink); the bar
   drops fossil and the Y-axis rescales so the remaining deforestation composition "zooms in." A
@@ -251,11 +264,13 @@ projection is a **separate series per metric**:
 
 ### 6.6 Multiplier ×N
 Shown in the `main` scene alongside the chart **from slide 3** (once the forgone sink is present):
-**fullEmissions ÷ WB reported stock** at the reference year (§9a) for the current domain/baseline —
-how many times the true annual impact exceeds the officially reported number. **Always shown while in
-the main scene** (there is no "official" mode). A scalar on measured data, so it does **not** move
-with the horizon in V1 (a horizon-reactive multiplier is revisable — business §12). Sourced from
-Pinia (server-derived). A single instance (not duplicated in the header).
+**Σfull ÷ Σstock** over the forward window `[referenceYear, referenceYear + horizonYears(horizon)]`
+(§9a) for the current domain/baseline — how many times the true cumulative impact exceeds the
+officially reported number over that horizon. **Always shown while in the main scene** (there is no
+"official" mode). **Horizon-reactive**: at *today* the window collapses to the reference year and ×N
+reduces to the measured annual ratio (continuity); a longer horizon grows both edges of the ratio.
+The badge caption reads "full vs reported at {year}" at *today* and "full vs reported, {from}–{to}"
+over a window. Sourced from Pinia (server-derived). A single instance (not duplicated in the header).
 
 ### 6.7 Equivalence strip (slide 6 only)
 A **full-width strip at the foot of slide 6** (the `duo-viz-equiv` preset's `equivalence` slot,
@@ -347,10 +362,13 @@ The **equivalence panel** is restaged (redesigned) as the slide-6 equivalence st
   of the slide stays usable (per-region isolation, ADR-010).
 
 ### 9a. Reference year (composite scalars)
-Composite scalars (multiplier, donut composition, share %) are computed at a single **reference
-year** = the most recent year where all required series have a value (business §7.1a). The UI always
-surfaces it ("data as of {X}"). Time-series charts still render each series over its full range; only
-the scalars use the common reference year.
+Composite figures (multiplier, donut composition, share %, fossil bar, equivalence totals) are
+**anchored** at a single **reference year** = the most recent year where all required series have a
+value (business §7.1a). The UI always surfaces it ("data as of {X}"). They integrate over the forward
+window `[referenceYear, referenceYear + horizonYears(horizon)]` — collapsing to the reference year at
+*today* and growing with the horizon — while pointwise figures (full-emissions level, equivalence
+annual rate) stay at the measured reference year. Time-series charts still render each series over its
+full range.
 
 ---
 
@@ -369,7 +387,7 @@ the scalars use the common reference year.
 5. **Slide 4 — the crossing.** A fresh crossing chart, **global**. The reader uses the time-range zoom
    (and baseline) to frame where the rising forgone sink overtakes the flat stock impulse.
 6. **Slide 5 — the footprint.** Donut (3 slices) + the defo-vs-fossil bar, showing deforestation
-   against fossil at the reference year.
+   against fossil over the forward window anchored at the reference year (§9a).
 7. **Slide 6 — the zoom.** The **same** donut + bar animate: **fossil is removed**, the axis rescales,
    and the deforestation composition (stock + forgone sink) fills the view. A thin caption sits on top;
    `baseline` + `horizon` carry over from slide 5; a full-width **equivalence strip** (§6.7) at the foot
@@ -395,7 +413,8 @@ finalized in `03-technical-specification.md`.
   `SlideText`, `SlideCaption` (slide-6 top line), `AppHeader`, `LanguageSwitcher`,
   `MethodologyDisclosure`, `MultiplierBadge` (main scene), `EquivalenceStrip` (slide 6, §6.7).
 - **Controls:** `HorizonSelect` (SelectButton: today/+20/…/+100 y), `DomainSelect` (Global + four
-  domains), `BaselineControl`, `TimeRangeZoom` (ECharts `dataZoom`), `UnitToggle` (equivalence strip:
+  domains), `BaselineSlider` (real-time 1800–latest, dashed pre-1990, client-transform — ADR-026),
+  `TimeRangeZoom` (ECharts `dataZoom`), `UnitToggle` (equivalence strip:
   Mt CO₂ / car / country, slide 6). Placed by the scene, not a global bar. (No fossil-reference, no
   accounting, no standalone scope control — §5.)
 - **Charts (tier 2, per-chart components over `BaseChart.vue`, Pinia-unaware):**

@@ -14,8 +14,8 @@ function stub(): { http: AxiosInstance; calls: Array<{ url: string; params: unkn
   return { http, calls }
 }
 
-const global: DerivationParams = { scope: 'global', horizon: 'today', rScenario: 'mid', baseline: 1990 }
-const local: DerivationParams = { scope: 'local', domainId: 'amazon', horizon: '30y', rScenario: 'mid', baseline: 1995 }
+const global: DerivationParams = { scope: 'global', horizon: 'today', rScenario: 'mid' }
+const local: DerivationParams = { scope: 'local', domainId: 'amazon', horizon: '30y', rScenario: 'mid' }
 
 describe('createApiClient', () => {
   it('routes each endpoint to its URL with the params query', async () => {
@@ -25,7 +25,7 @@ describe('createApiClient', () => {
     await api.global(global)
     expect(calls[0]).toEqual({
       url: '/api/global',
-      params: { scope: 'global', horizon: 'today', rScenario: 'mid', baseline: '1990' },
+      params: { scope: 'global', horizon: 'today', rScenario: 'mid' },
     })
 
     await api.reference(global)
@@ -42,7 +42,7 @@ describe('createApiClient', () => {
     await api.equivalence(local, 'sk')
     expect(calls[1]).toEqual({
       url: '/api/equivalence',
-      params: { scope: 'local', domainId: 'amazon', horizon: '30y', rScenario: 'mid', baseline: '1995', locale: 'sk' },
+      params: { scope: 'local', domainId: 'amazon', horizon: '30y', rScenario: 'mid', locale: 'sk' },
     })
   })
 })

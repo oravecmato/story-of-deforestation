@@ -1,12 +1,6 @@
 import { createError } from 'h3'
 import type { DerivationParams, DomainId } from '../../shared/types'
-import {
-  SCOPES,
-  HORIZONS,
-  R_SCENARIOS,
-  BASELINE_FLOOR,
-  isDomainId,
-} from '../../shared/config/derivation'
+import { SCOPES, HORIZONS, R_SCENARIOS, isDomainId } from '../../shared/config/derivation'
 
 // Request-param parsing/validation (tech-spec §8). Pure functions of the query object so they are
 // trivially testable; the routes do the h3 extraction and pass the plain query in. Every endpoint is
@@ -38,13 +32,6 @@ const oneOf = <T extends string>(
   return badRequest(key)
 }
 
-const parseBaseline = (value: string | undefined): number => {
-  if (value === undefined) return BASELINE_FLOOR
-  const n = Number(value)
-  if (!Number.isInteger(n) || n < BASELINE_FLOOR) return badRequest('error.param.baseline')
-  return n
-}
-
 /** Parse DerivationParams for global-family routes (scope from query, defaults to global). */
 export function parseDerivationParams(query: Query): DerivationParams {
   const scope = oneOf(str(query.scope), SCOPES, 'global', 'error.param.scope')
@@ -52,7 +39,6 @@ export function parseDerivationParams(query: Query): DerivationParams {
     scope,
     horizon: oneOf(str(query.horizon), HORIZONS, 'today', 'error.param.horizon'),
     rScenario: oneOf(str(query.rScenario), R_SCENARIOS, 'mid', 'error.param.rScenario'),
-    baseline: parseBaseline(str(query.baseline)),
   }
   if (scope === 'local') {
     const domainId = str(query.domainId)
@@ -75,7 +61,6 @@ export function parseDomainRouteParams(
     domainId: id as DomainId,
     horizon: oneOf(str(query.horizon), HORIZONS, 'today', 'error.param.horizon'),
     rScenario: oneOf(str(query.rScenario), R_SCENARIOS, 'mid', 'error.param.rScenario'),
-    baseline: parseBaseline(str(query.baseline)),
   }
 }
 

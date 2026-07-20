@@ -1,10 +1,10 @@
 import type { SlideDef } from '../../shared/types'
 
-// The authored story deck (tech-spec §17.1, business §4.7). Six slides across four scenes. Copy is
+// The authored story deck (tech-spec §17.1, business §4.7). Seven slides across five scenes. Copy is
 // i18n keys only. Sibling slides in a scene share `viz.id`s so the reveal (2→3) and the zoom (5→6)
 // animate in place. `params` seeds a scene's authored defaults on first entry; `forced` overrides are
-// immutable (crossing/footprint are global-only). The equivalence data is restaged as the slide-6
-// `EquivalenceStrip` (ADR-025).
+// immutable (crossing/footprint/baseline are global-only). The equivalence data is restaged as the
+// slide-6 `EquivalenceStrip` (ADR-025) and reused on the slide-7 baseline lab (ADR-026).
 
 export const SLIDES: readonly SlideDef[] = [
   // 1 — intro: pure text framing, no visualisation.
@@ -26,7 +26,8 @@ export const SLIDES: readonly SlideDef[] = [
     textKeys: ['story.main.p1'],
     visualizations: [{ id: 'main', kind: 'mainStacked', metrics: ['stock'] }],
     controls: ['horizon', 'domain', 'baseline'],
-    params: { scope: 'global', domainId: 'amazon', horizon: 'today', rScenario: 'mid', baseline: 1990 },
+    params: { scope: 'global', domainId: 'amazon', horizon: 'today', rScenario: 'mid' },
+    baseline: 1990,
   },
 
   // 3 — main-sink: the hidden cost. Same chart instance; forgone sink animates in on top.
@@ -49,9 +50,9 @@ export const SLIDES: readonly SlideDef[] = [
     headingKey: 'story.crossing.heading',
     textKeys: ['story.crossing.p1'],
     visualizations: [{ id: 'crossing', kind: 'crossing', metrics: ['stock', 'forgoneSink'] }],
-    controls: ['timeRange', 'baseline'],
+    controls: ['baseline'],
     forced: { scope: 'global', horizon: '100y' },
-    params: { baseline: 1990 },
+    baseline: 1990,
   },
 
   // 5 — footprint: donut (3 slices) + deforestation-vs-fossil bar (both categories). Global scope.
@@ -85,6 +86,28 @@ export const SLIDES: readonly SlideDef[] = [
     ],
     controls: ['baseline', 'horizon'],
     forced: { scope: 'global' },
+  },
+
+  // 7 — baseline lab: the interactive back-projection (ADR-026). The `lab` preset — a caption on top,
+  // the baseline SLIDER (1800→present) + the live horizon picker, then TWO charts stacked in the main
+  // column (the main stock+forgone chart above the crossing chart), and a full-height equivalence
+  // strip aside (quarter-width). Fixed global. Moving the slider re-derives the forgone sink, both
+  // charts and the strip client-side in real time (no refetch). Horizon is seeded to a future value so
+  // the projection and the crossing are meaningful on first entry.
+  {
+    slug: 'baseline',
+    scene: 'baseline',
+    layout: 'lab',
+    captionKey: 'story.baselineLab.caption',
+    textKeys: [],
+    visualizations: [
+      { id: 'baseline-main', kind: 'mainStacked', metrics: ['stock', 'forgoneSink'] },
+      { id: 'baseline-crossing', kind: 'crossing', metrics: ['stock', 'forgoneSink'] },
+    ],
+    controls: ['baselineSlider', 'horizon'],
+    forced: { scope: 'global' },
+    params: { horizon: '100y' },
+    baseline: 1990,
   },
 ]
 

@@ -18,6 +18,7 @@ export function mkSeries(
     gaps: [],
     isEstimate: false,
     projectedFrom: null,
+    reconstructedBefore: null,
   }
   return { id, points, meta: { ...base, ...meta } }
 }

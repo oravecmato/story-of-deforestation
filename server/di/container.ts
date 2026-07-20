@@ -5,6 +5,7 @@ import { DOMAINS } from '../../shared/config/domains'
 import { EQUIVALENCE_CONFIG } from '../../shared/config/equivalences'
 import { CoverageGate } from '../utils/coverage'
 import { ForestAreaService } from '../services/ForestAreaService'
+import { luh2Reconstruction } from '../services/Reconstruction'
 import { EmissionsService } from '../services/EmissionsService'
 import { AggregationService } from '../services/AggregationService'
 import { ReferenceService } from '../services/ReferenceService'
@@ -24,7 +25,7 @@ function build(): Container {
   const httpClient = createServerAxios()
   const wdi: SourceAdapter = new WdiAdapter(httpClient)
 
-  const forestArea = new ForestAreaService(wdi, DOMAINS)
+  const forestArea = new ForestAreaService(wdi, DOMAINS, luh2Reconstruction)
   const emissions = new EmissionsService(wdi)
   const coverage = new CoverageGate()
   const aggregation = new AggregationService(forestArea, emissions, DOMAINS, coverage)

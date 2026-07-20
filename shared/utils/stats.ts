@@ -5,12 +5,7 @@ import type {
   SeriesMeta,
   RRange,
   RScenario,
-  DerivationParams,
-  EquivalenceDTO,
-  Horizon,
-} from '../../shared/types'
-import { horizonYears } from '../../shared/config/derivation'
-import type { EquivalenceConfig } from '../../shared/config/equivalences'
+} from '../types'
 
 /**
  * Pure, composable, isomorphic statistics core (tech-spec §5, business §8).
@@ -20,9 +15,6 @@ import type { EquivalenceConfig } from '../../shared/config/equivalences'
  * NOTE (deferred): the Series-level `state × state` correlation guard is added when the (dormant)
  * correlation view is wired. `pearson`/`lagCorrelation` numerics live here already.
  */
-
-/** Mt CO₂ → tonnes CO₂ (for the car-equivalent count). */
-export const MT_TO_T = 1e6
 
 // ── Unit-conversion constants for the forgone sink ──────────────────────────────────────────────
 // Forest area (AG.LND.FRST.K2) is in km²; R is in t CO₂ / ha / yr; emission series are in Mt CO₂.
@@ -48,10 +40,6 @@ function mapValues(
     points: series.points.map((p, i) => ({ ...p, value: fn(p.value, i, p) })),
     meta: cloneMeta(series.meta, metaOverride),
   }
-}
-
-function valueAtYear(series: Series, year: number): number | null {
-  return series.points.find((p) => p.year === year)?.value ?? null
 }
 
 /** Select the central R value for the chosen scenario (business §4.1). */
@@ -143,6 +131,7 @@ export function sumSeries(series: Series[], id: string, geo = 'SUM'): Series {
     gaps: series.flatMap((s) => s.meta.gaps),
     isEstimate: false,
     projectedFrom: null,
+    reconstructedBefore: null,
   }
   return { id, points, meta }
 }
@@ -208,7 +197,8 @@ export function areaLoss(area: Series): Series {
   }
 }
 
-/** Cumulative area loss from `baseline` onward (state). Integration origin stays ≥ 1990 (§7.2). */
+/** Cumulative area loss from `baseline` onward (state). The origin is caller-supplied — the server
+ *  passes BASELINE_FLOOR (full range, ADR-026); the client re-derives per the slider (§7.2a). */
 export function cumulativeLoss(area: Series, baseline: number): Series {
   const scoped: Series = {
     ...area,
@@ -322,12 +312,22 @@ export function fullEmissions(stock: Series, forgone: Series): Series {
   }
 }
 
-/** Multiplier = full / official at the reference year (business §4.2). NaN if official is 0/absent. */
-export function multiplier(stock: Series, full: Series, atYear: number): number {
-  const official = valueAtYear(stock, atYear)
-  const fullVal = valueAtYear(full, atYear)
-  if (official == null || official === 0 || fullVal == null) return NaN
-  return fullVal / official
+/** Σ of a series' non-null values over the inclusive year window `[from, to]`. */
+export function sumWindow(series: Series, from: number, to: number): number {
+  let sum = 0
+  for (const p of series.points) {
+    if (p.year >= from && p.year <= to && p.value != null) sum += p.value
+  }
+  return sum
+}
+
+/** Multiplier = Σfull / Σofficial over the inclusive window `[from, to]` (business §4.2, ADR-019). A
+ *  `today` window collapses to `[referenceYear, referenceYear]` = the measured-year ratio. NaN if the
+ *  official sum is 0/absent. */
+export function multiplier(stock: Series, full: Series, from: number, to: number): number {
+  const official = sumWindow(stock, from, to)
+  if (official === 0) return NaN
+  return sumWindow(full, from, to) / official
 }
 
 /** First year the cumulative forgone sink crosses (≥) the stock curve; null if it never does. */
@@ -396,6 +396,7 @@ export function aggregateForgoneSink(perDomain: BandSeries[]): BandSeries {
     gaps: [],
     isEstimate: true,
     projectedFrom: null,
+    reconstructedBefore: null,
   }
   return { id: 'aggregateForgoneSink', points, lower, upper, meta }
 }
@@ -403,43 +404,4 @@ export function aggregateForgoneSink(perDomain: BandSeries[]): BandSeries {
 /** Share of a total footprint as a percentage. NaN if the denominator is 0 (business §4.3). */
 export function sharePercent(numerator: number, denominator: number): number {
   return denominator === 0 ? NaN : (numerator / denominator) * 100
-}
-
-// ── equivalence (business §4.4; forward-committed presets) ───────────────────────────────────────
-
-/** Inputs for the pure equivalence math. The reference country + its annual emissions are resolved
- *  and fetched upstream (locale-driven, business §4.4); this function only does the conversions. */
-export interface EquivalenceInput {
-  params: DerivationParams
-  referenceYear: number
-  horizon: Horizon
-  annualRateCO2: number // headline annual flow at referenceYear, Mt CO₂/yr
-  referenceCountry: { iso3: string }
-  referenceCountryAnnualCO2: number // reference country's annual emissions at referenceYear, Mt CO₂/yr
-  cfg: EquivalenceConfig
-}
-
-/**
- * Equivalence panel scalars (business §4.4). Semantics = **forward committed**: `today` uses the
- * annual rate; any other horizon multiplies it by `horizonYears(horizon)` (the already-committed
- * debt, holding cumulative loss constant). Car + country equivalents use that effective amount.
- */
-export function equivalence(input: EquivalenceInput): EquivalenceDTO {
-  const { horizon, annualRateCO2, referenceCountryAnnualCO2, cfg } = input
-  const cumulativeCO2 = horizon === 'today' ? null : annualRateCO2 * horizonYears(horizon)
-  const effectiveCO2 = cumulativeCO2 ?? annualRateCO2 // Mt CO₂
-
-  const carEquivalent = (effectiveCO2 * MT_TO_T) / cfg.carAnnualTonsCO2
-  const times =
-    referenceCountryAnnualCO2 === 0 ? NaN : effectiveCO2 / referenceCountryAnnualCO2
-
-  return {
-    params: input.params,
-    referenceYear: input.referenceYear,
-    horizon,
-    annualRateCO2,
-    cumulativeCO2,
-    carEquivalent,
-    countryEquivalent: { iso3: input.referenceCountry.iso3, times },
-  }
 }

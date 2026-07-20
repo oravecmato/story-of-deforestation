@@ -25,6 +25,9 @@ export interface SeriesMeta {
   isEstimate: boolean
   /** Join year where linear-trend projection starts (ADR-019); null = measured only (business §2.4a). */
   projectedFrom: number | null
+  /** Join year (1990) BELOW which the series is LUH2-reconstructed (dashed); null = no reconstruction
+   *  (ADR-026, business §7.2a). Set on the pre-1990 spliced area points. */
+  reconstructedBefore: number | null
 }
 
 export interface Series {

@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import {
   coerceDerivationParams,
+  coerceBaseline,
   paramsKey,
   paramsToQuery,
   isDomainId,
   PRESET_PARAMS,
   DEFAULT_DOMAIN_ID,
+  DEFAULT_BASELINE,
 } from '../shared/config/derivation'
 
 describe('coerceDerivationParams (lenient client path)', () => {
@@ -13,16 +15,14 @@ describe('coerceDerivationParams (lenient client path)', () => {
     expect(coerceDerivationParams({})).toEqual(PRESET_PARAMS)
   })
 
-  it('parses a valid full local query', () => {
+  it('parses a valid full local query (baseline is not a DerivationParam, ADR-026)', () => {
     expect(
-      coerceDerivationParams({ scope: 'local', domainId: 'congo', horizon: '50y', rScenario: 'high', baseline: '2005' }),
-    ).toEqual({ scope: 'local', domainId: 'congo', horizon: '50y', rScenario: 'high', baseline: 2005 })
+      coerceDerivationParams({ scope: 'local', domainId: 'congo', horizon: '50y', rScenario: 'high' }),
+    ).toEqual({ scope: 'local', domainId: 'congo', horizon: '50y', rScenario: 'high' })
   })
 
-  it('falls back to preset for invalid enum / sub-1990 baseline (never throws)', () => {
-    expect(coerceDerivationParams({ scope: 'moon', horizon: 'x', rScenario: 'y', baseline: '1980' })).toEqual(
-      PRESET_PARAMS,
-    )
+  it('falls back to preset for invalid enum (never throws)', () => {
+    expect(coerceDerivationParams({ scope: 'moon', horizon: 'x', rScenario: 'y' })).toEqual(PRESET_PARAMS)
   })
 
   it('local scope without a valid domain → default domain', () => {
@@ -36,22 +36,38 @@ describe('coerceDerivationParams (lenient client path)', () => {
 })
 
 describe('paramsKey / paramsToQuery', () => {
-  it('key is stable and endpoint-scoped', () => {
-    const p = { scope: 'global', horizon: 'today', rScenario: 'mid', baseline: 1990 } as const
-    expect(paramsKey('global', p)).toBe('global:global::today:mid:1990')
+  it('key is stable and endpoint-scoped (baseline is not part of it, ADR-026)', () => {
+    const p = { scope: 'global', horizon: 'today', rScenario: 'mid' } as const
+    expect(paramsKey('global', p)).toBe('global:global::today:mid')
     expect(paramsKey('reference', p)).not.toBe(paramsKey('global', p))
   })
 
-  it('query drops domainId in global, includes it in local', () => {
-    expect(paramsToQuery({ scope: 'global', horizon: 'today', rScenario: 'mid', baseline: 1990 })).toEqual({
+  it('query drops domainId in global, includes it in local (no baseline — ADR-026)', () => {
+    expect(paramsToQuery({ scope: 'global', horizon: 'today', rScenario: 'mid' })).toEqual({
       scope: 'global',
       horizon: 'today',
       rScenario: 'mid',
-      baseline: '1990',
     })
     expect(
-      paramsToQuery({ scope: 'local', domainId: 'amazon', horizon: '30y', rScenario: 'mid', baseline: 1995 }),
-    ).toMatchObject({ scope: 'local', domainId: 'amazon', baseline: '1995' })
+      paramsToQuery({ scope: 'local', domainId: 'amazon', horizon: '30y', rScenario: 'mid' }),
+    ).toMatchObject({ scope: 'local', domainId: 'amazon' })
+  })
+})
+
+describe('coerceBaseline (client-transform view-state, ADR-026)', () => {
+  it('parses a valid integer year', () => {
+    expect(coerceBaseline('2005')).toBe(2005)
+  })
+
+  it('accepts a pre-1990 reconstruction year (floor 1800)', () => {
+    expect(coerceBaseline('1850')).toBe(1850)
+  })
+
+  it('falls back to the default for missing / non-integer / sub-floor input', () => {
+    expect(coerceBaseline(undefined)).toBe(DEFAULT_BASELINE)
+    expect(coerceBaseline('2000.5')).toBe(DEFAULT_BASELINE)
+    expect(coerceBaseline('1799')).toBe(DEFAULT_BASELINE)
+    expect(coerceBaseline('abc', 1990)).toBe(1990)
   })
 })
 

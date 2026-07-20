@@ -17,7 +17,7 @@ import type {
 // binds the `dto`/`ctx` props at render time (§11). Keeping the factory pure makes it unit-testable.
 
 /** A deck control, tagged with whether flipping it refetches (mutates `DerivationParams`) or is pure
- *  view state (`timeRange`). Only `timeRange` is client-only (ADR-021). */
+ *  view state. The baseline controls are client-only (ADR-021/026). */
 export interface RenderableControl {
   key: ControlKey
   mode: DerivationMode
@@ -55,8 +55,12 @@ export type ChartComponentName =
   | 'FootprintDonut'
   | 'FossilComparisonChart'
 
-/** Controls that refetch when changed; `timeRange` is the sole client-only control (ADR-021). */
-const CLIENT_ONLY_CONTROLS: ReadonlySet<ControlKey> = new Set<ControlKey>(['timeRange'])
+/** Client-only controls (no refetch): both baseline controls (`baseline` select + `baselineSlider`) —
+ *  the ADR-026 client-transform. `horizon`/`domain` mutate DerivationParams and refetch (ADR-021). */
+const CLIENT_ONLY_CONTROLS: ReadonlySet<ControlKey> = new Set<ControlKey>([
+  'baseline',
+  'baselineSlider',
+])
 
 const controlMode = (key: ControlKey): DerivationMode =>
   CLIENT_ONLY_CONTROLS.has(key) ? 'client-only' : 'server-refetch'

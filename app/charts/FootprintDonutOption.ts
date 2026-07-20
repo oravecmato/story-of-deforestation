@@ -1,24 +1,24 @@
 import type { EChartsOption, SeriesOption } from 'echarts'
-import type { GlobalResultDTO, ReferenceDTO } from '../../shared/types'
+import type { GlobalResultDTO, GlobalDerived, ReferenceDTO } from '../../shared/types'
 import { sceneWindow } from '../../shared/config/derivation'
 import { BaseChartOption } from './BaseChartOption'
 
 export interface FootprintDonutData {
   reference: ReferenceDTO
-  main: GlobalResultDTO
+  main: GlobalResultDTO & GlobalDerived
 }
 
 // Footprint composition donut (§11.2): fossil, stock and the forgone sink slices. Each slice is the
-// TRUE finite integral over the symmetric window `[baseline, horizonTargetYear(horizon)]` (§17.4,
-// ADR-025) — the same basis as the equivalence strip and the fossil bar: all three metrics are summed
-// over the one window (business §2.4 quantity #2), so the forgone sink is a genuine Σ of its annual
-// rate, not rate × years. Slide 5 shows all three; slide 6 drops `fossil` from the metric set → the
-// donut animates to the two deforestation slices (stock + forgone sink) and rescales.
+// TRUE finite integral over the forward window `[referenceYear, referenceYear + horizonYears(horizon)]`
+// (§17.4, ADR-025) — the same basis as the equivalence strip and the fossil bar: all three metrics are
+// summed over the one window (business §2.4 quantity #2), so the forgone sink is a genuine Σ of its
+// annual rate, not rate × years. Slide 5 shows all three; slide 6 drops `fossil` from the metric set →
+// the donut animates to the two deforestation slices (stock + forgone sink) and rescales.
 export class FootprintDonutOption extends BaseChartOption<FootprintDonutData> {
   protected buildSeries(): SeriesOption[] {
     const { theme, t } = this.ctx
     const { reference, main } = this.data
-    const { from, to } = sceneWindow(this.ctx.baseline, this.ctx.horizon)
+    const { from, to } = sceneWindow(main.referenceYear, this.ctx.horizon)
     const c = {
       fossil: this.sumWindow(reference.fossilTotal, from, to),
       stock: this.sumWindow(main.aggregateStock, from, to),

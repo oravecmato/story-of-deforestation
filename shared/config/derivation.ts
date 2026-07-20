@@ -9,7 +9,16 @@ import { DOMAINS } from './domains'
 export const SCOPES: readonly Scope[] = ['global', 'local']
 export const HORIZONS: readonly Horizon[] = ['today', '20y', '30y', '50y', '75y', '100y']
 export const R_SCENARIOS: readonly RScenario[] = ['conservative', 'mid', 'high']
-export const BASELINE_FLOOR = 1990 // FAOSTAT / sink-integration origin (business §7.2)
+// LUH2 reconstruction reaches back to 1800 (ADR-026, business §7.2a); the slider may open the sink
+// integral anywhere from here on. `baseline` is a CLIENT-TRANSFORM (not a DerivationParam): it never
+// refetches — the client re-derives locally from the full-range area the server ships.
+export const BASELINE_FLOOR = 1800
+// Default sink-integration origin = first measured year (World Bank AG.LND.FRST.K2 starts 1990).
+export const DEFAULT_BASELINE = 1990
+// Latest selectable baseline year — the upper bound shared by the coarse `BaselineControl` select and
+// the `BaselineSlider` (which extends the lower bound down to `BASELINE_FLOOR`). The two controls are
+// alternative ways to set the SAME client-transform origin (ADR-026), so they share this ceiling.
+export const BASELINE_MAX = 2020
 
 /** Calendar year the horizon axis is anchored at (ADR-019). `today` = this year, no projection. */
 export const HORIZON_ANCHOR_YEAR = 2026
@@ -30,26 +39,28 @@ export const horizonYears = (h: Horizon): number => HORIZON_YEAR_OFFSET[h]
 export const horizonTargetYear = (h: Horizon): number => HORIZON_ANCHOR_YEAR + HORIZON_YEAR_OFFSET[h]
 
 /**
- * The footprint-scene magnitude window (slides 5/6, ADR-025): a symmetric finite window that opens at
- * the `baseline` year and closes at the horizon target year. Every scene figure (donut, fossil bar,
- * equivalence strip) sums the TRUE finite integral over this one window (business §2.4 quantity #2),
- * so stock, forgone and fossil are the same kind of quantity. `today` closes at the current-year
- * anchor, so it still shows a meaningful cumulative-to-today (never zero).
+ * The magnitude window (multiplier badge + slides 5/6 donut/fossil/equivalence, ADR-019/ADR-025): a
+ * FORWARD finite window that opens at the `referenceYear` (last measured year) and spans the chosen
+ * horizon's forward reach. Every scene figure (donut, fossil bar, equivalence strip) and the ×N
+ * multiplier sum the TRUE finite integral over this one window (business §2.4 quantity #2), so stock,
+ * forgone and fossil are the same kind of quantity. `today` (offset 0) closes at the reference year
+ * itself → a single-year window `[referenceYear, referenceYear]`, keeping continuity with the measured
+ * ratio. The baseline stays ORTHOGONAL: it sets the DEPTH of the forgone sink (via cumulative loss at
+ * every forward year), while the horizon sets the WIDTH of this window.
  */
-export const sceneWindow = (baseline: number, h: Horizon): { from: number; to: number } => ({
-  from: baseline,
-  to: horizonTargetYear(h),
+export const sceneWindow = (referenceYear: number, h: Horizon): { from: number; to: number } => ({
+  from: referenceYear,
+  to: referenceYear + horizonYears(h),
 })
 
 /** Default domain when the user first switches to local scope (business §3.1). */
 export const DEFAULT_DOMAIN_ID: DomainId = 'amazon'
 
-/** Opening state (business §4): global / today / mid / 1990. Opens on measured data (no projection). */
+/** Opening state (business §4): global / today / mid. Opens on measured data (no projection). */
 export const PRESET_PARAMS: DerivationParams = {
   scope: 'global',
   horizon: 'today',
   rScenario: 'mid',
-  baseline: BASELINE_FLOOR,
 }
 
 const first = (v: unknown): string | undefined => {
@@ -62,7 +73,11 @@ const asEnum = <T extends string>(v: unknown, allowed: readonly T[], fallback: T
   return s !== undefined && (allowed as readonly string[]).includes(s) ? (s as T) : fallback
 }
 
-const asBaseline = (v: unknown, fallback: number): number => {
+/**
+ * Coerce the client-transform `baseline` view-state from a query value (ADR-026). Invalid/missing →
+ * fallback (default 1990, the first measured year). Clamped to the LUH2 reconstruction floor (1800).
+ */
+export const coerceBaseline = (v: unknown, fallback: number = DEFAULT_BASELINE): number => {
   const n = Number(first(v))
   return Number.isInteger(n) && n >= BASELINE_FLOOR ? n : fallback
 }
@@ -82,7 +97,6 @@ export function coerceDerivationParams(
     scope,
     horizon: asEnum(query.horizon, HORIZONS, preset.horizon),
     rScenario: asEnum(query.rScenario, R_SCENARIOS, preset.rScenario),
-    baseline: asBaseline(query.baseline, preset.baseline),
   }
   if (scope === 'local') {
     const id = first(query.domainId)
@@ -93,7 +107,7 @@ export function coerceDerivationParams(
 
 /** Deterministic cache/CDN key for an endpoint + params (stable field order). */
 export function paramsKey(endpoint: string, p: DerivationParams): string {
-  return [endpoint, p.scope, p.domainId ?? '', p.horizon, p.rScenario, p.baseline].join(':')
+  return [endpoint, p.scope, p.domainId ?? '', p.horizon, p.rScenario].join(':')
 }
 
 /** DerivationParams → a plain query object for the router / apiClient (drops undefined domainId). */
@@ -102,7 +116,6 @@ export function paramsToQuery(p: DerivationParams): Record<string, string> {
     scope: p.scope,
     horizon: p.horizon,
     rScenario: p.rScenario,
-    baseline: String(p.baseline),
   }
   if (p.domainId) q.domainId = p.domainId
   return q

@@ -1,38 +1,33 @@
-import type { Series, DerivationParams, ReferenceDTO } from '../../shared/types'
+import type { DerivationParams, ReferenceDTO } from '../../shared/types'
+import { horizonTargetYear } from '../../shared/config/derivation'
+import * as stats from '../../shared/utils/stats'
 import type { EmissionsService } from './EmissionsService'
-import * as stats from '../utils/stats'
 
-// ReferenceService (tech-spec §6, business §4.3). Global fossil-emissions bar + the share-of-footprint
-// donut, always shown in global scope. It fetches the global fossil total and combines it with the
-// (already-derived, aggregation-owned) deforestation composite at referenceYear. With a single
-// accounting ('full', ADR-019) the donut is always 3 slices and the share is a scalar magnitude:
-//   defo = stock + forgone     share = defo / (fossil + defo)
+// ReferenceService (tech-spec §6, business §4.3). Ships the global fossil-emissions denominator series,
+// always shown in global scope. Baseline-INDEPENDENT under ADR-026: the donut's deforestation slices
+// (stock + forgone sink) and the share % are baseline-dependent and are derived CLIENT-SIDE from the
+// global DTO's derived tail at the live baseline, so they are no longer computed here.
+//
+// Fossil is PROJECTED to the horizon target year (ADR-019, like the deforestation series in
+// AggregationService) so the donut/fossil-bar forward window `[referenceYear, referenceYear +
+// horizonYears(horizon)]` sums fossil over the SAME projected range as stock and forgone — otherwise
+// the fossil integral would be truncated at the last measured year and the share skewed at long
+// horizons. `today` = identity (no projection). The endpoint cache key includes horizon, so changing
+// horizon refetches the correctly-projected series.
 
 export interface ReferenceInput {
   params: DerivationParams
   referenceYear: number
-  stockAtRef: number // global deforestation stock at referenceYear (Mt CO₂)
-  forgoneSinkAtRef: number // global forgone sink at referenceYear (Mt CO₂) — the donut's 3rd slice
 }
-
-const valueAt = (s: Series, year: number): number =>
-  s.points.find((p) => p.year === year)?.value ?? 0
 
 export class ReferenceService {
   constructor(private readonly emissions: EmissionsService) {}
 
   async reference(input: ReferenceInput): Promise<ReferenceDTO> {
-    const { params, referenceYear, stockAtRef, forgoneSinkAtRef } = input
-    const fossilTotal = await this.emissions.globalFossil()
-    const fossil = valueAt(fossilTotal, referenceYear)
-
-    const defo = stockAtRef + forgoneSinkAtRef
-    return {
-      params,
-      referenceYear,
-      fossilTotal,
-      sharePercent: stats.sharePercent(defo, fossil + defo),
-      composition: { fossil, stock: stockAtRef, forgoneSink: forgoneSinkAtRef },
-    }
+    const { params, referenceYear } = input
+    const fossil = await this.emissions.globalFossil()
+    const fossilTotal =
+      params.horizon === 'today' ? fossil : stats.projectSeries(fossil, horizonTargetYear(params.horizon))
+    return { params, referenceYear, fossilTotal }
   }
 }

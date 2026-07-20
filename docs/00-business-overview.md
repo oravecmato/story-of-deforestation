@@ -37,9 +37,9 @@ much," always "at least this much."
 product is titled **"Story of Deforestation" / "Príbeh deforestácie."** Earlier drafts (and the code
 built so far) framed the UI as a *composer*: one page with a control bar, a main canvas and a grid of
 magnitude panels the user reconfigures at will. That framing is **replaced** by a **sequential deck of
-six slides** the reader advances through — each slide reveals one step of the argument, and a few
-slides carry the same interactive controls as before (time horizon, domain, baseline, time-range
-zoom), now scoped to the slide they belong to.
+eight slides** the reader advances through — each slide reveals one step of the argument, and a few
+slides carry the same interactive controls as before (time horizon, domain, baseline + baseline slider,
+time-range zoom), now scoped to the slide they belong to.
 
 Why a deck. The audience is recruiters/engineers skimming a portfolio piece; a guided narrative lands
 the *stock vs. forgone-sink* point far more reliably than an open dashboard that assumes the visitor
@@ -137,9 +137,14 @@ these are clearly-labelled, visually-distinct estimates, never presented as meas
   solid line simply became dashed," with a **join-year divider** marking where measurement ends and
   projection begins (the technical rendering contract is in the UI/technical specs).
 
-The projection does not change any *scalar* computed on measured data: the multiplier, the
-equivalence base and the footprint donut are still evaluated at the measured **reference year**
-(§7.1a). The horizon extends the *time-series* charts and the crossing point.
+The projection **anchors** every footprint-scene magnitude at the measured **reference year**
+(§7.1a) — the lower edge of the window and the year of the annual forgone-sink *rate*. The
+horizon then sets the window *width*: the multiplier, the equivalence base and the footprint donut
+integrate over the forward window `[referenceYear, referenceYear + horizonYears(horizon)]`, so they
+grow with the horizon (at *today* the window collapses to the single reference year — continuity
+with the measured ratio). The horizon likewise extends the *time-series* charts and the crossing
+point. What stays horizon-blind is the reference-year anchor itself and the shape/correlational
+measures (§2.6).
 
 ### 2.5 Composite quantity "full emissions"
 
@@ -152,8 +157,10 @@ forgone sink is the annual deficit valid in year t due to loss so far (a cumulat
 its increment). Units are consistent. This number feeds the magnitude panels and the equivalence
 panel (§4).
 
-The **multiplier ×N** shown above the main chart is `fullEmissions ÷ WB_emissions` at the reference
-year (§7.1a) — how many times the true annual impact exceeds the officially reported number. The WB
+The **multiplier ×N** shown above the main chart is `ΣfullEmissions ÷ ΣWB_emissions` over the
+forward window `[referenceYear, referenceYear + horizonYears(horizon)]` (§7.1a) — how many times the
+true cumulative impact exceeds the officially reported number over that horizon. At *today* the
+window is the single reference year, so ×N reduces to the measured annual ratio (continuity). The WB
 reported stock survives as this denominator even though the app no longer has a separate "official"
 display mode (§2.6).
 
@@ -245,12 +252,12 @@ inclusion. The exact membership per domain is defined in the domain config and i
 
 ## 4. The story deck (screen structure)
 
-The app is a **linear deck of six slides** the reader advances through (Next / Back, keyboard, or
+The app is a **linear deck of eight slides** the reader advances through (Next / Back, keyboard, or
 scroll). It is **not** a composer dashboard. The deck opens on the same functional preset as before —
 **global scope, `R` = mid, baseline 1990, horizon = today** — but the reader meets the argument one
 step at a time rather than reconfiguring an open canvas.
 
-**Scenes.** The six slides are grouped into **four scenes**. A scene is a run of consecutive slides
+**Scenes.** The eight slides are grouped into **five scenes**. A scene is a run of consecutive slides
 that share the *same on-screen visualisation(s)*: sibling slides in a scene keep the chart mounted and
 only change its configuration, so the transition between them is an **in-place ECharts animation**
 (`setOption`), never a reload or re-layout. Crossing a scene boundary mounts fresh visualisations.
@@ -261,6 +268,7 @@ only change its configuration, so the transition between them is an **in-place E
 | `main` | 2, 3 | the main stacked time-series chart |
 | `crossing` | 4 | the stock-vs-forgone crossing chart |
 | `footprint` | 5, 6 | the composition donut + the deforestation-vs-fossil bar |
+| `baseline` | 7, 8 | the baseline slider driving the main chart (7) then the crossing chart + equivalence strip (8) |
 
 The two **in-place animations** — slide 2→3 (forgone sink appears on the main chart) and slide 5→6
 (fossil drops out of the donut and the bar) — are the deck's signature moments, replacing the old
@@ -280,8 +288,10 @@ deck only stages it.
   - **Domain** — one of the ~4 rainforest domains. Exposed by the **main** scene; it switches the main
     chart from the global aggregate to a single domain. (In the deck, the global aggregate is the
     default the reader can *narrow*; see §4.6 on scope.)
-  - **Baseline** — reference year, ≥ 1990 (§7.2); label always explicit ("forgone sink computed from
-    forest loss after {X}"). Exposed by the **main** and **crossing** scenes.
+  - **Baseline** — reference year, **1800–present** via a real-time **slider** (§7.2a); ≥ 1990 is
+    measured, 1800–1990 is the LUH2 reconstruction (dashed). Label always explicit ("forgone sink computed
+    from forest loss after {X}"). A **client-transform** control (ADR-026): dragging it recomputes the
+    series client-side with no refetch. Exposed by the **main** and **crossing** scenes.
   - **Time-range zoom** — a client-side brush on the timeline (ECharts `dataZoom`, no recompute).
     Exposed by the **crossing** scene, where narrowing/widening the visible span helps the reader see
     the crossing.
@@ -316,8 +326,9 @@ The core of the argument, delivered as a **reveal** across two sibling slides th
 
 If the horizon is pushed past *today*, both slides extend the series with the dashed forward
 projection (§2.4a); the domain control narrows the aggregate to one domain; the baseline moves the
-integration origin. The `×N` **multiplier** (`fullEmissions ÷ WB stock` at the reference year, §2.5)
-is shown alongside the main chart from slide 3 on (once the forgone sink is present).
+integration origin. The `×N` **multiplier** (`ΣfullEmissions ÷ ΣWB stock` over the forward window
+`[referenceYear, referenceYear + horizonYears(horizon)]`, §2.5) is shown alongside the main chart
+from slide 3 on (once the forgone sink is present).
 
 **Framing note (important for copy):** the stock layer carries the anti-deforestation argument even
 when a domain's forgone sink is small (e.g. a saturated Amazon). Even if the net sink were near zero,
@@ -346,7 +357,9 @@ replaces it with a thin caption on top and adds a full-width equivalence strip a
   footprint with **three slices** — fossil, the one-off deforestation stock, and the forgone sink.
   Right: the **deforestation-vs-fossil bar** — total deforestation emissions (stock + forgone sink)
   next to global fossil emissions, so the reader sees how the (still smaller) deforestation total sits
-  against fossil. Both evaluated at the reference year on measured data (§7.1a). Global scope.
+  against fossil. Both integrate over the forward window `[referenceYear, referenceYear +
+  horizonYears(horizon)]` anchored at the reference year (§7.1a) — at *today* the single measured
+  reference year, growing with the horizon into the dashed projection. Global scope.
 - **Slide 6 — zoom into deforestation (`deforestation-insight`).** The **same** two visualisations,
   **not remounted** — only animated: **fossil is removed from both** the donut and the bar. With the
   fossil slice/bar gone, the axis rescales and the remaining deforestation composition "zooms in": the
@@ -387,6 +400,23 @@ Slide 6 uses a distinct layout (`duo-viz-equiv`): instead of a body-text block i
 
 The strip's numbers are derived from data the slide already holds (the global aggregate over the
 window) plus the car/country factors — no new server call beyond the two controls (technical spec §17.4).
+
+### 4.5b Slides 7–8 — the baseline lab (interactive back-projection to 1800)
+
+The closing **`baseline` scene** turns the baseline from a preset into the reader's instrument. Both
+slides are fixed to the global view and share a **baseline slider** and the live horizon picker; moving
+the slider re-derives the forgone sink **client-side in real time** (no refetch — technical spec §17.4,
+ADR-026). The slider is a full-range alternative to the coarse baseline select: it drags the
+sink-integration origin continuously from **1800** (the LUH2 reconstruction floor, §7.2a) up to the
+latest measured year, so the reader can watch the forgone sink grow as the origin recedes.
+
+- **Slide 7 — baseline lab (`baseline`).** A one-line caption on top ("See what happens when you
+  manipulate with the baseline year…"), the **baseline slider + horizon** controls, then the main
+  stock + forgone-sink chart. Dragging the slider back toward 1800 lengthens the cumulative-loss
+  integral and visibly enlarges the forgone-sink layer.
+- **Slide 8 — baseline impact (`baseline-impact`).** The **same scene and control state**: the crossing
+  chart on top and the equivalence strip (§4.5a) below, stacked full-width — both re-expressing the
+  reader's live baseline choice as the crossing year and the four equivalence figures.
 
 ### 4.6 What the V1 deck does not stage (and scope)
 
@@ -547,14 +577,21 @@ For V1, **World Bank is the only API source.** Plus the hardcoded `R` (§6).
 
 ### 7.1a Reference year and data alignment (decided)
 Series end in different years (forest area ~2023, LULUCF emissions possibly ~2022). Every composite
-figure (full emissions, the multiplier, the magnitude panels, the equivalence annual rate) is
-computed at a single **reference year = the most recent year where *all* required series have a
-value** (i.e., `min` of the per-series `latestDataYear`). This avoids mixing different years inside
-one composite number. The reference year is **always surfaced in the UI** ("data as of {X}"),
+figure is **anchored** at a single **reference year = the most recent year where *all* required
+series have a value** (i.e., `min` of the per-series `latestDataYear`). This avoids mixing different
+years inside one composite number. Two kinds of figure share that anchor: (a) *pointwise* figures
+evaluated at the reference year itself — the full-emissions level, the equivalence annual *rate*;
+and (b) *window* figures integrated over the forward window `[referenceYear, referenceYear +
+horizonYears(horizon)]` — the multiplier, the donut slices, the fossil bar, the equivalence
+window totals — which collapse to the reference year at *today* and grow with the horizon. The reference year is **always surfaced in the UI** ("data as of {X}"),
 consistent with the honest-explorer stance. (Time-series charts still draw each series over its own
-full range — and, when a future horizon is chosen, on into the dashed projection, §2.4a; only the
-composite scalars use the common reference year, and they are computed on **measured data only**,
-never on the projection.)
+full range — and, when a future horizon is chosen, on into the dashed projection, §2.4a.) The
+reference year is the **lower edge and anchor** of the forward window `[referenceYear, referenceYear
++ horizonYears(horizon)]` over which the footprint-scene figures (multiplier, equivalence base,
+donut, fossil bar) integrate: at *today* the window collapses to the single measured reference year
+(pure measured data), and as the horizon grows the window extends into the dashed projection — the
+same forward extrapolation that draws the time-series (§2.4a). The reference-year anchor and the
+annual forgone-sink *rate* stay measured-only regardless of horizon.
 
 ### 7.1b Country coverage consistency (decided)
 A region (Amazon, Congo, SE Asia, "other tropical") is a **sum over its member countries** of two
@@ -582,11 +619,48 @@ are recorded as coverage gaps the UI can surface.
   "excluding LULUCF" — deforestation is deliberately not in them, which is why a separate LULUCF
   block exists.
 
-**Data floor = 1990.** The forgone sink is computed from cumulative area loss; loss can only be
-computed where we have area year by year, so we cannot start before 1990 (FAOSTAT has no
-consistent annual series before 1990). The baseline is configurable only from 1990 upward.
-Moving it up is a modeling decision with interpretive weight (with a 2010 baseline the 1990–2010
-loss is not counted) — it must be explicitly labeled in the UI. Default 1990.
+**Measured-data floor = 1990; reconstructed floor = 1800 (§7.2a).** The forgone sink is computed from
+cumulative area loss, which needs area year by year. FAOSTAT/WB (`AG.LND.FRST.K2`) has no consistent
+annual series before 1990, so the **measured** basis starts in 1990. To let the reader push the baseline
+**back to 1800**, we splice a **historical reconstruction** of per-domain forest area onto the measured
+series (§7.2a). The baseline is configurable across **1800–present**. Moving it is a modeling decision
+with interpretive weight (a 2010 baseline drops the 1990–2010 loss; an 1850 baseline counts 140 extra
+years of clearing) — it must be **explicitly labeled** in the UI, and the pre-1990 portion is visually
+marked as reconstructed (dashed; see design proposal). **Default 1990** (the boundary between reconstructed
+and measured).
+
+### 7.2a Historical reconstruction of forest area, 1800–1990 (LUH2)
+Before 1990 there is no measured annual forest area, so the pre-1990 segment is **reconstructed from
+LUH2** (Land-Use Harmonization 2, Hurtt et al. 2020) — the CMIP6 land-use forcing dataset, which gives a
+consistent 0.25° annual grid 850–2015. Per-domain forest area is `Σ_cells (primf + secdf) × carea` over
+each domain's country mask. We use **1800–1990**.
+
+- **Why LUH2, not OWID/Williams.** OWID's long-run series (Williams 2006) is **global and decadal** — a
+  loss-rate shape, not a per-domain annual area — and its per-country layer is *cropland*, a proxy, not
+  forest. Our domains carry **different `R`**, so the `R × area` method needs **genuine per-domain area**,
+  which only a maskable grid (LUH2) provides.
+- **Anchoring, not blind blending.** OWID explicitly warns against merging Williams + FAO into one
+  continuous series. We compute the LUH2 value at 1990 and apply an additive/multiplicative **offset** so
+  it matches the measured WB `AG.LND.FRST.K2` at 1990 exactly, then splice reconstructed 1800–1990 to
+  measured 1990→present. The ~1980–1995 transition is visually distinguished.
+- **Breakpoint-aware by construction.** The reconstructed curve is **non-linear** and inherits LUH2's
+  historical structure: temperate-led clearing dominates 1700–1920, the tropics accelerate through the
+  20th century (a >7× jump 1920–1950 in some reconstructions), a **global peak in the 1980s**, then the
+  post-1990 decline. This is exactly the "curve aware of where the trend steepened or eased" the product
+  asks for — the breakpoints come from the data, not authored kinks.
+- **Carbon treatment is deliberate (central, not upper bound).** We apply the **same `R × cumulativeLoss`
+  method and the same `R` low/mid/high band** across the whole 1800→present range; the pre-1990 segment is
+  **not** relabelled as an upper bound. This is a conscious editorial choice: the mature-forest `R` is,
+  per the official literature, itself an **under-estimate** of true sequestration (§6), so treating the
+  back-projected value as a central estimate is defensible and keeps one continuous, honest methodology.
+  We do **not** substitute bookkeeping ELUC for the historical carbon (a different quantity that would
+  break the single-metric method).
+- **One reconstruction, no area envelope (V1).** A single LUH2 curve is shown; only the existing `R` band
+  conveys uncertainty. A min–max envelope across reconstructions (LUH2 vs KK10 vs Houghton) is deferred.
+- **Compute placement (real-time slider).** The reconstruction is a **one-time offline build asset**
+  (static per-domain area JSON); the full baseline-independent area series is shipped to the client and
+  all baseline-dependent quantities are recomputed **client-side in real time** as the reader drags the
+  baseline slider (tech-spec §3.2/§6; ADR-026). Attribution: Hurtt et al. 2020 (LUH2), CC BY.
 
 **Two methodologies under one brand.** The fossil `EN.GHG.*` emissions draw on EDGAR (JRC), which
 does not cover LULUCF. The LULUCF series `EN.GHG.CO2.LU.*` have a different origin
@@ -689,10 +763,11 @@ across 2–3 domains including the aggregate band.
 
 - Narrowed topic: the hidden carbon cost of deforestation; terminal metric = CO₂.
 - Two components: stock (WB `.DF`) + forgone sink (derived `R × cumulative area loss`).
-- **Presentation = a linear six-slide story deck** ("Story of Deforestation"), not a composer
-  dashboard (§1.1, §4). Six slides across four scenes (`intro` · `main` · `crossing` · `footprint`);
-  sibling slides in a scene animate the shared chart in place (2→3 forgone sink appears, 5→6 fossil
-  drops out). The scientific model and server contract are unchanged.
+- **Presentation = a linear eight-slide story deck** ("Story of Deforestation"), not a composer
+  dashboard (§1.1, §4). Eight slides across five scenes (`intro` · `main` · `crossing` · `footprint` ·
+  `baseline`); sibling slides in a scene animate the shared chart in place (2→3 forgone sink appears,
+  5→6 fossil drops out, 7→8 baseline lab → crossing/equivalence). The scientific model and server
+  contract are unchanged.
 - Unit = domain (a set of ISO3), not country; the deck is **global-first**, with a domain control
   inside the main scene to narrow the aggregate (no standalone scope toggle, §4.6).
 - **No "official ↔ full" switch** — the app always shows "full" (stock + forgone sink). The
@@ -702,7 +777,8 @@ across 2–3 domains including the aggregate band.
   (allometric factor **1.24**, locked), not a third mode; soil flux omitted.
 - **Default `R` = mid value** (not conservative), because the model structurally underestimates
   (§5).
-- Baseline 1990+ (FAOSTAT floor), explicit label.
+- Baseline movable across **1800–present** (measured floor 1990, LUH2-reconstructed 1800–1990, §7.2a),
+  explicit label; real-time client-transform slider (ADR-026).
 - The deck stages three visual scenes: **main** (stock → stock + forgone sink, §4.3), **crossing**
   (stock impulse vs. forgone level, forced global, §4.4), and **footprint** (3-slice donut + defo-vs-
   fossil bar → fossil removed, §4.5). The share-of-footprint donut has **3 slices** (fossil + stock +
@@ -711,8 +787,11 @@ across 2–3 domains including the aggregate band.
   equivalence strip** (four colour-coded figures + unit switcher, §4.5a).
 - **The equivalence panel is no longer deferred** — restaged as the slide-6 strip (§4.5a), reusing its
   resolved config (car factor 4.6, locale-driven reference country).
-- Composite scalars use a single **reference year** = min common `latestDataYear`, on measured data
-  only, always shown (§7.1a). The projection (§2.4a) extends only the time-series/crossing charts.
+- Composite scalars are **anchored** at a single **reference year** = min common `latestDataYear`,
+  always shown (§7.1a). Pointwise figures (full-emissions level, equivalence annual rate) stay at
+  that measured year; window figures (multiplier, donut, fossil bar, equivalence totals) integrate
+  over the forward window `[referenceYear, referenceYear + horizonYears(horizon)]`, so the projection
+  (§2.4a) extends both the time-series/crossing charts and those horizon-reactive window figures.
 - Opening preset = **global · mid · 1990 · horizon today**; the deck opens on slide 1 (intro).
 - The slide/scene matrix (§4.7) determines what each slide shows and controls.
 - Nuxt (SSR universal) + Nitro BFF; World Bank the only source; adapter pattern for future sources.
@@ -741,8 +820,9 @@ across 2–3 domains including the aggregate band.
   "official ↔ full" accounting axis. Upper-edge categories *today/+20/+30/+50/+75/+100 y* from the
   calendar year; per-domain linear-trend projection (last ~9–10 measured years, clamped ≥ 0);
   projected data rendered dashed with a join-year divider. Documented **defaults, flagged
-  revisable:** (a) the multiplier stays a scalar at the reference year — not horizon-reactive in V1;
-  (b) the uncertainty band is carried
+  revisable:** (a) the multiplier is a **horizon-reactive** window ratio `Σfull ÷ Σstock` over
+  `[referenceYear, referenceYear + horizonYears(horizon)]`, collapsing to the reference-year scalar
+  at *today* (§2.5, §7.1a); (b) the uncertainty band is carried
   forward by the same `R` interval, **not** additionally widened with projection distance; (c) the
   visual separation of "measured-but-estimated" (forgone, already dashed) from "projected" data is a
   join-year divider + a lighter dashed projection — exact styling lives in the design doc.

@@ -3,8 +3,8 @@ import { useViewStore } from '../stores/view'
 
 // URL sync (tech-spec §10.1, ADR-017). Maps derivationParams ↔ route.query with `replace` (no history
 // spam): initializes the view store from the query on load (preset fallback for missing/invalid keys),
-// then rewrites the query on every derivation change. `timeRange` stays out of the URL (pure view state);
-// `horizon` is part of derivationParams so it IS synced. Call once from the app shell setup.
+// then rewrites the query on every derivation change. `horizon` is part of derivationParams so it IS
+// synced. Call once from the app shell setup.
 export function useRouteSync(): void {
   const route = useRoute()
   const router = useRouter()

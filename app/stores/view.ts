@@ -11,7 +11,9 @@ import type {
 import {
   PRESET_PARAMS,
   DEFAULT_DOMAIN_ID,
+  DEFAULT_BASELINE,
   coerceDerivationParams,
+  coerceBaseline,
   paramsToQuery,
 } from '../../shared/config/derivation'
 
@@ -19,17 +21,18 @@ import {
 // route (§17, ADR-023), control state is keyed per SCENE, not one flat current-view: revisiting a scene
 // restores its state (reset policy A); first entry seeds the slide's authored defaults. The CURRENT
 // scene's params are held expanded as the flat fields (the live cache-key surface); the other scenes
-// are snapshotted in `saved` and restored on return. `derivationParams` (everything except `timeRange`)
-// is the cache key — changing it refetches; `horizon` is the signature control (ADR-019) and is in the
-// URL. `timeRange` is pure ECharts dataZoom view-state (never a refetch/crop, ADR-005), NOT in the URL.
+// are snapshotted in `saved` and restored on return. `derivationParams` is the cache key — changing it
+// refetches; `horizon` is the signature control (ADR-019) and is in the URL.
 // Metric selection (stock-only vs +forgone) is NOT stored here — it is authored per-slide (§17) and
 // applied as a presentation transform in the option class (§11), so slides 2→3 / 5→6 stay in the same
 // scene with the same params and only the chart's metric set changes (in-place animation, ADR-022).
 
-/** A scene's authored seed: defaults applied on first entry + immutable `forced` overrides. */
+/** A scene's authored seed: defaults applied on first entry + immutable `forced` overrides.
+ *  `baseline` is a client-transform (ADR-026), authored alongside — not a DerivationParam. */
 export interface SceneSeed {
   params?: Partial<DerivationParams>
   forced?: Partial<DerivationParams>
+  baseline?: number
 }
 
 /** A snapshot of one scene's control/view state (policy A save/restore). */
@@ -39,7 +42,6 @@ interface SceneSnapshot {
   horizon: Horizon
   rScenario: RScenario
   baseline: number
-  timeRange: [number, number] | null
 }
 
 export const useViewStore = defineStore('view', {
@@ -49,10 +51,11 @@ export const useViewStore = defineStore('view', {
     domainId: DEFAULT_DOMAIN_ID as DomainId, // meaningful only in local scope
     horizon: PRESET_PARAMS.horizon as Horizon,
     rScenario: PRESET_PARAMS.rScenario as RScenario,
-    baseline: PRESET_PARAMS.baseline,
-    timeRange: null as [number, number] | null,
+    /** Sink-integration origin (ADR-026). Client-transform view-state: URL-synced for shareability
+     *  but NEVER refetches — the server ships the full-range area and the client re-derives locally. */
+    baseline: DEFAULT_BASELINE,
     /** The unit the slide-6 equivalence strip renders in (ADR-025, §17.4). Pure client view state —
-     *  NOT part of `derivationParams`/`query` (no refetch, out of the URL like `timeRange`). Default
+     *  NOT part of `derivationParams`/`query` (no refetch, out of the URL). Default
      *  `car`; the `country` unit is locale-driven (SVK/UK). Scene-invariant (only slide 6 reads it). */
     unit: 'car' as EquivalenceUnit,
     /** Snapshotted state of the scenes that are not current (restored on return, policy A). */
@@ -66,14 +69,14 @@ export const useViewStore = defineStore('view', {
         scope: state.scope,
         horizon: state.horizon,
         rScenario: state.rScenario,
-        baseline: state.baseline,
       }
       if (state.scope === 'local') p.domainId = state.domainId
       return p
     },
-    /** DerivationParams as a route/query object (URL sync, ADR-017). */
+    /** URL-sync object (ADR-017): the refetch cache-key surface PLUS the client-transform `baseline`
+     *  (ADR-026 — in the URL for shareability, but not a DerivationParam, so it never refetches). */
     query(): Record<string, string> {
-      return paramsToQuery(this.derivationParams)
+      return { ...paramsToQuery(this.derivationParams), baseline: String(this.baseline) }
     },
   },
 
@@ -85,7 +88,7 @@ export const useViewStore = defineStore('view', {
       this.scope = p.scope
       this.horizon = p.horizon
       this.rScenario = p.rScenario
-      this.baseline = p.baseline
+      this.baseline = coerceBaseline(query.baseline)
       if (p.domainId) this.domainId = p.domainId
     },
 
@@ -99,8 +102,7 @@ export const useViewStore = defineStore('view', {
       this.domainId = f.domainId ?? p.domainId ?? DEFAULT_DOMAIN_ID
       this.horizon = f.horizon ?? p.horizon
       this.rScenario = f.rScenario ?? p.rScenario
-      this.baseline = f.baseline ?? p.baseline
-      this.timeRange = null
+      this.baseline = coerceBaseline(query.baseline, seed.baseline ?? DEFAULT_BASELINE)
       this.currentScene = scene
     },
 
@@ -128,7 +130,6 @@ export const useViewStore = defineStore('view', {
         horizon: this.horizon,
         rScenario: this.rScenario,
         baseline: this.baseline,
-        timeRange: this.timeRange,
       }
     },
 
@@ -139,18 +140,16 @@ export const useViewStore = defineStore('view', {
       this.horizon = snap.horizon
       this.rScenario = snap.rScenario
       this.baseline = snap.baseline
-      this.timeRange = snap.timeRange
     },
 
-    /** First-entry seed: authored defaults over the preset; timeRange starts empty. */
+    /** First-entry seed: authored defaults over the preset. */
     seedScene(seed: SceneSeed) {
       const p = { ...PRESET_PARAMS, ...seed.params } as DerivationParams
       this.scope = p.scope
       this.domainId = p.domainId ?? DEFAULT_DOMAIN_ID
       this.horizon = p.horizon
       this.rScenario = p.rScenario
-      this.baseline = p.baseline
-      this.timeRange = null
+      this.baseline = seed.baseline ?? DEFAULT_BASELINE
     },
 
     /** Apply a slide's immutable `forced` overrides (scope/horizon locks, e.g. crossing/footprint). */
@@ -160,11 +159,9 @@ export const useViewStore = defineStore('view', {
       if (forced.domainId != null) this.domainId = forced.domainId
       if (forced.horizon != null) this.horizon = forced.horizon
       if (forced.rScenario != null) this.rScenario = forced.rScenario
-      if (forced.baseline != null) this.baseline = forced.baseline
     },
 
-    /** The main-scene domain control: Global (global scope) or a single domain (local scope). Resets
-     *  the current scene's timeRange (scopes/domains span different x-ranges). */
+    /** The main-scene domain control: Global (global scope) or a single domain (local scope). */
     selectDomain(sel: 'global' | DomainId) {
       if (sel === 'global') this.setScope('global')
       else {
@@ -176,12 +173,10 @@ export const useViewStore = defineStore('view', {
     setScope(scope: Scope) {
       if (scope === this.scope) return
       this.scope = scope
-      this.timeRange = null // new x-range
     },
     setDomain(domainId: DomainId) {
       if (domainId === this.domainId) return
       this.domainId = domainId
-      this.timeRange = null // new x-range
     },
     setHorizon(horizon: Horizon) {
       this.horizon = horizon
@@ -191,9 +186,6 @@ export const useViewStore = defineStore('view', {
     },
     setBaseline(baseline: number) {
       this.baseline = baseline
-    },
-    setTimeRange(timeRange: [number, number] | null) {
-      this.timeRange = timeRange
     },
     /** The equivalence-strip unit (client-only, no refetch, not in the URL — ADR-025, §17.4). */
     setUnit(unit: EquivalenceUnit) {

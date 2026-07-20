@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { DomainResultDTO, GlobalResultDTO } from '../../../shared/types'
+import type {
+  DomainResultDTO,
+  GlobalResultDTO,
+  DomainDerived,
+  GlobalDerived,
+} from '../../../shared/types'
 import AsyncPanel from './AsyncPanel.vue'
 import MultiplierBadge from './MultiplierBadge.vue'
-import TimeRangeZoom from '../controls/TimeRangeZoom.vue'
 import MainStackedChart from '../charts/MainStackedChart.vue'
 import GlobalStackedAreaChart from '../charts/GlobalStackedAreaChart.vue'
 import { useDataStore } from '../../stores/data'
@@ -15,7 +19,7 @@ import { useReload } from '../../composables/useReload'
 // The live ×N badge sits top-right above the canvas (full mode only, UI §7). Official mode renders
 // the stock layer only — the chart-option classes enforce that from the DTO shape. This panel is the
 // Pinia-aware owner: it reads the DTO + chart context from the stores and passes them into the dumb
-// chart components as props, and persists their `timeRange` emits back to the view store.
+// chart components as props.
 const { t } = useI18n()
 const data = useDataStore()
 const view = useViewStore()
@@ -30,12 +34,8 @@ const dataYear = computed(() => data.currentMainResult?.referenceYear)
 
 const globalResult = computed(() => data.currentMainResult as GlobalResultDTO | undefined)
 const domainResult = computed(() => data.currentMainResult as DomainResultDTO | undefined)
-
-function onTimeRange(range: [number, number] | null) {
-  const cur = view.timeRange
-  if (range === cur || (range && cur && range[0] === cur[0] && range[1] === cur[1])) return
-  view.setTimeRange(range)
-}
+const globalDerived = computed(() => data.currentDerived as GlobalDerived | undefined)
+const domainDerived = computed(() => data.currentDerived as DomainDerived | undefined)
 </script>
 
 <template>
@@ -49,23 +49,22 @@ function onTimeRange(range: [number, number] | null) {
   >
     <template #badge>
       <div class="main-canvas__badge">
-        <TimeRangeZoom />
         <MultiplierBadge />
       </div>
     </template>
     <GlobalStackedAreaChart
-      v-if="view.scope === 'global' && globalResult"
+      v-if="view.scope === 'global' && globalResult && globalDerived"
       :result="globalResult"
+      :derived="globalDerived"
       :ctx="chartCtx"
       :loading="loading"
-      @time-range="onTimeRange"
     />
     <MainStackedChart
-      v-else-if="domainResult"
+      v-else-if="domainResult && domainDerived"
       :result="domainResult"
+      :derived="domainDerived"
       :ctx="chartCtx"
       :loading="loading"
-      @time-range="onTimeRange"
     />
   </AsyncPanel>
 </template>

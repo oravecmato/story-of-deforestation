@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { EquivalenceUnit, GlobalResultDTO } from '../../../shared/types'
+import type { EquivalenceUnit, GlobalResultDTO, GlobalDerived } from '../../../shared/types'
 import LoadingSkeleton from '../state/LoadingSkeleton.vue'
 import EmptyState from '../state/EmptyState.vue'
 import ErrorRetry from '../state/ErrorRetry.vue'
@@ -13,13 +13,18 @@ import { useUiStore } from '../../stores/ui'
 import { useFormatter } from '../../composables/useFormatter'
 import { useReload } from '../../composables/useReload'
 
-// Slide-6 equivalence strip (UI §6.7, ADR-025, §17.4). A full-width footer bar of FOUR colour-coded
-// magnitudes, each a pure client-side reduction over the already-fetched GLOBAL DTO across the
-// footprint scene's forward window `[HORIZON_ANCHOR_YEAR, horizonTargetYear(horizon)]` — it moves
-// with the horizon control that drives the charts above and needs no extra fetch. A unit switcher (Mt CO₂ · car ·
-// country, default car) reprojects all four at once; the `country` basis reuses the locale-driven
-// equivalence resolution (re-resolved on language change, no data refetch). Numbers via the injected
-// Formatter; units/labels localized.
+// Equivalence strip (UI §6.7, ADR-025/026, §17.4). FOUR colour-coded magnitudes, each a pure
+// client-side reduction over the already-fetched GLOBAL DTO across the forward window
+// `[referenceYear, referenceYear + horizonYears(horizon)]` — it moves with the horizon control that
+// drives the charts alongside and needs no extra fetch. A unit switcher (Mt CO₂ · car · country,
+// default car) reprojects all four at once; the `country` basis reuses the locale-driven equivalence
+// resolution (re-resolved on language change, no data refetch). Numbers via the injected Formatter;
+// units/labels localized. `layout` selects the four-across footer bar (`horizontal`, default — slide 6)
+// or a stacked full-height aside column (`vertical` — the slide-7 lab's quarter-width right column).
+const props = withDefaults(defineProps<{ layout?: 'horizontal' | 'vertical' }>(), {
+  layout: 'horizontal',
+})
+
 const { t } = useI18n()
 const data = useDataStore()
 const view = useViewStore()
@@ -27,28 +32,27 @@ const ui = useUiStore()
 const formatter = useFormatter()
 const reload = useReload()
 
-/** The footprint scene is forced global, so the main result is the global DTO. */
+/** The footprint scene is forced global, so the main result is the global DTO + its derived tail. */
 const global = computed<GlobalResultDTO | undefined>(
   () => data.currentMainResult as GlobalResultDTO | undefined,
 )
-const hasData = computed(() => global.value != null)
+const derived = computed<GlobalDerived | undefined>(
+  () => data.currentDerived as GlobalDerived | undefined,
+)
+const hasData = computed(() => global.value != null && derived.value != null)
 
 const values = computed(() =>
-  global.value ? deriveStripValues(global.value, view.baseline, view.horizon) : null,
+  global.value && derived.value
+    ? deriveStripValues(global.value, derived.value.aggregateForgoneSink, view.horizon)
+    : null,
 )
 const referenceYear = computed(() => global.value?.referenceYear)
 
-/** The locale-driven reference country (SVK/UK) — its label + its back-computed annual CO₂ scalar. */
+/** The locale-driven reference country (SVK/UK) — its label + its annual CO₂ scalar. */
 const referenceCountry = computed(() => resolveReferenceCountry(ui.locale))
-/** Reference-country annual emissions (Mt CO₂), back-computed from the equivalence DTO's `times`
- *  factor: `times = effectiveCO₂ / countryAnnual`, so `countryAnnual = effectiveCO₂ / times`. */
-const countryAnnualMt = computed<number | null>(() => {
-  const eq = data.currentEquivalence
-  if (!eq) return null
-  const effective = eq.cumulativeCO2 ?? eq.annualRateCO2
-  const times = eq.countryEquivalent.times
-  return Number.isFinite(times) && times !== 0 ? effective / times : null
-})
+/** Reference-country annual emissions (Mt CO₂) — the country unit basis shipped by the equivalence
+ *  endpoint (baseline-independent, ADR-026). */
+const countryAnnualMt = computed<number | null>(() => data.currentEquivalence?.referenceCountryAnnualCO2 ?? null)
 const basis = computed<UnitBasis>(() => ({
   carAnnualTonsCO2: EQUIVALENCE_CONFIG.carAnnualTonsCO2,
   countryAnnualMt: countryAnnualMt.value,
@@ -93,7 +97,11 @@ const unitSuffix = computed<(unit: EquivalenceUnit) => string>(() => (unit) => {
 </script>
 
 <template>
-  <section class="strip" :aria-label="t('panel.equivalence.title')">
+  <section
+    class="strip"
+    :class="{ 'strip--vertical': props.layout === 'vertical' }"
+    :aria-label="t('panel.equivalence.title')"
+  >
     <div class="strip__head">
       <h2 class="strip__title">{{ t('panel.equivalence.title') }}</h2>
       <UnitToggle />
@@ -148,6 +156,15 @@ const unitSuffix = computed<(unit: EquivalenceUnit) => string>(() => (unit) => {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+}
+/* Vertical layout (the slide-7 lab's quarter-width aside): fill the column's full height and stack the
+   four figures down one column, spaced apart. Overrides the responsive rule below via specificity. */
+.strip--vertical {
+  height: 100%;
+}
+.strip--vertical .strip__grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
 }
 .strip__cell {
   padding-left: 12px;

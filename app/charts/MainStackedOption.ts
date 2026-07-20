@@ -1,5 +1,5 @@
 import type { EChartsOption, SeriesOption } from 'echarts'
-import type { DomainResultDTO } from '../../shared/types'
+import type { DomainResultDTO, DomainDerived } from '../../shared/types'
 import { BaseChartOption } from './BaseChartOption'
 
 // Local main chart (§11.2, §4.1): a stacked chart of one domain — measured stock (solid green,
@@ -8,11 +8,7 @@ import { BaseChartOption } from './BaseChartOption'
 // split → no gap, no stack double-count); when `horizon !== 'today'` the measured-vs-projected cue is
 // carried by thin non-stacked top-edge lines (solid measured → dashed-lighter projected) plus a faded
 // forecast-zone shade and a join-year divider from the last measured year onward (§2.4a, §11.1).
-export class MainStackedOption extends BaseChartOption<DomainResultDTO> {
-  protected override zoomable(): boolean {
-    return true
-  }
-
+export class MainStackedOption extends BaseChartOption<DomainResultDTO & DomainDerived> {
   protected buildSeries(): SeriesOption[] {
     const { theme, t } = this.ctx
     const stock = this.data.stock

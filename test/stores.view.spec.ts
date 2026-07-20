@@ -19,26 +19,6 @@ describe('useViewStore', () => {
     expect(view.derivationParams).toMatchObject({ scope: 'local', domainId: 'congo' })
   })
 
-  it('resets timeRange to null on scope or domain change (new x-range)', () => {
-    const view = useViewStore()
-    view.setTimeRange([2000, 2010])
-    view.setScope('local')
-    expect(view.timeRange).toBeNull()
-
-    view.setTimeRange([2000, 2010])
-    view.setDomain('seasia')
-    expect(view.timeRange).toBeNull()
-  })
-
-  it('does not reset timeRange on horizon/rScenario/baseline change', () => {
-    const view = useViewStore()
-    view.setTimeRange([2000, 2010])
-    view.setHorizon('50y')
-    view.setRScenario('high')
-    view.setBaseline(1995)
-    expect(view.timeRange).toEqual([2000, 2010])
-  })
-
   it('initFromQuery is lenient: preset fallback for invalid, parse for valid', () => {
     const view = useViewStore()
     view.initFromQuery({ scope: 'local', domainId: 'congo', horizon: '50y', rScenario: 'nope' })
@@ -47,11 +27,10 @@ describe('useViewStore', () => {
       domainId: 'congo',
       horizon: '50y',
       rScenario: 'mid', // invalid → preset
-      baseline: 1990,
     })
   })
 
-  it('query getter mirrors derivationParams as strings', () => {
+  it('query getter mirrors derivationParams as strings plus the client-transform baseline (ADR-026)', () => {
     const view = useViewStore()
     expect(view.query).toEqual({ scope: 'global', horizon: 'today', rScenario: 'mid', baseline: '1990' })
   })
@@ -89,7 +68,6 @@ describe('useViewStore scene keying (deck, policy A)', () => {
     const view = useViewStore()
     view.enterScene('main', { params: { horizon: 'today' } })
     view.setHorizon('50y')
-    view.setTimeRange([2000, 2010])
 
     view.enterScene('crossing', { forced: { scope: 'global', horizon: '100y' } })
     expect(view.horizon).toBe('100y')
@@ -97,7 +75,6 @@ describe('useViewStore scene keying (deck, policy A)', () => {
     view.enterScene('main', { params: { horizon: 'today' } })
     // The user's edits are restored, NOT the authored seed.
     expect(view.horizon).toBe('50y')
-    expect(view.timeRange).toEqual([2000, 2010])
   })
 
   it('re-entering the current scene only refreshes forced', () => {
@@ -114,12 +91,11 @@ describe('useViewStore scene keying (deck, policy A)', () => {
     view.initSceneFromQuery(
       'crossing',
       { horizon: '50y' },
-      { params: { baseline: 2000 }, forced: { scope: 'global', horizon: '100y' } },
+      { baseline: 2000, forced: { scope: 'global', horizon: '100y' } },
     )
     expect(view.currentScene).toBe('crossing')
     expect(view.scope).toBe('global') // forced
     expect(view.horizon).toBe('100y') // forced beats query
     expect(view.baseline).toBe(2000) // authored fallback (query absent)
-    expect(view.timeRange).toBeNull()
   })
 })

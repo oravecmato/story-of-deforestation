@@ -1,6 +1,6 @@
 import type {
   Series,
-  BandSeries,
+  DataPoint,
   DomainId,
   Horizon,
   DerivationParams,
@@ -9,27 +9,27 @@ import type {
 } from '../../shared/types'
 import type { DomainConfig } from '../../shared/config/domains'
 import { getIndicator } from '../../shared/config/indicators'
-import { horizonTargetYear } from '../../shared/config/derivation'
+import { horizonTargetYear, BASELINE_FLOOR } from '../../shared/config/derivation'
 import type { ForestAreaService } from './ForestAreaService'
 import type { EmissionsService } from './EmissionsService'
 import { countryKey, type CoverageGate, type CoverageVerdict } from '../utils/coverage'
-import * as stats from '../utils/stats'
+import * as stats from '../../shared/utils/stats'
 
 // AggregationService (tech-spec §6) — the core orchestrator. Combines each domain's forest area +
-// deforestation stock with the pure stats module to produce DomainResultDTO / GlobalResultDTO.
-// It is a pure function of DerivationParams (ADR-005). There is a single accounting
-// ('full', ADR-019): the forgone-sink family (forgoneSink / fullEmissions / multiplier /
-// crossingYear) is ALWAYS present.
+// deforestation stock with the pure stats module to produce the BASELINE-INDEPENDENT DomainResultDTO /
+// GlobalResultDTO. It is a pure function of DerivationParams (ADR-005). The forgone-sink family
+// (cumulativeLoss / forgoneSink / fullEmissions / multiplier / crossingYear) is NO LONGER computed
+// here — the client derives it at the live baseline via the isomorphic core (ADR-026 §3.2a).
 //
 // Horizon projection (§6): when `horizon !== 'today'` each series is extended past its last measured
-// year up to `horizonTargetYear(horizon)` via `stats.projectSeries` — PER DOMAIN, before `× R` and
-// aggregation. Composite scalars (referenceYear, multiplier) are read at the MEASURED referenceYear,
-// computed from the measured bundle before projection, so they are horizon-invariant (ADR-016).
+// year up to `horizonTargetYear(horizon)` via `stats.projectSeries` — PER DOMAIN before aggregation.
+// Composite scalars (referenceYear) are read at the MEASURED referenceYear, computed from the measured
+// bundle before projection, so they are horizon-invariant (ADR-016).
 //
-// Composite floor (§3.2): the WB deforestation stock only exists from `deforestationStock.coverageFrom`
-// (2000), while forest area — hence the forgone-sink integral — runs from `baseline` (≥1990). `area`
-// and `cumulativeLoss` therefore begin at `baseline`; `stock`, `forgoneSink`, `fullEmissions` begin at
-// `max(baseline, coverageFrom)` so stock and sink are always charted together.
+// Composite floor (§3.2): the server ships the FULL baseline-independent range (ADR-026) — `area`
+// begins at `BASELINE_FLOOR` (the LUH2 reconstruction origin). The WB deforestation stock only exists
+// from `deforestationStock.coverageFrom` (2000), so `stock` begins at
+// `max(BASELINE_FLOOR, coverageFrom)` = coverageFrom.
 
 const STOCK_FLOOR = getIndicator('deforestationStock').coverageFrom
 
@@ -38,20 +38,11 @@ const clamp = (s: Series, floor: number): Series => ({
   points: s.points.filter((p) => p.year >= floor),
 })
 
-const clampBand = (b: BandSeries, floor: number): BandSeries => ({
-  ...b,
-  points: b.points.filter((p) => p.year >= floor),
-  lower: b.lower.filter((p) => p.year >= floor),
-  upper: b.upper.filter((p) => p.year >= floor),
-})
-
-/** Per-domain intermediates (raw + derived), shared by the domain and global assemblers. */
+/** Per-domain intermediates, shared by the domain and global assemblers. */
 interface DomainBundle {
   domainId: DomainId
   area: Series
   stock: Series
-  cumulativeLoss: Series
-  forgoneSink: BandSeries
 }
 
 export class AggregationService {
@@ -68,10 +59,10 @@ export class AggregationService {
     return this.emissions.countryFossil(iso3)
   }
 
-  /** Fetch + derive one domain's area/stock/cumulativeLoss/forgoneSink (measured; before any floor
-   *  clamp or horizon projection). One CoverageGate decision (stock + area) drives the SAME country
-   *  exclusion for both metrics, so stock and forgone sink always describe the same countries (ADR-020). */
-  private async buildDomain(domainId: DomainId, params: DerivationParams): Promise<DomainBundle> {
+  /** Fetch + combine one domain's area/stock (measured; before any floor clamp or horizon
+   *  projection). One CoverageGate decision (stock + area) drives the SAME country exclusion for both
+   *  metrics, so stock and area always describe the same countries (ADR-020). */
+  private async buildDomain(domainId: DomainId): Promise<DomainBundle> {
     const cfg = this.domains[domainId]
     const [areaByCountry, stockByCountry] = await Promise.all([
       this.forestArea.domainAreaByCountry(domainId),
@@ -81,11 +72,12 @@ export class AggregationService {
       { indicator: 'forestArea', series: areaByCountry },
       { indicator: 'deforestationStock', series: stockByCountry },
     ])
-    const area = this.combine(areaByCountry, verdict, 'forestArea', `area:${domainId}`, domainId)
+    const measuredArea = this.combine(areaByCountry, verdict, 'forestArea', `area:${domainId}`, domainId)
+    // Splice the LUH2 reconstruction (1800–1990, anchored to measured@1990) ahead of the aggregated
+    // measured area so the shipped `area` reaches back to BASELINE_FLOOR (ADR-026 §3.2a).
+    const area = this.forestArea.reconstruct(domainId, measuredArea)
     const stock = this.combine(stockByCountry, verdict, 'deforestationStock', `stock:${domainId}`, domainId)
-    const cumulativeLoss = stats.cumulativeLoss(area, params.baseline)
-    const forgoneSink = stats.forgoneSink(cumulativeLoss, cfg.r, params.rScenario)
-    return { domainId, area, stock, cumulativeLoss, forgoneSink }
+    return { domainId, area, stock }
   }
 
   /** Sum the retained (non-excluded) countries for one metric and clip to that indicator's coverage
@@ -118,68 +110,84 @@ export class AggregationService {
     return (s) => stats.projectSeries(s, target)
   }
 
-  /** GET /api/domain/[id] — local-scope main chart, crossing, multiplier. */
-  async domainResult(domainId: DomainId, params: DerivationParams): Promise<DomainResultDTO> {
-    const cfg = this.domains[domainId]
-    const bundle = await this.buildDomain(domainId, params)
-    const refYear = stats.referenceYear(bundle.area, bundle.stock) // measured (horizon-invariant)
-    const floor = Math.max(params.baseline, STOCK_FLOOR)
-    const project = this.projectFn(params.horizon)
+  /** Decompose a PROJECTED aggregate stock into per-domain stacked layers whose sum equals the
+   *  aggregate at every year. Measured years keep each domain's real value; projected years split the
+   *  projected aggregate by each domain's share FROZEN at the join year (the last-measured composition).
+   *  This keeps the stacked total additive with the authoritative aggregate — otherwise projecting each
+   *  domain individually diverges, because `projectSeries`'s `Math.max(0, …)` clamp floors declining
+   *  domains at 0 while a growing one (Amazon) runs away, breaking additivity. `today` horizon (aggregate
+   *  not projected) returns the measured series unchanged. */
+  private decomposeAggregateProjection(measured: Series[], aggregate: Series): Series[] {
+    const join = aggregate.meta.projectedFrom
+    if (join == null) return measured
 
-    const area = project(clamp(bundle.area, params.baseline))
-    const cumulativeLoss = project(clamp(bundle.cumulativeLoss, params.baseline))
-    const stock = project(clamp(bundle.stock, floor))
-    // forgone sink is R × the (projected) cleared-area series, then clamped to the stock floor.
-    const forgoneSink = clampBand(stats.forgoneSink(cumulativeLoss, cfg.r, params.rScenario), floor)
-    const fullEmissions = stats.fullEmissions(stock, forgoneSink)
+    // Frozen share = each domain's last measured value at/before the join year, normalized to sum 1.
+    const valueAtJoin = (s: Series): number =>
+      s.points.filter((p) => p.year <= join && p.value != null).at(-1)?.value ?? 0
+    const shares = measured.map(valueAtJoin)
+    const shareTotal = shares.reduce((a, b) => a + b, 0)
+    const projectedTail = aggregate.points.filter((p) => p.year > join)
+
+    return measured.map((s, i) => {
+      const share = shareTotal > 0 ? (shares[i] as number) / shareTotal : 0
+      const geo = s.points.at(-1)?.geo ?? s.meta.indicatorId
+      const tail: DataPoint[] = projectedTail.map((p) => ({
+        source: 'projected',
+        geo,
+        year: p.year,
+        value: p.value == null ? null : p.value * share,
+      }))
+      return {
+        ...s,
+        points: [...s.points, ...tail],
+        meta: { ...s.meta, gaps: [...s.meta.gaps], projectedFrom: join },
+      }
+    })
+  }
+
+  /** GET /api/domain/[id] — local-scope baseline-independent bundle (area + stock). */
+  async domainResult(domainId: DomainId, params: DerivationParams): Promise<DomainResultDTO> {
+    const bundle = await this.buildDomain(domainId)
+    const refYear = stats.referenceYear(bundle.area, bundle.stock) // measured (horizon-invariant)
+    const floor = Math.max(BASELINE_FLOOR, STOCK_FLOOR)
+    const project = this.projectFn(params.horizon)
 
     return {
       params,
       referenceYear: refYear,
-      area,
-      cumulativeLoss,
-      stock,
-      forgoneSink,
-      fullEmissions,
-      multiplier: stats.multiplier(stock, fullEmissions, refYear),
-      crossingYear: stats.crossingYear(stock, forgoneSink),
+      area: project(clamp(bundle.area, BASELINE_FLOOR)),
+      stock: project(clamp(bundle.stock, floor)),
     }
   }
 
-  /** GET /api/global — global-scope stacked layers, aggregate band, crossing, multiplier. */
+  /** GET /api/global — global-scope baseline-independent stacked layers (area + stock). */
   async globalResult(params: DerivationParams): Promise<GlobalResultDTO> {
     const ids = Object.keys(this.domains) as DomainId[]
-    const bundles = await Promise.all(ids.map((id) => this.buildDomain(id, params)))
+    const bundles = await Promise.all(ids.map((id) => this.buildDomain(id)))
     const refYear = stats.referenceYear(...bundles.flatMap((b) => [b.area, b.stock]))
-    const floor = Math.max(params.baseline, STOCK_FLOOR)
+    const floor = Math.max(BASELINE_FLOOR, STOCK_FLOOR)
     const project = this.projectFn(params.horizon)
 
+    // Full-range per-domain area (baseline-independent): the client derives per-domain cumulative loss
+    // + forgone sink off these at the chosen baseline (R differs per domain), ADR-026 §3.2a.
+    const perDomainArea = bundles.map((b) => project(clamp(b.area, BASELINE_FLOOR)))
+
     // Stock: aggregate the MEASURED per-domain series first (Option-A window/exclusion), then project
-    // the aggregate; per-domain layers are projected individually for the stacked display.
+    // the aggregate — this is the AUTHORITATIVE global stock (declining trend, used by the crossing
+    // chart). The stacked per-domain layers are then decomposed OUT of that projected aggregate by each
+    // domain's frozen last-measured share, so `Σ perDomainStock == aggregateStock` at every year — the
+    // stacked total (slide 7) matches the aggregate crossing series (slide 8) and no single domain's
+    // linear extrapolation explodes past its 0-clamped peers.
     const perDomainStockMeasured = bundles.map((b) => clamp(b.stock, floor))
     const aggregateStock = project(stats.sumSeries(perDomainStockMeasured, 'stock:global', 'GLOBAL'))
-    const perDomainStock = perDomainStockMeasured.map(project)
-
-    // Forgone sink: projected PER DOMAIN (R differs), then combined into the aggregate band over the
-    // full (projected) year range.
-    const perDomainForgoneSink = bundles.map((b) => {
-      const cfg = this.domains[b.domainId]
-      const cumulativeLoss = project(clamp(b.cumulativeLoss, params.baseline))
-      return clampBand(stats.forgoneSink(cumulativeLoss, cfg.r, params.rScenario), floor)
-    })
-    const aggregateForgoneSink = stats.aggregateForgoneSink(perDomainForgoneSink)
-    const aggregateFullEmissions = stats.fullEmissions(aggregateStock, aggregateForgoneSink)
+    const perDomainStock = this.decomposeAggregateProjection(perDomainStockMeasured, aggregateStock)
 
     return {
       params,
       referenceYear: refYear,
+      perDomainArea,
       perDomainStock,
-      perDomainForgoneSink,
       aggregateStock,
-      aggregateForgoneSink,
-      aggregateFullEmissions,
-      multiplier: stats.multiplier(aggregateStock, aggregateFullEmissions, refYear),
-      crossingYear: stats.crossingYear(aggregateStock, aggregateForgoneSink),
     }
   }
 }

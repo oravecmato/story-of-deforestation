@@ -22,7 +22,8 @@ else stays calm so those moves land.
 
 Three principles, inherited and made visual:
 1. **Honesty is legible.** Measured vs. estimated is encoded in *line style* (solid vs. dashed), and
-   measured vs. **projected future** in a further *lighter dashed* step — never buried in a caption.
+   non-measured time — the **projected future** *and* the **reconstructed past (pre-1990, ADR-026)** — in
+   a further *lighter dashed* step — never buried in a caption.
 2. **The story leads; controls are quiet.** No hero control bar — the reader advances slides; the few
    per-scene controls (horizon, domain, baseline, time-range) sit unobtrusively near the chart and
    never compete with the narration. The chart itself carries the drama via the two authored reveals.
@@ -58,14 +59,18 @@ donut is the same series in the time chart:
 | **Stock** (WB `.DF`, measured) | forest green `#5FBE6E` | **solid** | the *reported* number |
 | **Forgone sink** (derived `R × loss`) | amber `#E8A13A` | **dashed** + translucent band `alpha .18` | the *hidden* cost — estimate + CI |
 | **Projected future** (either metric, past the join year) | same color, **opacity ×0.55** | **dashed, lighter** | extrapolated "dummy" data — not measured |
+| **Reconstructed past** (either metric, before 1990) | same color, **opacity ×0.55** | **dashed, lighter** | LUH2 back-projection 1800–1990 (ADR-026) — not measured |
 | **Fossil reference** (denominator) | muted slate `#5B6B7F` | solid, desaturated | context, deliberately not a hero |
 | **Full emissions** | (stock green + forgone amber, stacked) | — | no new color; the amber layer *added on top* (always shown) |
 
 Rule, stated once and never broken: **solid = measured, dashed = estimate, lighter-dashed = projected
-future; green = deforestation measured, amber = the derived hidden cost.** That single rule carries the
-argument without a legend sentence. The **join year** (where measurement ends and projection begins)
-is marked by a thin vertical divider (§7). Donut slices reuse the exact three: fossil slate / stock
-green / forgone-sink amber (always 3 slices, measured data only).
+OR reconstructed (non-measured); green = deforestation measured, amber = the derived hidden cost.** That
+single rule carries the argument without a legend sentence. The lighter-dashed style is symmetric in time:
+the **projected future** (past the last measured year) and the **reconstructed past** (before 1990, ADR-026)
+share it. Two **join-year dividers** mark the boundaries — the last measured year (projection start) and
+**1990** (reconstruction start, only visible once the baseline slider is dragged below 1990) (§7). Donut
+slices reuse the exact three: fossil slate / stock green / forgone-sink amber (always 3 slices, measured
+data only).
 
 ### 2.3 State colors
 Kept minimal (this isn't a status app). **Split from the data layer (iteration #2):** data amber
@@ -157,8 +162,8 @@ one of **four closed layout presets** (tech spec §11/§17): `text`, `viz-text`,
   (main: horizon · domain · baseline; crossing: time-range · baseline). Small, `text.mid`, never a
   hero bar. The domain control appears only in the main scene; crossing/footprint are forced global.
 - **Multiplier badge (`×N`)** appears **from slide 3** (when the forgone sink is revealed), top-right
-  of the main chart — `fullEmissions ÷ WB stock` at the reference year, never a trivial "×1". Absent
-  on slide 2 (stock only).
+  of the main chart — `Σfull ÷ Σstock` over the forward window `[referenceYear, referenceYear +
+  horizonYears(horizon)]`, never a trivial "×1". Absent on slide 2 (stock only).
 - **Deck nav:** Back / Next + a dot **progress indicator**; also keyboard (←/→) and scroll. The route
   is one persistent `/story/:slug`; the stage swaps, it does not reload (ADR-023).
 
@@ -193,13 +198,17 @@ the crossing.
     ("+20 rokov" / "+20 years"). Main scene only. On narrow widths condenses to a `▾ horizon` select.
   - **Domain (`DomainSelect`):** PrimeVue Select of the four domains; **main scene only** (global-first
     deck; no standalone scope toggle — tech spec §17.1). Absent on crossing/footprint (forced global).
-  - **Baseline (`BaselineControl`):** compact select/stepper, floor 1990, "from loss after **{year}**".
+  - **Baseline (`BaselineSlider`):** a real-time year slider, floor **1800** … latest, "from loss after
+    **{year}**"; the track visually splits at **1990** (measured right / reconstructed left, a dashed/
+    lighter track segment) so the reader feels when they cross into the LUH2 back-projection. Dragging
+    re-derives the curves live with no refetch (client-transform, ADR-026).
   - **Time-range (`TimeRangeZoom`):** the crossing scene's `dataZoom` control (§7); pure view state.
   - **R scenario is NOT surfaced in the V1 deck** (tech spec §17.1) — it stays a param at its `mid`
     default. (When later surfaced it would be a muted 3-segment control, secondary to the others.)
 - **Multiplier badge:** mono `×3.2`, `text.hi` on `surface.2`, accent hairline; a caption key beneath
-  ("full vs official at {referenceYear}"). **Appears from slide 3** with the forgone-sink reveal;
-  horizon-invariant in V1 (measured data), so it does not count-up on horizon change.
+  — `multiplier.caption` "full vs reported at {year}" at *today*, `multiplier.captionWindow` "full vs
+  reported, {from}–{to}" over a window. **Appears from slide 3** with the forgone-sink reveal;
+  **horizon-reactive** (window ratio), so it counts up as the horizon lengthens.
 - **Panels:** `surface.1` card, hairline border, radius 10, a `h2` title + optional `text.low`
   data-year note ("data to 2023"). The reference-year note lives here (ADR-016).
 - **Equivalence strip (`EquivalenceStrip`, slide 6 — §6.7 UI):** a full-width `surface.1` bar at the
@@ -231,8 +240,12 @@ the crossing.
 - **Projected tail:** past the join year each metric continues as a **separate series** of the same
   color at **opacity ×0.55**, dashed (ECharts cannot dash mid-line — tech spec §11.1/ADR-019). The
   band, if drawn into the projected range, drops to a fainter fill.
-- **Join-year divider:** a thin `text.low` vertical `markLine` (dotted, no symbol) at the last
-  measured year, with a small "projected →" caption in `text.low`; absent at `horizon='today'`.
+- **Reconstructed head (pre-1990):** symmetrically, below 1990 each metric is a **separate series** at
+  **opacity ×0.55**, dashed (LUH2 back-projection — tech spec §11.1/ADR-026), only present when the
+  baseline slider sits below 1990; the band drops to the same fainter fill.
+- **Join-year dividers:** thin `text.low` vertical `markLine`s (dotted, no symbol) — one at the last
+  measured year with a "projected →" caption (absent at `horizon='today'`), and one at **1990** with a
+  "← reconstructed" caption (absent when the baseline sits at/above 1990).
 - **Tooltip:** shared-axis (UI §4.4), `surface.2` card, hairline border, one soft shadow, mono numbers
   via the injected `Formatter`; rows ordered stock → forgone → total, with the `×N` echoed; projected
   years append a "(projected)" `text.low` tag.
@@ -268,7 +281,11 @@ remount — tech spec §11.4/§17.3, ADR-022):
   the single Y-axis **rescales to the deforestation range**. ~**320ms** `cubic-out`. Same DTO/params.
 - **Slide transitions** (Next/Back across scenes): a quiet ~**200ms** cross-fade/slide of the stage
   content; crossing a scene boundary mounts a fresh chart (new `viz.id`).
-- **Horizon / domain / baseline change** (in-scene controls): single `setOption` ~**240ms** `cubic-out`
+- **Baseline drag** (real-time slider, ADR-026): the curves re-derive **client-side per frame** (no
+  fetch); the pre-1990 dashed segment and the 1990 divider grow/shrink live as the reader drags — a fast,
+  low-latency `setOption` (short/no animation so it tracks the pointer), unlike the fetch-then-animate
+  horizon/domain change below.
+- **Horizon / domain change** (in-scene controls): single `setOption` ~**240ms** `cubic-out`
   on arrival of the (usually cached) DTO — the projected dashed tail extends, the axis rescales, the
   join divider slides.
 - Everything else near-instant (≤120ms hovers/focus). **Respect `prefers-reduced-motion`:** drop all
@@ -294,7 +311,8 @@ remount — tech spec §11.4/§17.3, ADR-022):
 - **Projected-future style:** measured-vs-projected is a **lighter dashed** step over the existing
   solid/dashed grammar (`opacity ×0.55`), with a **join-year divider** (§2.2/§7). Provisional — the
   lighter-dashed vs. estimate-dashed distinction is `revisable` (business §12).
-- **Multiplier badge:** horizon-invariant in V1 (measured data) — so it does not count-up on horizon.
+- **Multiplier badge:** horizon-reactive window ratio — it counts up as the horizon lengthens,
+  collapsing to the reference-year scalar at *today*.
 - **Time horizon** is retained as an in-scene control of the main scene (not a page hero).
 
 **Resolved (iteration 4 — composer → guided story deck, ADR-021..024):**

@@ -99,7 +99,6 @@ describe('useDataStore.loadForScene', () => {
       domainId: 'amazon',
       horizon: 'today',
       rScenario: 'mid',
-      baseline: 1990,
     }
     await data.loadForScene(client, { params: local, endpoints: ['domain'] })
     expect(counts).toEqual({ domain: 1 })
@@ -113,7 +112,6 @@ describe('useDataStore.prefetch', () => {
     scope: 'global',
     horizon: 'today',
     rScenario: 'mid',
-    baseline: 1990,
   }
 
   it('warms the cache silently (no loading flags flip)', async () => {

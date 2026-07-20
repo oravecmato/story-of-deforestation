@@ -31,15 +31,12 @@
   },
   "baseline": {
     "label": "Základný rok",
-    "pattern": "zo strát po roku {year}"
+    "menuLabel": "Výpočet strateného uhlíkového záchytu od roku:"
   },
   "language": {
     "label": "Jazyk",
     "en": "EN",
     "sk": "SK"
-  },
-  "timeRange": {
-    "reset": "Zrušiť výber"
   },
   "panel": {
     "main": { "title": "Emisie v čase" },
@@ -51,7 +48,8 @@
     "referenceYear": "porovnané v {year}"
   },
   "multiplier": {
-    "caption": "úplné vs vykázané v {year}"
+    "caption": "úplné vs vykázané v {year}",
+    "captionWindow": "úplné vs vykázané, {from}–{to}"
   },
   "share": {
     "label": "Podiel na globálnej stope",
@@ -135,7 +133,7 @@
     },
     "crossing": {
       "heading": "Keď strata prekoná uvoľnenie",
-      "p1": "Uvoľnenie stavu je jednorazový impulz; stratený záchyt sa hromadí rok čo rok. Predĺžte projekciu dostatočne ďaleko a rastúca strata záchytu prekoná jednorazové uvoľnenie. Priblížte rozsah a nájdite prekríženie."
+      "p1": "Uvoľnenie stavu je jednorazový impulz; stratený záchyt sa hromadí rok čo rok. Predĺžte projekciu dostatočne ďaleko a rastúca strata záchytu prekoná jednorazové uvoľnenie."
     },
     "footprint": {
       "heading": "Odlesňovanie v kontexte",
@@ -145,6 +143,9 @@
       "heading": "Priblíženie na odlesňovanie",
       "p1": "Odstráňte fosílne a stopa odlesňovania vyplní celý obraz: uvoľnený stav nazeleno, stratený záchyt naoranžovo. Rovnaká gramatika ako hlavný graf — vykázané číslo a cena, ktorú nerátame.",
       "caption": "Pri pohľade na absolútne čísla a po odmyslení fosílnych emisií sa deforestácia prestáva javiť tak bezvýznamnou…"
+    },
+    "baselineLab": {
+      "caption": "Pozrite sa, čo sa stane, keď posuniete referenčný rok — potiahnite ho späť k roku 1800 a sledujte, ako rastie stratený záchyt."
     }
   }
 }

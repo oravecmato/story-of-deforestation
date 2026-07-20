@@ -18,21 +18,19 @@ const expect400 = (fn: () => unknown, errorKey: string): void => {
 }
 
 describe('parseDerivationParams', () => {
-  it('defaults to global / today / mid / 1990 on an empty query', () => {
+  it('defaults to global / today / mid on an empty query (baseline is client-only, ADR-026)', () => {
     expect(parseDerivationParams({})).toEqual({
       scope: 'global',
       horizon: 'today',
       rScenario: 'mid',
-      baseline: 1990,
     })
   })
 
-  it('parses a full valid global query', () => {
+  it('parses a full valid global query (ignores baseline — not a server param)', () => {
     expect(parseDerivationParams({ scope: 'global', horizon: '50y', rScenario: 'high', baseline: '2005' })).toEqual({
       scope: 'global',
       horizon: '50y',
       rScenario: 'high',
-      baseline: 2005,
     })
   })
 
@@ -45,12 +43,10 @@ describe('parseDerivationParams', () => {
     expect400(() => parseDerivationParams({ scope: 'local', domainId: 'atlantis' }), 'error.param.domainId')
   })
 
-  it('rejects out-of-enum and sub-1990 baseline', () => {
+  it('rejects out-of-enum values (baseline is no longer a server param — ignored, not rejected)', () => {
     expect400(() => parseDerivationParams({ scope: 'moon' }), 'error.param.scope')
     expect400(() => parseDerivationParams({ horizon: 'eternity' }), 'error.param.horizon')
     expect400(() => parseDerivationParams({ rScenario: 'reckless' }), 'error.param.rScenario')
-    expect400(() => parseDerivationParams({ baseline: '1989' }), 'error.param.baseline')
-    expect400(() => parseDerivationParams({ baseline: '2000.5' }), 'error.param.baseline')
   })
 
   it('takes the first value of a repeated query field', () => {
@@ -65,7 +61,6 @@ describe('parseDomainRouteParams', () => {
       domainId: 'congo',
       horizon: '50y',
       rScenario: 'mid',
-      baseline: 1990,
     })
   })
 

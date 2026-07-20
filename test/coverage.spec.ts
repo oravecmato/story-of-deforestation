@@ -20,6 +20,7 @@ function country(
       gaps: [],
       isEstimate: false,
       projectedFrom: null,
+      reconstructedBefore: null,
       ...meta,
     },
   }
@@ -38,6 +39,7 @@ function noData(iso: string): Series {
       gaps: [{ geo: iso, reason: 'no-data' }],
       isEstimate: false,
       projectedFrom: null,
+      reconstructedBefore: null,
     },
   }
 }

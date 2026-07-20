@@ -9,6 +9,7 @@ import {
   cumulativeLoss,
   forgoneSink,
   fullEmissions,
+  sumWindow,
   multiplier,
   crossingYear,
   referenceYear,
@@ -19,7 +20,7 @@ import {
   lagCorrelation,
   KM2_TO_HA,
   T_TO_MT,
-} from '../server/utils/stats'
+} from '../shared/utils/stats'
 import { mkSeries, values, years } from './helpers/series'
 
 describe('generic transforms', () => {
@@ -134,11 +135,30 @@ describe('domain derivations', () => {
     expect(fullEmissions(stock, forgone).meta.isEstimate).toBe(true)
   })
 
-  it('multiplier: full / official at the reference year', () => {
-    const stock = mkSeries('stock', [[2020, 4]])
-    const full = mkSeries('full', [[2020, 10]])
-    expect(multiplier(stock, full, 2020)).toBe(2.5)
-    expect(multiplier(mkSeries('s', [[2020, 0]]), full, 2020)).toBeNaN()
+  it('sumWindow: Σ non-null values over the inclusive window', () => {
+    const s = mkSeries('s', [
+      [2019, 1],
+      [2020, 4],
+      [2021, null],
+      [2022, 6],
+      [2025, 9],
+    ])
+    expect(sumWindow(s, 2020, 2022)).toBe(10) // 4 + 6 (2021 null skipped, 2019/2025 out of window)
+    expect(sumWindow(s, 2020, 2020)).toBe(4) // single-year window
+  })
+
+  it('multiplier: Σfull / Σofficial over the window (today collapses to one year)', () => {
+    const stock = mkSeries('stock', [
+      [2020, 4],
+      [2021, 6],
+    ])
+    const full = mkSeries('full', [
+      [2020, 10],
+      [2021, 20],
+    ])
+    expect(multiplier(stock, full, 2020, 2020)).toBe(2.5) // single-year window = measured ratio
+    expect(multiplier(stock, full, 2020, 2021)).toBe(3) // (10+20)/(4+6)
+    expect(multiplier(mkSeries('s', [[2020, 0]]), full, 2020, 2020)).toBeNaN()
   })
 
   it('crossingYear: first year forgone crosses (≥) stock, else null', () => {
@@ -189,6 +209,7 @@ describe('aggregation', () => {
       gaps: [],
       isEstimate: true,
       projectedFrom: null,
+      reconstructedBefore: null,
     },
   })
 

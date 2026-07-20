@@ -31,15 +31,12 @@
   },
   "baseline": {
     "label": "Baseline",
-    "pattern": "from loss after {year}"
+    "menuLabel": "Forgone carbon sink computed from year:"
   },
   "language": {
     "label": "Language",
     "en": "EN",
     "sk": "SK"
-  },
-  "timeRange": {
-    "reset": "Reset range"
   },
   "panel": {
     "main": { "title": "Emissions over time" },
@@ -51,7 +48,8 @@
     "referenceYear": "compared at {year}"
   },
   "multiplier": {
-    "caption": "full vs reported at {year}"
+    "caption": "full vs reported at {year}",
+    "captionWindow": "full vs reported, {from}–{to}"
   },
   "share": {
     "label": "Share of global footprint",
@@ -135,7 +133,7 @@
     },
     "crossing": {
       "heading": "When the loss overtakes the release",
-      "p1": "The stock release is a one-off impulse; the forgone sink keeps accumulating year after year. Run the projection far enough and the rising sink loss overtakes the one-time release. Zoom the range to find the crossing."
+      "p1": "The stock release is a one-off impulse; the forgone sink keeps accumulating year after year. Run the projection far enough and the rising sink loss overtakes the one-time release."
     },
     "footprint": {
       "heading": "Deforestation in context",
@@ -145,6 +143,9 @@
       "heading": "Zoom into deforestation",
       "p1": "Remove fossil and the deforestation footprint fills the frame: the released stock in green, the forgone sink in amber. The same grammar as the main chart — the reported number, and the cost we don't count.",
       "caption": "Looking at the absolute numbers, and with fossil emissions set aside, deforestation stops looking so insignificant…"
+    },
+    "baselineLab": {
+      "caption": "See what happens when you manipulate with the baseline year — drag it back toward 1800 and watch the forgone sink grow."
     }
   }
 }
