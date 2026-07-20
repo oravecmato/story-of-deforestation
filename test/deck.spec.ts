@@ -75,11 +75,11 @@ describe('DeckNav', () => {
   })
 })
 
-describe('SlideLayout — chart identity across preset change (ADR-025)', () => {
-  // The binding contract: the #viz outlet is rendered UNCONDITIONALLY for every preset (no v-if
-  // fork), so a viz.id-keyed <VChart> survives the 5→6 duo-viz-text → duo-viz-equiv change and
-  // ECharts animates via setOption instead of remounting (tech-spec §17.4, ADR-022/023).
-  it('does not remount the keyed #viz child when the preset flips 5→6', async () => {
+describe('SlideLayout — chart identity across grid change (ADR-022/027)', () => {
+  // The binding contract: the geometry-only shell swaps a slide's grid via CSS custom properties on ONE
+  // <section> (no structural v-if fork), so a keyed <VChart> in its default slot survives the 5→6
+  // duo-viz-text → duo-viz-equiv change and ECharts animates via setOption instead of remounting.
+  it('does not remount the keyed slot child when the grid flips 5→6', async () => {
     let mounts = 0
     let unmounts = 0
     const VizStub = defineComponent({
@@ -95,20 +95,16 @@ describe('SlideLayout — chart identity across preset change (ADR-025)', () => 
     })
 
     const w = mount(SlideLayout, {
-      props: { preset: 'duo-viz-text' as const },
-      slots: {
-        viz: () => h(VizStub, { key: 'donut' }),
-        heading: () => h('h2', 'heading'),
-        text: () => h('p', 'body'),
-      },
+      props: { grid: 'duo-viz-text' as const },
+      slots: { default: () => h(VizStub, { key: 'donut' }) },
     })
 
     expect(mounts).toBe(1)
     expect(w.find('.viz-stub').exists()).toBe(true)
 
-    await w.setProps({ preset: 'duo-viz-equiv' as const })
+    await w.setProps({ grid: 'duo-viz-equiv' as const })
 
-    // Same keyed instance — mounted once, never torn down across the preset flip.
+    // Same keyed instance — mounted once, never torn down across the grid flip.
     expect(mounts).toBe(1)
     expect(unmounts).toBe(0)
     expect(w.find('.viz-stub').exists()).toBe(true)

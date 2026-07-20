@@ -20,7 +20,8 @@ export const DEFAULT_BASELINE = 1990
 // alternative ways to set the SAME client-transform origin (ADR-026), so they share this ceiling.
 export const BASELINE_MAX = 2020
 
-/** Calendar year the horizon axis is anchored at (ADR-019). `today` = this year, no projection. */
+/** Calendar year the horizon axis is anchored at (ADR-019). `today` targets this year: measured series
+ *  are nowcast up to the present so every series' extent is uniform (no inter-series gap). */
 export const HORIZON_ANCHOR_YEAR = 2026
 
 const HORIZON_YEAR_OFFSET: Record<Horizon, number> = {
@@ -56,7 +57,7 @@ export const sceneWindow = (referenceYear: number, h: Horizon): { from: number; 
 /** Default domain when the user first switches to local scope (business §3.1). */
 export const DEFAULT_DOMAIN_ID: DomainId = 'amazon'
 
-/** Opening state (business §4): global / today / mid. Opens on measured data (no projection). */
+/** Opening state (business §4): global / today / mid. Opens on measured data nowcast to the present. */
 export const PRESET_PARAMS: DerivationParams = {
   scope: 'global',
   horizon: 'today',

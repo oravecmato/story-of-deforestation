@@ -21,6 +21,18 @@ export default defineNuxtConfig({
   // Global dark base styles (design §2–4).
   css: ['~/assets/css/main.css'],
 
+  // Inject the shared SCSS breakpoint mixins ($bp-desktop, `@include desktop/mobile`) into every
+  // component `<style lang="scss">` block so the deck's responsive boundary lives in one place.
+  vite: {
+    css: {
+      preprocessorOptions: {
+        scss: {
+          additionalData: '@use "~/assets/scss/breakpoints" as *;\n',
+        },
+      },
+    },
+  },
+
   // Fixed dark V1 (ADR-002): a stable `.app-dark` class on <html> is the PrimeVue dark selector.
   // Inter (UI/copy) + IBM Plex Mono (numbers/badge) per design §3, with system fallbacks in CSS.
   app: {

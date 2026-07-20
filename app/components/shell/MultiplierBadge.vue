@@ -1,30 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useDataStore } from '../../stores/data'
-import { useViewStore } from '../../stores/view'
 import { useFormatter } from '../../composables/useFormatter'
-import { horizonYears } from '../../../shared/config/derivation'
 
-// The live ×N headline (UI §7, design §6). Σ fullEmissions ÷ Σ WB reported stock over the forward
-// window `[referenceYear, referenceYear + horizonYears(horizon)]` (ADR-019), sourced entirely from
-// Pinia (server-derived). `today` collapses to the single-year measured ratio; a longer horizon
-// widens the window and grows the ratio. Rendered through the injected Formatter's mono multiplier
+// The live ×N headline (UI §7, design §6), now a dumb leaf (ADR-027): the ratio and its forward window
+// `[from, to]` are resolved in the Widget seam and passed in; this component only renders. A `today`
+// window collapses `from === to` to the single-year caption; a longer horizon widens it. A null value
+// (official mode / no data) renders nothing. Shown through the injected Formatter's mono multiplier
 // form (×3.2). Real DOM text (a11y §12).
+const props = defineProps<{ value: number | null; window: { from: number; to: number } | null }>()
+
 const { t } = useI18n()
-const data = useDataStore()
-const view = useViewStore()
 const formatter = useFormatter()
 
-const visible = computed(() => data.multiplier != null)
-const referenceYear = computed(() => data.currentMainResult?.referenceYear)
-/** The forward window the ×N ratio integrates over; `today` collapses `from === to`. */
-const window = computed(() =>
-  referenceYear.value != null
-    ? { from: referenceYear.value, to: referenceYear.value + horizonYears(view.horizon) }
-    : null,
-)
+const formatted = computed(() => (props.value != null ? formatter.multiplier(props.value) : ''))
 const caption = computed<string | null>(() => {
-  const w = window.value
+  const w = props.window
   if (!w) return null
   return w.from === w.to
     ? t('multiplier.caption', { year: w.from })
@@ -33,8 +23,8 @@ const caption = computed<string | null>(() => {
 </script>
 
 <template>
-  <div v-if="visible" class="multiplier">
-    <span class="multiplier__value mono">{{ formatter.multiplier(data.multiplier!) }}</span>
+  <div v-if="value != null" class="multiplier">
+    <span class="multiplier__value mono">{{ formatted }}</span>
     <span v-if="caption != null" class="multiplier__caption">{{ caption }}</span>
   </div>
 </template>

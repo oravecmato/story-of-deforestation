@@ -2,19 +2,20 @@ import type {
   ControlKey,
   DerivationMode,
   DerivationParams,
-  LayoutPreset,
+  GridTemplateId,
   SceneId,
   SlideDef,
   VizKind,
   VizPresentation,
+  WidgetDef,
 } from '../../shared/types'
 
-// The pure slide factory (tech-spec §17.2, ADR-021). It resolves an authored `SlideDef` against the
+// The pure slide factory (tech-spec §17.2, ADR-021/027). It resolves an authored `SlideDef` against the
 // current scene's `DerivationParams` into a render-ready `RenderableSlide`: effective params (scene
-// params + immutable `forced` overrides), controls tagged server-refetch vs client-only, and each
-// visualisation's concrete tier-2 component + presentation transform. This layer is Vue/Pinia-free
-// and Vue-unaware: `GenericSlide` (Pinia-aware) maps `component` → the actual chart component and
-// binds the `dto`/`ctx` props at render time (§11). Keeping the factory pure makes it unit-testable.
+// params + immutable `forced` overrides) and each WIDGET resolved to its render-ready form — a viz's
+// concrete component + presentation, a controls widget's controls tagged server-refetch vs client-only.
+// This layer is Vue/Pinia-free: the `Widget` renderer (Pinia-aware) maps a resolved widget to the actual
+// component and binds live props (§11). Keeping the factory pure makes it unit-testable.
 
 /** A deck control, tagged with whether flipping it refetches (mutates `DerivationParams`) or is pure
  *  view state. The baseline controls are client-only (ADR-021/026). */
@@ -23,37 +24,69 @@ export interface RenderableControl {
   mode: DerivationMode
 }
 
-/** A resolved visualisation: stable identity + the concrete tier-2 component name (`mainStacked`
- *  resolves to global vs. single-domain per scope, business §6.1) + its metric presentation. */
-export interface RenderableViz {
-  id: string
-  kind: VizKind
-  component: ChartComponentName
-  presentation: VizPresentation
-}
-
-/** A slide resolved for rendering (tech-spec §17.2). `params` is the effective derivation signature
- *  (scene params with `forced` applied); `dto`/`ctx` are bound later by `GenericSlide`. */
-export interface RenderableSlide {
-  slug: string
-  scene: SceneId
-  layout: LayoutPreset
-  headingKey?: string
-  captionKey?: string
-  textKeys: string[]
-  params: DerivationParams
-  controls: RenderableControl[]
-  visuals: RenderableViz[]
-  showMultiplier: boolean
-}
-
-/** The tier-2 chart component names `GenericSlide` maps to actual components (§11, §17.2). */
+/** The tier-2 chart component names the `Widget` renderer maps to actual components (§11, §17.2). */
 export type ChartComponentName =
   | 'MainStackedChart'
   | 'GlobalStackedAreaChart'
   | 'CrossingChart'
   | 'FootprintDonut'
   | 'FossilComparisonChart'
+
+/** Fields every resolved widget carries: its authored identity and the grid area it occupies. */
+interface RenderableWidgetBase {
+  id: string
+  area: string
+}
+
+export interface RenderableHeading extends RenderableWidgetBase {
+  type: 'heading'
+  headingKey: string
+}
+export interface RenderableText extends RenderableWidgetBase {
+  type: 'text'
+  textKeys: string[]
+}
+export interface RenderableCaption extends RenderableWidgetBase {
+  type: 'caption'
+  captionKey: string
+}
+export interface RenderableControls extends RenderableWidgetBase {
+  type: 'controls'
+  controls: RenderableControl[]
+}
+export interface RenderableViz extends RenderableWidgetBase {
+  type: 'viz'
+  kind: VizKind
+  component: ChartComponentName
+  presentation: VizPresentation
+}
+export interface RenderableMultiplier extends RenderableWidgetBase {
+  type: 'multiplier'
+}
+export interface RenderableEquivalence extends RenderableWidgetBase {
+  type: 'equivalence'
+  orientation: 'horizontal' | 'vertical'
+}
+
+/** A widget resolved for rendering (discriminated by `type`). */
+export type RenderableWidget =
+  | RenderableHeading
+  | RenderableText
+  | RenderableCaption
+  | RenderableControls
+  | RenderableViz
+  | RenderableMultiplier
+  | RenderableEquivalence
+
+/** A slide resolved for rendering (tech-spec §17.2). `params` is the effective derivation signature
+ *  (scene params with `forced` applied); `grid` names the geometry; `widgets` are render-ready. */
+export interface RenderableSlide {
+  slug: string
+  scene: SceneId
+  grid: GridTemplateId
+  params: DerivationParams
+  widgets: RenderableWidget[]
+}
 
 /** Client-only controls (no refetch): both baseline controls (`baseline` select + `baselineSlider`) —
  *  the ADR-026 client-transform. `horizon`/`domain` mutate DerivationParams and refetch (ADR-021). */
@@ -82,6 +115,38 @@ const resolveComponent = (kind: VizKind, params: DerivationParams): ChartCompone
   }
 }
 
+/** Resolve one authored widget against the effective params. Each widget owns its resolution: viz →
+ *  concrete component + presentation; controls → mode-tagged controls; the rest pass config through. */
+const resolveWidget = (widget: WidgetDef, params: DerivationParams): RenderableWidget => {
+  const base = { id: widget.id, area: widget.area }
+  switch (widget.type) {
+    case 'heading':
+      return { ...base, type: 'heading', headingKey: widget.headingKey }
+    case 'text':
+      return { ...base, type: 'text', textKeys: widget.textKeys }
+    case 'caption':
+      return { ...base, type: 'caption', captionKey: widget.captionKey }
+    case 'controls':
+      return {
+        ...base,
+        type: 'controls',
+        controls: widget.keys.map((key) => ({ key, mode: controlMode(key) })),
+      }
+    case 'viz':
+      return {
+        ...base,
+        type: 'viz',
+        kind: widget.kind,
+        component: resolveComponent(widget.kind, params),
+        presentation: { metrics: widget.metrics },
+      }
+    case 'multiplier':
+      return { ...base, type: 'multiplier' }
+    case 'equivalence':
+      return { ...base, type: 'equivalence', orientation: widget.orientation }
+  }
+}
+
 /**
  * Resolve an authored slide against the current scene's params into a render-ready unit (§17.2).
  * `params` is the scene's live `DerivationParams` (§10.1); the slide's immutable `forced` overrides
@@ -89,34 +154,11 @@ const resolveComponent = (kind: VizKind, params: DerivationParams): ChartCompone
  */
 export const renderSlide = (def: SlideDef, params: DerivationParams): RenderableSlide => {
   const effective: DerivationParams = { ...params, ...def.forced }
-
-  const controls: RenderableControl[] = (def.controls ?? []).map((key) => ({
-    key,
-    mode: controlMode(key),
-  }))
-
-  const visuals: RenderableViz[] = def.visualizations.map((viz) => ({
-    id: viz.id,
-    kind: viz.kind,
-    component: resolveComponent(viz.kind, effective),
-    presentation: { metrics: viz.metrics },
-  }))
-
-  // The multiplier ×N is shown only in the `main` scene, once the forgone sink is revealed — i.e.
-  // slide 3 (`main-sink`), never slide 2 (UI §6.6, matrix row).
-  const showMultiplier =
-    def.scene === 'main' && visuals.some((v) => v.presentation.metrics.includes('forgoneSink'))
-
   return {
     slug: def.slug,
     scene: def.scene,
-    layout: def.layout,
-    headingKey: def.headingKey,
-    captionKey: def.captionKey,
-    textKeys: def.textKeys,
+    grid: def.grid,
     params: effective,
-    controls,
-    visuals,
-    showMultiplier,
+    widgets: def.widgets.map((w) => resolveWidget(w, effective)),
   }
 }

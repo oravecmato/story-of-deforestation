@@ -6,12 +6,20 @@ export type { ThemeTokens } from './theme'
 export type { Scope, Horizon, RScenario, DerivationParams } from './params'
 export type {
   SceneId,
-  LayoutPreset,
+  GridTemplateId,
   EquivalenceUnit,
   VizKind,
   ControlKey,
   DerivationMode,
-  VizConfig,
+  WidgetType,
+  HeadingWidget,
+  TextWidget,
+  CaptionWidget,
+  ControlsWidget,
+  VizWidget,
+  MultiplierWidget,
+  EquivalenceWidget,
+  WidgetDef,
   VizPresentation,
   SlideDef,
 } from './story'

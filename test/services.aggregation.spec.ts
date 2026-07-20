@@ -8,6 +8,7 @@ import { EmissionsService } from '../server/services/EmissionsService'
 import { AggregationService } from '../server/services/AggregationService'
 import { ReferenceService } from '../server/services/ReferenceService'
 import { CoverageGate } from '../server/utils/coverage'
+import { HORIZON_ANCHOR_YEAR } from '../shared/config/derivation'
 import { mkSeries } from './helpers/series'
 
 const FOREST_CODE = 'AG.LND.FRST.K2'
@@ -87,6 +88,18 @@ describe('AggregationService.domainResult', () => {
     expect(dto.stock.meta.projectedFrom).toBe(2002)
     expect(dto.stock.points.at(-1)!.year).toBeGreaterThan(2002)
     expect(dto.referenceYear).toBe(2002) // composite scalar stays on measured data
+  })
+
+  it('today horizon: nowcasts area + stock uniformly to the anchor year (no inter-series gap)', async () => {
+    const { agg } = makeAgg()
+    const dto = await agg.domainResult('amazon', base) // horizon 'today'
+    // Both series now reach the same anchor year (HORIZON_ANCHOR_YEAR = 2026), projected off their own
+    // last measured year — so a stock series that lags fresher area data is filled to close the gap.
+    expect(dto.area.points.at(-1)!.year).toBe(HORIZON_ANCHOR_YEAR)
+    expect(dto.stock.points.at(-1)!.year).toBe(HORIZON_ANCHOR_YEAR)
+    expect(dto.area.meta.projectedFrom).toBe(2002)
+    expect(dto.stock.meta.projectedFrom).toBe(2002)
+    expect(dto.referenceYear).toBe(2002) // composite scalar stays measured (horizon-invariant)
   })
 })
 

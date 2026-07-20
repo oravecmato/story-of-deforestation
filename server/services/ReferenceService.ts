@@ -12,8 +12,9 @@ import type { EmissionsService } from './EmissionsService'
 // AggregationService) so the donut/fossil-bar forward window `[referenceYear, referenceYear +
 // horizonYears(horizon)]` sums fossil over the SAME projected range as stock and forgone — otherwise
 // the fossil integral would be truncated at the last measured year and the share skewed at long
-// horizons. `today` = identity (no projection). The endpoint cache key includes horizon, so changing
-// horizon refetches the correctly-projected series.
+// horizons. `today` projects to the anchor (current) year too, keeping the fossil series' extent
+// uniform with the deforestation series. The endpoint cache key includes horizon, so changing horizon
+// refetches the correctly-projected series.
 
 export interface ReferenceInput {
   params: DerivationParams
@@ -26,8 +27,7 @@ export class ReferenceService {
   async reference(input: ReferenceInput): Promise<ReferenceDTO> {
     const { params, referenceYear } = input
     const fossil = await this.emissions.globalFossil()
-    const fossilTotal =
-      params.horizon === 'today' ? fossil : stats.projectSeries(fossil, horizonTargetYear(params.horizon))
+    const fossilTotal = stats.projectSeries(fossil, horizonTargetYear(params.horizon))
     return { params, referenceYear, fossilTotal }
   }
 }

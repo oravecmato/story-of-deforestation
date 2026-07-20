@@ -102,10 +102,13 @@ export class AggregationService {
     return { ...summed, points, meta: { ...summed.meta, latestDataYear: end, gaps } }
   }
 
-  /** Series projector for the chosen horizon: identity for `today`, else linear-trend extrapolation
-   *  up to `horizonTargetYear(horizon)` (ADR-019). */
+  /** Series projector for the chosen horizon: linear-trend extrapolation up to
+   *  `horizonTargetYear(horizon)` (ADR-019). For `today` the target is the anchor (current) year, so
+   *  measured series are nowcast uniformly up to the present — this closes the inter-series gap where
+   *  the World Bank forest-area data is fresher than the deforestation-stock data, since both now reach
+   *  the anchor year (a series already at/past the target is returned unchanged, projectedFrom null).
+   *  Composite scalars stay measured (computed before projection) so they remain horizon-invariant. */
   private projectFn(horizon: Horizon): (s: Series) => Series {
-    if (horizon === 'today') return (s) => s
     const target = horizonTargetYear(horizon)
     return (s) => stats.projectSeries(s, target)
   }

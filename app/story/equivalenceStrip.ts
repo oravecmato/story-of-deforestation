@@ -63,6 +63,25 @@ export function deriveStripValues(
   }
 }
 
+/** One fully-resolved display cell of the equivalence strip — every field is presentation-ready text
+ *  (formatted value, localized unit/caption, resolved colour). The Widget seam builds these from the
+ *  live stores so the strip component itself stays a dumb, Pinia-unaware leaf (ADR-027). */
+export interface StripCell {
+  key: string
+  /** The cell's accent colour (a theme `data.*` token). */
+  color: string
+  /** '' for the raw Mt CO₂ figure, '≈' for the approximate derived units (car/country). */
+  prefix: string
+  /** The formatted magnitude in the active unit. */
+  value: string
+  /** The trailing localized unit label. */
+  unit: string
+  /** The localized caption under the figure. */
+  caption: string
+  /** An optional localized note (e.g. the "as of {year}" for the annual rate). */
+  note?: string
+}
+
 /** Basis scalars for the non-`mtco2` units (§17.4). */
 export interface UnitBasis {
   /** One passenger car's annual emissions, tonnes CO₂ (`equivalenceConfig.carAnnualTonsCO2`). */

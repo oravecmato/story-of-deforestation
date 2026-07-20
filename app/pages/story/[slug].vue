@@ -63,13 +63,15 @@ const vizEndpoints = (component: ChartComponentName, scope: Scope): EndpointKey[
   }
 }
 
-/** The union of endpoints an entire slide needs. The equivalence-led presets (`duo-viz-equiv` slide 6,
- *  `lab` slide 7) additionally need `equivalence` — its country-unit basis is the reference country's
- *  annual CO₂, back-computed from that DTO (§17.4, ADR-026). */
+/** The union of endpoints an entire slide needs, walked off its widgets (ADR-027). A viz widget
+ *  contributes its chart's DTO endpoints; an equivalence widget additionally needs `equivalence` — its
+ *  country-unit basis is the reference country's annual CO₂, back-computed from that DTO (§17.4). */
 const endpointsFor = (s: RenderableSlide): EndpointKey[] => {
   const set = new Set<EndpointKey>()
-  for (const v of s.visuals) for (const e of vizEndpoints(v.component, s.params.scope)) set.add(e)
-  if (s.layout === 'duo-viz-equiv' || s.layout === 'lab') set.add('equivalence')
+  for (const w of s.widgets) {
+    if (w.type === 'viz') for (const e of vizEndpoints(w.component, s.params.scope)) set.add(e)
+    else if (w.type === 'equivalence') set.add('equivalence')
+  }
   return [...set]
 }
 
@@ -156,7 +158,7 @@ const onNavigate = (target: string) => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .deck__inner {
   max-width: 1360px;
   margin: 0 auto;
@@ -164,6 +166,19 @@ const onNavigate = (target: string) => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+// Desktop: bind the whole deck to the viewport so header and nav stay pinned and every slide fits in
+// exactly one screen. The stage does NOT scroll — the slide grid sizes its viz rows to the leftover
+// height and the charts shrink to fit (see SlideLayout + Widget). `overflow: hidden` is only a guard
+// against sub-pixel spill. On mobile the deck keeps its natural `min-height` flow and the page scrolls.
+@include desktop {
+  .deck__inner {
+    height: 100vh;
+  }
+  .deck__stage {
+    min-height: 0;
+    overflow: hidden;
+  }
 }
 .deck__header {
   display: flex;
