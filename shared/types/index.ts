@@ -3,7 +3,7 @@
 export type { SeriesType, DataPoint, SeriesMeta, Series, BandSeries } from './series'
 export type { DomainId, RRange } from './domain'
 export type { ThemeTokens } from './theme'
-export type { Scope, Horizon, RScenario, DerivationParams } from './params'
+export type { Horizon, RScenario, DerivationParams } from './params'
 export type {
   SceneId,
   GridTemplateId,
@@ -12,9 +12,7 @@ export type {
   ControlKey,
   DerivationMode,
   WidgetType,
-  HeadingWidget,
   TextWidget,
-  CaptionWidget,
   ControlsWidget,
   VizWidget,
   MultiplierWidget,
@@ -24,9 +22,7 @@ export type {
   SlideDef,
 } from './story'
 export type {
-  DomainResultDTO,
   GlobalResultDTO,
-  DomainDerived,
   GlobalDerived,
   ReferenceDTO,
   EquivalenceDTO,

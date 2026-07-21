@@ -1,7 +1,6 @@
 import type { AxiosError, AxiosInstance } from 'axios'
 import type {
   DerivationParams,
-  DomainResultDTO,
   GlobalResultDTO,
   ReferenceDTO,
   EquivalenceDTO,
@@ -20,7 +19,6 @@ export interface StoreError {
 }
 
 export interface ApiClient {
-  domain(params: DerivationParams): Promise<DomainResultDTO>
   global(params: DerivationParams): Promise<GlobalResultDTO>
   reference(params: DerivationParams): Promise<ReferenceDTO>
   equivalence(params: DerivationParams, locale: string): Promise<EquivalenceDTO>
@@ -45,7 +43,6 @@ export function createApiClient(http: AxiosInstance): ApiClient {
     return res.data
   }
   return {
-    domain: (p) => get<DomainResultDTO>(`/api/domain/${p.domainId}`, paramsToQuery(p)),
     global: (p) => get<GlobalResultDTO>('/api/global', paramsToQuery(p)),
     reference: (p) => get<ReferenceDTO>('/api/reference', paramsToQuery(p)),
     equivalence: (p, locale) =>

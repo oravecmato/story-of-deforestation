@@ -1,10 +1,10 @@
 import type { SlideDef } from '../../shared/types'
 
-// The authored story deck (tech-spec §17.1, business §4.7, ADR-027). Seven slides across five scenes.
+// The authored story deck (tech-spec §17.1, business §4.7, ADR-027). Ten slides across seven scenes.
 // A slide is a grid template + the widgets placed on it (copy is i18n keys only). Sibling slides in a
 // scene share widget `id`s so the reveal (2→3) and the fossil-removal (5→6) animate in place. `params`
-// seeds a scene's authored defaults on first entry; `forced` overrides are immutable (crossing/
-// footprint/baseline are global-only). Widget `area` names come from the slide's `GridTemplate`.
+// seeds a scene's authored defaults on first entry; `forced` overrides are immutable (crossing forces a
+// future horizon). Widget `area` names come from the slide's `GridTemplate`.
 
 export const SLIDES: readonly SlideDef[] = [
   // 1 — intro: pure text framing, no visualisation.
@@ -13,8 +13,13 @@ export const SLIDES: readonly SlideDef[] = [
     scene: 'intro',
     grid: 'text',
     widgets: [
-      { id: 'heading', type: 'heading', area: 'heading', headingKey: 'story.intro.heading' },
-      { id: 'text', type: 'text', area: 'text', textKeys: ['story.intro.p1', 'story.intro.p2'] },
+      {
+        id: 'text',
+        type: 'text',
+        area: 'text',
+        headingKey: 'story.intro.heading',
+        textKeys: ['story.intro.p1', 'story.intro.p2'],
+      },
     ],
   },
 
@@ -24,12 +29,17 @@ export const SLIDES: readonly SlideDef[] = [
     scene: 'main',
     grid: 'viz-text',
     widgets: [
-      { id: 'controls', type: 'controls', area: 'controls', keys: ['horizon', 'domain', 'baseline'] },
+      { id: 'controls', type: 'controls', area: 'controls', keys: ['horizon', 'baseline'] },
       { id: 'main', type: 'viz', area: 'viz-a', kind: 'mainStacked', metrics: ['stock'] },
-      { id: 'heading', type: 'heading', area: 'heading', headingKey: 'story.main.heading' },
-      { id: 'text', type: 'text', area: 'text', textKeys: ['story.main.p1'] },
+      {
+        id: 'text',
+        type: 'text',
+        area: 'text',
+        headingKey: 'story.main.heading',
+        textKeys: ['story.main.p1'],
+      },
     ],
-    params: { scope: 'global', domainId: 'amazon', horizon: 'today', rScenario: 'mid' },
+    params: { horizon: 'today', rScenario: 'mid' },
     baseline: 1990,
   },
 
@@ -40,15 +50,20 @@ export const SLIDES: readonly SlideDef[] = [
     scene: 'main',
     grid: 'viz-text',
     widgets: [
-      { id: 'controls', type: 'controls', area: 'controls', keys: ['horizon', 'domain', 'baseline'] },
+      { id: 'controls', type: 'controls', area: 'controls', keys: ['horizon', 'baseline'] },
       { id: 'multiplier', type: 'multiplier', area: 'badge' },
       { id: 'main', type: 'viz', area: 'viz-a', kind: 'mainStacked', metrics: ['stock', 'forgoneSink'] },
-      { id: 'heading', type: 'heading', area: 'heading', headingKey: 'story.mainSink.heading' },
-      { id: 'text', type: 'text', area: 'text', textKeys: ['story.mainSink.p1'] },
+      {
+        id: 'text',
+        type: 'text',
+        area: 'text',
+        headingKey: 'story.mainSink.heading',
+        textKeys: ['story.mainSink.p1'],
+      },
     ],
   },
 
-  // 4 — crossing: fresh mount. Annual stock impulse vs. rising cumulative forgone sink; forced global.
+  // 4 — crossing: fresh mount. Annual stock impulse vs. rising cumulative forgone sink.
   // A future horizon is forced so the projection spans far enough for the two to cross on screen.
   {
     slug: 'crossing',
@@ -57,14 +72,19 @@ export const SLIDES: readonly SlideDef[] = [
     widgets: [
       { id: 'controls', type: 'controls', area: 'controls', keys: ['baseline'] },
       { id: 'crossing', type: 'viz', area: 'viz-a', kind: 'crossing', metrics: ['stock', 'forgoneSink'] },
-      { id: 'heading', type: 'heading', area: 'heading', headingKey: 'story.crossing.heading' },
-      { id: 'text', type: 'text', area: 'text', textKeys: ['story.crossing.p1'] },
+      {
+        id: 'text',
+        type: 'text',
+        area: 'text',
+        headingKey: 'story.crossing.heading',
+        textKeys: ['story.crossing.p1'],
+      },
     ],
-    forced: { scope: 'global', horizon: '100y' },
+    forced: { horizon: '100y' },
     baseline: 1990,
   },
 
-  // 5 — footprint: donut (3 slices) + deforestation-vs-fossil bar (both categories). Global scope.
+  // 5 — footprint: donut (3 slices) + deforestation-vs-fossil bar (both categories).
   // baseline + horizon are live and carry over to slide 6 (footprint scene, ADR-025).
   {
     slug: 'footprint',
@@ -74,10 +94,14 @@ export const SLIDES: readonly SlideDef[] = [
       { id: 'controls', type: 'controls', area: 'controls', keys: ['baseline', 'horizon'] },
       { id: 'donut', type: 'viz', area: 'viz-a', kind: 'donut', metrics: ['fossil', 'stock', 'forgoneSink'] },
       { id: 'fossil', type: 'viz', area: 'viz-b', kind: 'fossilComparison', metrics: ['fossil', 'stock', 'forgoneSink'] },
-      { id: 'heading', type: 'heading', area: 'heading', headingKey: 'story.footprint.heading' },
-      { id: 'text', type: 'text', area: 'text', textKeys: ['story.footprint.p1'] },
+      {
+        id: 'text',
+        type: 'text',
+        area: 'text',
+        headingKey: 'story.footprint.heading',
+        textKeys: ['story.footprint.p1'],
+      },
     ],
-    forced: { scope: 'global' },
   },
 
   // 6 — deforestation-insight: same donut/fossil instances; fossil removed from both → the deforestation
@@ -88,19 +112,18 @@ export const SLIDES: readonly SlideDef[] = [
     scene: 'footprint',
     grid: 'duo-viz-equiv',
     widgets: [
-      { id: 'caption', type: 'caption', area: 'caption', captionKey: 'story.insight.caption' },
+      { id: 'caption', type: 'text', area: 'caption', captionKey: 'story.insight.caption' },
       { id: 'controls', type: 'controls', area: 'controls', keys: ['baseline', 'horizon'] },
       { id: 'donut', type: 'viz', area: 'viz-a', kind: 'donut', metrics: ['stock', 'forgoneSink'] },
       { id: 'fossil', type: 'viz', area: 'viz-b', kind: 'fossilComparison', metrics: ['stock', 'forgoneSink'] },
       { id: 'equivalence', type: 'equivalence', area: 'equiv', orientation: 'horizontal' },
     ],
-    forced: { scope: 'global' },
   },
 
   // 7 — baseline lab: the interactive back-projection (ADR-026). Caption on top, the baseline SLIDER
   // (1800→present) + the live horizon picker, then TWO charts stacked in the main column (the main
   // stock+forgone chart above the crossing chart), and a full-height equivalence strip aside (vertical,
-  // quarter-width). Fixed global. Moving the slider re-derives the forgone sink, both charts and the
+  // quarter-width). Moving the slider re-derives the forgone sink, both charts and the
   // strip client-side in real time (no refetch). Horizon is seeded to a future value so the projection
   // and the crossing are meaningful on first entry.
   {
@@ -108,13 +131,70 @@ export const SLIDES: readonly SlideDef[] = [
     scene: 'baseline',
     grid: 'lab',
     widgets: [
-      { id: 'caption', type: 'caption', area: 'caption', captionKey: 'story.baselineLab.caption' },
+      { id: 'caption', type: 'text', area: 'caption', captionKey: 'story.baselineLab.caption' },
       { id: 'controls', type: 'controls', area: 'controls', keys: ['baselineSlider', 'horizon'] },
       { id: 'baseline-main', type: 'viz', area: 'viz-a', kind: 'mainStacked', metrics: ['stock', 'forgoneSink'] },
       { id: 'baseline-crossing', type: 'viz', area: 'viz-b', kind: 'crossing', metrics: ['stock', 'forgoneSink'] },
       { id: 'equivalence', type: 'equivalence', area: 'equiv', orientation: 'vertical' },
     ],
-    forced: { scope: 'global' },
+    params: { horizon: '100y' },
+    baseline: 1990,
+  },
+
+  // 8 — method: how the forgone sink is computed. Two columns: an explanatory text block (left) and an
+  // illustrative gross-flux bar (right) showing R = absorbed − released CO₂ (business §7.2). Editorial
+  // only — the bar's values are hardcoded, so the slide fetches nothing.
+  {
+    slug: 'method',
+    scene: 'method',
+    grid: 'text-viz',
+    widgets: [
+      {
+        id: 'text',
+        type: 'text',
+        area: 'text',
+        headingKey: 'story.method.heading',
+        textKeys: ['story.method.p1', 'story.method.p2', 'story.method.p3'],
+      },
+      { id: 'flux', type: 'viz', area: 'viz-a', kind: 'fluxBar', metrics: ['forgoneSink'] },
+    ],
+  },
+
+  // 9 — method follow-up: a single centred text block (placeholder copy, to be filled in later).
+  {
+    slug: 'method-more',
+    scene: 'method',
+    grid: 'text',
+    widgets: [
+      {
+        id: 'text',
+        type: 'text',
+        area: 'text',
+        headingKey: 'story.methodMore.heading',
+        textKeys: ['story.methodMore.p1'],
+      },
+    ],
+  },
+
+  // 10 — amplified baseline lab: the same interactive back-projection as slide 7, plus a discrete 1×–6×
+  // R-multiplier slider next to the baseline slider. Some climate models put the forgone sink up to 6×
+  // higher; the multiplier scales R uniformly across every derived figure (client-transform, ADR-026).
+  {
+    slug: 'amplified',
+    scene: 'amplified',
+    grid: 'lab',
+    widgets: [
+      { id: 'caption', type: 'text', area: 'caption', captionKey: 'story.amplified.caption' },
+      {
+        id: 'controls',
+        type: 'controls',
+        area: 'controls',
+        keys: ['baselineSlider', 'rMultiplier', 'horizon'],
+      },
+      { id: 'amplified-main', type: 'viz', area: 'viz-a', kind: 'mainStacked', metrics: ['stock', 'forgoneSink'] },
+      { id: 'amplified-crossing', type: 'viz', area: 'viz-b', kind: 'crossing', metrics: ['stock', 'forgoneSink'] },
+      { id: 'equivalence', type: 'equivalence', area: 'equiv', orientation: 'vertical' },
+    ],
     params: { horizon: '100y' },
     baseline: 1990,
   },

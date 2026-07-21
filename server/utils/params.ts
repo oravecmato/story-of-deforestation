@@ -1,6 +1,6 @@
 import { createError } from 'h3'
-import type { DerivationParams, DomainId } from '../../shared/types'
-import { SCOPES, HORIZONS, R_SCENARIOS, isDomainId } from '../../shared/config/derivation'
+import type { DerivationParams } from '../../shared/types'
+import { HORIZONS, R_SCENARIOS } from '../../shared/config/derivation'
 
 // Request-param parsing/validation (tech-spec §8). Pure functions of the query object so they are
 // trivially testable; the routes do the h3 extraction and pass the plain query in. Every endpoint is
@@ -32,33 +32,9 @@ const oneOf = <T extends string>(
   return badRequest(key)
 }
 
-/** Parse DerivationParams for global-family routes (scope from query, defaults to global). */
+/** Parse DerivationParams for the global-family routes. */
 export function parseDerivationParams(query: Query): DerivationParams {
-  const scope = oneOf(str(query.scope), SCOPES, 'global', 'error.param.scope')
-  const params: DerivationParams = {
-    scope,
-    horizon: oneOf(str(query.horizon), HORIZONS, 'today', 'error.param.horizon'),
-    rScenario: oneOf(str(query.rScenario), R_SCENARIOS, 'mid', 'error.param.rScenario'),
-  }
-  if (scope === 'local') {
-    const domainId = str(query.domainId)
-    if (!domainId) return badRequest('error.param.domainRequired')
-    if (!isDomainId(domainId)) return badRequest('error.param.domainId')
-    params.domainId = domainId
-  }
-  return params
-}
-
-/** Parse params for `/api/domain/[id]`: scope is forced local; domainId comes from the path. */
-export function parseDomainRouteParams(
-  id: string | undefined,
-  query: Query,
-): DerivationParams & { domainId: DomainId } {
-  if (!id) badRequest('error.param.domainRequired')
-  if (!isDomainId(id as string)) return badRequest('error.param.domainId')
   return {
-    scope: 'local',
-    domainId: id as DomainId,
     horizon: oneOf(str(query.horizon), HORIZONS, 'today', 'error.param.horizon'),
     rScenario: oneOf(str(query.rScenario), R_SCENARIOS, 'mid', 'error.param.rScenario'),
   }

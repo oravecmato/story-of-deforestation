@@ -173,18 +173,17 @@ affects derivations triggers a (cached/deduped) fetch (ADR-005). A control that 
 - **`R` scenario** is a valid derivation axis (conservative / mid / high, default mid) but is **not
   surfaced as a deck control in V1** — every slide uses `mid`. It stays in the params for a later
   slide (business §4.1/§4.6).
-- **Scope** is not a standalone control: the deck is **global-first**, and single-domain viewing is
-  the **domain control in the `main` scene** (§3.1). The `crossing` and `footprint` scenes are
-  **global-only** (business §4.6).
+- **View:** the deck surfaces **only the global view** — the global aggregate with domains as stacked
+  layers. There is no scope/domain selector and no per-domain view; domains are an internal server-side
+  building block (business §4.6).
 
 **Interaction rules.**
 - The **footprint scene surfaces `baseline` + `horizon`** (slides 5 and 6, shared per-scene, reset
   policy A). `horizon` refetches; **`baseline` re-derives client-side in real time (no refetch, ADR-026)**;
   both set the equivalence strip's window (§6.7). The **unit** switcher (slide 6) is a client-only view
   toggle (no refetch, not in the URL).
-- The **domain control forces global** in the crossing/footprint scenes — it is simply not present
-  there; those scenes always render the global aggregate.
-- The **time horizon and domain** are the controls that refetch (each part of the derivation
+- Every scene renders the **global aggregate** (domains as stacked layers); there is no per-domain view.
+- The **time horizon** is the control that refetches (part of the derivation
   signature); the **baseline slider** (client-transform, real-time re-derive — ADR-026) and the
   **time-range zoom** never refetch and never manipulate the fetched series.
 - Controls never produce contradictory states (no layer checkboxes — which metrics show is authored
@@ -204,9 +203,9 @@ A **stacked time-series chart**, shared across slides 2 and 3.
   dashed + uncertainty band) animates in **on top** of the stock, producing the full picture (total
   Y = stock + forgone sink). The text block updates to explain that the reported number was only the
   visible part.
-- **Global vs. domain.** With domain = Global the chart is a **stacked area** whose layers are the
+- **Global stacked area.** The chart is a **stacked area** whose layers are the
   four domains plus the aggregate forgone sink and **one aggregate band** (not per-domain bands,
-  business §3). With a single domain it is that domain's stock + forgone-sink stack with its own band.
+  business §3).
 - **Projection.** A future horizon extends every layer past the last measured year as a lighter dashed
   projection with a join-year divider (§6.4). The forgone sink is always present once on slide 3 (no
   "official" mode strips it).
@@ -226,7 +225,7 @@ Two visualisations side by side, shared across slides 5 and 6. **Both slides sur
   (fossil, one-off deforestation stock, forgone sink); right = **deforestation-vs-fossil bar** — total
   deforestation emissions (stock + forgone sink) next to global fossil emissions. Both integrate over
   the forward window `[referenceYear, referenceYear + horizonYears(horizon)]` anchored at the
-  reference year (§9a) — the single measured year at *today*, growing with the horizon. Global scope.
+  reference year (§9a) — the single measured year at *today*, growing with the horizon.
 - **Slide 6 (same instances, animated → `deforestation-insight`):** **fossil is removed from both**
   visualisations. The donut animates from three slices to **two** (stock + forgone sink); the bar
   drops fossil and the Y-axis rescales so the remaining deforestation composition "zooms in." A
@@ -330,14 +329,13 @@ exactly this. It replaces the old scope×accounting mode matrix.
 |---|---|---|---|---|---|---|
 | Heading + body text | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
 | Caption line (top, no heading) | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
-| Main stacked chart | ✗ | ✓ (stock) | ✓ (stock + forgone) | ✗ | ✗ | ✗ |
+| Global stacked chart | ✗ | ✓ (stock) | ✓ (stock + forgone) | ✗ | ✗ | ✗ |
 | Crossing chart | ✗ | ✗ | ✗ | ✓ (global) | ✗ | ✗ |
 | Composition donut | ✗ | ✗ | ✗ | ✗ | ✓ (3 slices) | ✓ (2 slices) |
 | Defo-vs-fossil bar (one grid, two categories) | ✗ | ✗ | ✗ | ✗ | ✓ (with fossil) | ✓ (fossil removed) |
 | Equivalence strip (4 values, unit switcher) | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
 | Multiplier ×N | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
 | Horizon control | ✗ | ✓ | ✓ | ✗ | ✓ | ✓ |
-| Domain control | ✗ | ✓ | ✓ | ✗ | ✗ | ✗ |
 | Baseline control | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Time-range zoom | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
 | Unit switcher (equivalence) | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
@@ -412,13 +410,13 @@ finalized in `03-technical-specification.md`.
   rendered unconditionally, §3.2/§7), `DeckNav` (Next/Back), `ProgressIndicator`, `SlideHeading`,
   `SlideText`, `SlideCaption` (slide-6 top line), `AppHeader`, `LanguageSwitcher`,
   `MethodologyDisclosure`, `MultiplierBadge` (main scene), `EquivalenceStrip` (slide 6, §6.7).
-- **Controls:** `HorizonSelect` (SelectButton: today/+20/…/+100 y), `DomainSelect` (Global + four
-  domains), `BaselineSlider` (real-time 1800–latest, dashed pre-1990, client-transform — ADR-026),
+- **Controls:** `HorizonSelect` (SelectButton: today/+20/…/+100 y),
+  `BaselineSlider` (real-time 1800–latest, dashed pre-1990, client-transform — ADR-026),
   `TimeRangeZoom` (ECharts `dataZoom`), `UnitToggle` (equivalence strip:
   Mt CO₂ / car / country, slide 6). Placed by the scene, not a global bar. (No fossil-reference, no
-  accounting, no standalone scope control — §5.)
+  accounting, no scope/domain selector — §5.)
 - **Charts (tier 2, per-chart components over `BaseChart.vue`, Pinia-unaware):**
-  `MainStackedChart` (single domain), `GlobalStackedAreaChart` (global aggregate), `CrossingChart`,
+  `GlobalStackedAreaChart` (global aggregate, domains as stacked layers), `CrossingChart`,
   `FootprintDonut` (3-slice → 2-slice), `FossilComparisonChart` (**one grid, two categories**, shared
   Y-scale). Time-series charts render measured solid + a dashed **projection continuation** series per
   metric, excluded from the legend (§6.4). The equivalence data is presented by the slide-6

@@ -4,16 +4,6 @@
     "thesis": "Vykázané emisie z lesov sú len polovica príbehu — zvyškom je stratený budúci uhlíkový záchyt.",
     "footer": "Údaje: World Bank Open Data · EDGAR (EN.GHG.*). Portfóliová ukážka."
   },
-  "scope": {
-    "label": "Región",
-    "global": "Globálne (všetky tropické)",
-    "domain": {
-      "amazon": "Amazónia",
-      "congo": "Konžská panva",
-      "seasia": "Juhovýchodná Ázia",
-      "other": "Ostatné tropické"
-    }
-  },
   "horizon": {
     "label": "Časový horizont",
     "today": "Dnes",
@@ -43,30 +33,28 @@
     "fossil": { "title": "Odlesňovanie vs fosílne emisie" },
     "crossing": { "title": "Uvoľnenie stavu vs stratený záchyt" },
     "donut": { "title": "Podiel na stope" },
-    "equivalence": { "title": "Čo to znamená" },
-    "dataYear": "údaje do {year}",
-    "referenceYear": "porovnané v {year}"
+    "equivalence": { "title": "Čo to znamená" }
   },
-  "multiplier": {
-    "caption": "úplné vs vykázané v {year}",
-    "captionWindow": "úplné vs vykázané, {from}–{to}"
+  "window": {
+    "single": "za rok {year}",
+    "range": "za roky {from} – {to}"
   },
   "share": {
     "label": "Podiel na globálnej stope",
     "value": "{value}"
   },
   "equivalenceStrip": {
-    "stockWindow": "Vykázaný stav za okno",
+    "stockPeriod": "Vykázané emisie za periódu",
     "forgoneAnnual": "Stratený záchyt, ročne",
-    "forgoneWindow": "Stratený záchyt do horizontu",
-    "combined": "Všetko dokopy",
+    "forgonePeriod": "Stratený záchyt za periódu",
+    "combinedPeriod": "Dokopy za periódu",
     "unit": {
       "label": "Jednotka",
       "mtco2": "Mt CO₂",
       "car": "Autá",
       "country": "Slovensko",
-      "carSuffix": "osobných áut",
-      "countrySuffix": "× ročných emisií {country}"
+      "carLong": "ročné emisie osobného automobilu",
+      "countryLong": "ročné emisie {country}"
     }
   },
   "methodology": {
@@ -105,6 +93,14 @@
   "fossil": {
     "deforestation": "Odlesňovanie",
     "fossil": "Fosílne"
+  },
+  "flux": {
+    "absorbed": "Pohltené CO₂",
+    "released": "Uvoľnené CO₂",
+    "net": "Stratený čistý záchyt"
+  },
+  "rMultiplier": {
+    "label": "Násobič R"
   },
   "chart": {
     "crossing": {
@@ -146,6 +142,19 @@
     },
     "baselineLab": {
       "caption": "Pozrite sa, čo sa stane, keď posuniete referenčný rok — potiahnite ho späť k roku 1800 a sledujte, ako rastie stratený záchyt."
+    },
+    "method": {
+      "heading": "Ako sa vlastne stratený uhlíkový záchyt počíta?",
+      "p1": "Stratený záchyt je jednoduchý súčin: rýchlosť ukladania R krát plocha lesa stratená za rok. R je len to, koľko CO₂ by hektár daného lesa každý rok ďalej sťahoval zo vzduchu, keby ešte stál.",
+      "p2": "R nie je jedno univerzálne číslo. Líši sa les od lesa, pretože závisí od pomeru dvoch protichodných tokov: CO₂, ktoré živý les pri raste pohltí, a CO₂, ktoré uvoľní, keď drevo odumiera a rozkladá sa.",
+      "p3": "Hodnoty R, ktoré používame, sú dohľadateľné merania hrubých tokov — čistý záchyt je rozdiel medzi týmito dvoma tokmi, pohltené mínus uvoľnené. Čím väčší je tento rozdiel, tým viac záchytu nás každý vyrúbaný hektár potichu stojí."
+    },
+    "methodMore": {
+      "heading": "Zástupný nadpis",
+      "p1": "Zástupný text — bude doplnený."
+    },
+    "amplified": {
+      "caption": "Aj z týchto dôvodov niektoré klimatické vedecké modely navrhujú, že stratený uhlíkový záchyt by mohol byť až šesťnásobne vyšší. Čo by to znamenalo v praxi? Posuňte násobič R a sledujte."
     }
   }
 }

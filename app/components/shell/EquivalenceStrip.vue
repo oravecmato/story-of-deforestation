@@ -4,12 +4,14 @@ import type { StoreError } from '../../services/apiClient'
 import LoadingSkeleton from '../state/LoadingSkeleton.vue'
 import EmptyState from '../state/EmptyState.vue'
 import ErrorRetry from '../state/ErrorRetry.vue'
-import UnitToggle from '../controls/UnitToggle.vue'
+import UnitSelect from '../controls/UnitSelect.vue'
+import WindowLabel from './WindowLabel.vue'
+import UnitIcon from '../icons/UnitIcon.vue'
 
 // Equivalence strip (UI §6.7, ADR-025/026, §17.4), now a dumb leaf (ADR-027). FOUR colour-coded
 // magnitudes — each a client-side reduction over the already-fetched GLOBAL DTO across the forward
 // window — are resolved into fully presentation-ready `StripCell`s by the Widget seam and passed in;
-// this component only renders. It keeps the self-binding `UnitToggle` control (the interactive tier
+// this component only renders. It keeps the self-binding `UnitSelect` control (the interactive tier
 // stays Pinia-aware) which reprojects all four cells at once. `layout` selects the four-across footer
 // bar (`horizontal`, default — slide 6) or a stacked full-height aside column (`vertical` — the
 // slide-7 lab's quarter-width right column).
@@ -29,8 +31,11 @@ defineEmits<{ retry: [] }>()
 <template>
   <section class="strip" :class="{ 'strip--vertical': layout === 'vertical' }" :aria-label="title">
     <div class="strip__head">
-      <h2 class="strip__title">{{ title }}</h2>
-      <UnitToggle />
+      <div class="strip__titles">
+        <h2 class="strip__title">{{ title }}</h2>
+        <WindowLabel class="strip__window" />
+      </div>
+      <UnitSelect :full-width="layout === 'vertical'" />
     </div>
 
     <ErrorRetry v-if="error" :error="error" @retry="$emit('retry')" />
@@ -45,10 +50,15 @@ defineEmits<{ retry: [] }>()
         <p class="strip__value mono">
           <span v-if="cell.prefix" class="strip__prefix">{{ cell.prefix }}</span>
           {{ cell.value }}
-          <span class="strip__unit">{{ cell.unit }}</span>
+          <span class="strip__unit">
+            <template v-if="cell.unitIcon">
+              <span v-if="cell.unitIcon !== 'car'" class="strip__times" aria-hidden="true">×</span>
+              <UnitIcon :name="cell.unitIcon" class="strip__unit-icon" />
+            </template>
+            <template v-else>{{ cell.unit }}</template>
+          </span>
         </p>
         <p class="strip__caption">{{ cell.caption }}</p>
-        <p v-if="cell.note" class="strip__note">{{ cell.note }}</p>
       </div>
     </div>
     <EmptyState v-else />
@@ -72,11 +82,21 @@ defineEmits<{ retry: [] }>()
   gap: 16px;
   flex-wrap: wrap;
 }
+.strip__titles {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .strip__title {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--c-text-hi);
+}
+.strip__window {
+  font-size: 12px;
+  color: var(--c-text-low);
 }
 .strip__grid {
   display: grid;
@@ -115,16 +135,18 @@ defineEmits<{ retry: [] }>()
   font-size: 13px;
   color: var(--c-text-mid);
   font-weight: 400;
+  white-space: nowrap;
+}
+.strip__times {
+  margin-right: 7px;
+}
+.strip__unit-icon {
+  margin: 0 3px;
 }
 .strip__caption {
   margin: 4px 0 0;
   font-size: 13px;
   color: var(--c-text-mid);
-}
-.strip__note {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--c-text-low);
 }
 @media (max-width: 899px) {
   .strip__grid {

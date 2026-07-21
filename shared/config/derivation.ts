@@ -1,4 +1,4 @@
-import type { DerivationParams, Scope, Horizon, RScenario, DomainId } from '../types'
+import type { DerivationParams, Horizon, RScenario, DomainId } from '../types'
 import { DOMAINS } from './domains'
 
 // Shared derivation-parameter surface (tech-spec §8/§10). The enums + baseline floor live here so the
@@ -6,7 +6,6 @@ import { DOMAINS } from './domains'
 // of truth. `coerceDerivationParams` is the LENIENT client path: any missing/invalid key falls back
 // to the preset (ADR-017). `paramsKey` is the deterministic cache/CDN key (endpoint + params).
 
-export const SCOPES: readonly Scope[] = ['global', 'local']
 export const HORIZONS: readonly Horizon[] = ['today', '20y', '30y', '50y', '75y', '100y']
 export const R_SCENARIOS: readonly RScenario[] = ['conservative', 'mid', 'high']
 // LUH2 reconstruction reaches back to 1800 (ADR-026, business §7.2a); the slider may open the sink
@@ -23,6 +22,16 @@ export const BASELINE_MAX = 2020
 /** Calendar year the horizon axis is anchored at (ADR-019). `today` targets this year: measured series
  *  are nowcast up to the present so every series' extent is uniform (no inter-series gap). */
 export const HORIZON_ANCHOR_YEAR = 2026
+
+// The R-amplification factor (slide 10). A CLIENT-TRANSFORM like `baseline` (ADR-026): a coefficient
+// that scales the sink rate R uniformly across every derived figure, so the forgone sink grows by the
+// same factor everywhere. It never refetches — the client re-derives from the DTO the server already
+// shipped. Some climate models put the true forgone sink several times higher; the slider explores 1×
+// (the measured rate) up to 6× in whole steps.
+export const R_MULTIPLIER_MIN = 1
+export const R_MULTIPLIER_MAX = 6
+export const R_MULTIPLIER_STEP = 1
+export const DEFAULT_R_MULTIPLIER = 1
 
 const HORIZON_YEAR_OFFSET: Record<Horizon, number> = {
   today: 0,
@@ -54,12 +63,8 @@ export const sceneWindow = (referenceYear: number, h: Horizon): { from: number; 
   to: referenceYear + horizonYears(h),
 })
 
-/** Default domain when the user first switches to local scope (business §3.1). */
-export const DEFAULT_DOMAIN_ID: DomainId = 'amazon'
-
-/** Opening state (business §4): global / today / mid. Opens on measured data nowcast to the present. */
+/** Opening state (business §4): today / mid. Opens on measured data nowcast to the present. */
 export const PRESET_PARAMS: DerivationParams = {
-  scope: 'global',
   horizon: 'today',
   rScenario: 'mid',
 }
@@ -83,41 +88,43 @@ export const coerceBaseline = (v: unknown, fallback: number = DEFAULT_BASELINE):
   return Number.isInteger(n) && n >= BASELINE_FLOOR ? n : fallback
 }
 
+/**
+ * Coerce the client-transform `rMultiplier` view-state from a query value (slide 10). Invalid/missing →
+ * fallback (default 1×, the measured rate). Clamped to the discrete [1, 6] amplification range.
+ */
+export const coerceRMultiplier = (
+  v: unknown,
+  fallback: number = DEFAULT_R_MULTIPLIER,
+): number => {
+  const n = Number(first(v))
+  return Number.isInteger(n) && n >= R_MULTIPLIER_MIN && n <= R_MULTIPLIER_MAX ? n : fallback
+}
+
 export const isDomainId = (id: string | undefined): id is DomainId => id != null && id in DOMAINS
 
 /**
  * Lenient client-side coercion of a route query into DerivationParams: invalid/missing keys fall back
- * to `preset`. Local scope without a valid domain falls back to the default domain (never throws).
+ * to `preset` (never throws).
  */
 export function coerceDerivationParams(
   query: Record<string, unknown>,
   preset: DerivationParams = PRESET_PARAMS,
 ): DerivationParams {
-  const scope = asEnum(query.scope, SCOPES, preset.scope)
-  const params: DerivationParams = {
-    scope,
+  return {
     horizon: asEnum(query.horizon, HORIZONS, preset.horizon),
     rScenario: asEnum(query.rScenario, R_SCENARIOS, preset.rScenario),
   }
-  if (scope === 'local') {
-    const id = first(query.domainId)
-    params.domainId = isDomainId(id) ? id : (preset.domainId ?? DEFAULT_DOMAIN_ID)
-  }
-  return params
 }
 
 /** Deterministic cache/CDN key for an endpoint + params (stable field order). */
 export function paramsKey(endpoint: string, p: DerivationParams): string {
-  return [endpoint, p.scope, p.domainId ?? '', p.horizon, p.rScenario].join(':')
+  return [endpoint, p.horizon, p.rScenario].join(':')
 }
 
-/** DerivationParams → a plain query object for the router / apiClient (drops undefined domainId). */
+/** DerivationParams → a plain query object for the router / apiClient. */
 export function paramsToQuery(p: DerivationParams): Record<string, string> {
-  const q: Record<string, string> = {
-    scope: p.scope,
+  return {
     horizon: p.horizon,
     rScenario: p.rScenario,
   }
-  if (p.domainId) q.domainId = p.domainId
-  return q
 }

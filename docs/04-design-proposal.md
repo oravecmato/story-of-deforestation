@@ -159,8 +159,8 @@ one of **four closed layout presets** (tech spec §11/§17): `text`, `viz-text`,
   strip. The `viz` slot outlet is the *same* element as `duo-viz-text`, so the 5→6 charts are preserved
   and only animate (§7, tech spec §17.2).
 - **Scene controls** sit as a quiet inline row **just above the chart** — only what the scene surfaces
-  (main: horizon · domain · baseline; crossing: time-range · baseline). Small, `text.mid`, never a
-  hero bar. The domain control appears only in the main scene; crossing/footprint are forced global.
+  (main: horizon · baseline; crossing: time-range · baseline). Small, `text.mid`, never a
+  hero bar. Every scene renders the global aggregate (domains as stacked layers).
 - **Multiplier badge (`×N`)** appears **from slide 3** (when the forgone sink is revealed), top-right
   of the main chart — `Σfull ÷ Σstock` over the forward window `[referenceYear, referenceYear +
   horizonYears(horizon)]`, never a trivial "×1". Absent on slide 2 (stock only).
@@ -196,8 +196,6 @@ the crossing.
   - **Horizon (`HorizonSelect`):** a compact segmented pill `today · 20y · 30y · 50y · 75y · 100y`,
     `today` default; active segment accent-tinted `surface.2` + `text.hi`; labels are i18n keys
     ("+20 rokov" / "+20 years"). Main scene only. On narrow widths condenses to a `▾ horizon` select.
-  - **Domain (`DomainSelect`):** PrimeVue Select of the four domains; **main scene only** (global-first
-    deck; no standalone scope toggle — tech spec §17.1). Absent on crossing/footprint (forced global).
   - **Baseline (`BaselineSlider`):** a real-time year slider, floor **1800** … latest, "from loss after
     **{year}**"; the track visually splits at **1990** (measured right / reconstructed left, a dashed/
     lighter track segment) so the reader feels when they cross into the LUH2 back-projection. Dragging
@@ -304,8 +302,8 @@ remount — tech spec §11.4/§17.3, ADR-022):
 **Resolved (iteration 2):**
 - **Number typeface:** **IBM Plex Mono** for the `×N` badge + big scalar readouts; Inter tabular
   everywhere else inline.
-- **Tablet control bar:** R-scenario + baseline **collapse behind a disclosure**; scope + horizon
-  selector stay on the hero row (§5.2).
+- **Tablet control bar:** R-scenario + baseline **collapse behind a disclosure**; the horizon
+  selector stays on the hero row (§5.2).
 
 **Resolved (iteration 3 — official↔full → time horizon):**
 - **Projected-future style:** measured-vs-projected is a **lighter dashed** step over the existing
@@ -320,7 +318,7 @@ remount — tech spec §11.4/§17.3, ADR-022):
   single-route **deck shell** — header · slide stage · deck nav — rendering one of three closed layout
   presets (`text`, `viz-text`, `duo-viz-text`) with the **text block below the viz** (§5/§6).
 - **Controls demoted:** no hero control bar; the few per-scene controls sit as a quiet inline row above
-  the chart. Domain becomes a **main-scene control** (global-first; no standalone scope toggle); R is
+  the chart. The app surfaces **only the global view** (no scope/domain selector); R is
   **not surfaced** in V1 (§6).
 - **Drama = two authored in-place animations** (same `viz.id`, `setOption`): forgone-sink reveal
   (2→3) and fossil-removal/zoom-in (5→6) — §7/§8. The fossil-comparison bar is restructured to **one

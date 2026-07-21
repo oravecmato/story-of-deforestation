@@ -15,15 +15,15 @@ export const MT_TO_T = 1e6
 /** The four strip magnitudes, all in Mt CO₂ before unit conversion (§17.4). */
 export interface StripValues {
   /** Value 1 — stock released over the window (Σ `aggregateStock` across `[referenceYear, targetYear]`). */
-  stockWindow: number
+  stockPeriod: number
   /** Value 2 — forgone-sink annual rate at the last measured year (`referenceYear`). */
   forgoneAnnual: number
   /** Value 3 — forgone sink integrated over the window = the TRUE finite integral
    *  Σ `aggregateForgoneSink` across `[referenceYear, targetYear]` (business §2.4 quantity #2), the same
-   *  basis as `stockWindow` and the fossil bar. */
-  forgoneWindow: number
+   *  basis as `stockPeriod` and the fossil bar. */
+  forgonePeriod: number
   /** Value 4 — combined total = value 1 + value 3 (stock + forgone over the window). */
-  combined: number
+  combinedPeriod: number
 }
 
 /** The series' value at `year`, or — if that exact year is absent — the last real value at or before
@@ -42,7 +42,7 @@ function levelAt(points: Series['points'], year: number): number {
  * `[referenceYear, referenceYear + horizonYears(horizon)]` (§17.4). The DTO's series are already
  * projected to the target year server-side. Value 2 is the annual forgone-sink rate at the DTO's
  * `referenceYear` (measured year); value 3 is the TRUE finite integral Σ of that flow over the window —
- * the same basis as `stockWindow`, so all magnitudes are the same kind of quantity (business §2.4 #2).
+ * the same basis as `stockPeriod`, so all magnitudes are the same kind of quantity (business §2.4 #2).
  */
 export function deriveStripValues(
   global: GlobalResultDTO,
@@ -50,22 +50,26 @@ export function deriveStripValues(
   horizon: Horizon,
 ): StripValues {
   const { from, to } = sceneWindow(global.referenceYear, horizon)
-  const stockWindow = sumWindow(global.aggregateStock, from, to)
+  const stockPeriod = sumWindow(global.aggregateStock, from, to)
   const forgoneAnnual = levelAt(forgone.points, global.referenceYear)
   // Forgone sink is a FLOW (Mt CO₂/yr): the loss over the window is the TRUE finite integral Σ of the
   // annual rate across the window's years — consistent with stock/fossil (business §2.4 #2).
-  const forgoneWindow = sumWindow(forgone, from, to)
+  const forgonePeriod = sumWindow(forgone, from, to)
   return {
-    stockWindow,
+    stockPeriod,
     forgoneAnnual,
-    forgoneWindow,
-    combined: stockWindow + forgoneWindow,
+    forgonePeriod,
+    combinedPeriod: stockPeriod + forgonePeriod,
   }
 }
 
 /** One fully-resolved display cell of the equivalence strip — every field is presentation-ready text
  *  (formatted value, localized unit/caption, resolved colour). The Widget seam builds these from the
  *  live stores so the strip component itself stays a dumb, Pinia-unaware leaf (ADR-027). */
+/** The pictogram trailing a cell's unit label: the car glyph (car unit) or a reference-country flag
+ *  (country unit). Absent for the raw Mt CO₂ unit. */
+export type UnitIcon = 'car' | 'sk' | 'gb'
+
 export interface StripCell {
   key: string
   /** The cell's accent colour (a theme `data.*` token). */
@@ -76,10 +80,10 @@ export interface StripCell {
   value: string
   /** The trailing localized unit label. */
   unit: string
+  /** The pictogram shown after the unit label (car / country flag); omitted for the Mt CO₂ unit. */
+  unitIcon?: UnitIcon
   /** The localized caption under the figure. */
   caption: string
-  /** An optional localized note (e.g. the "as of {year}" for the annual rate). */
-  note?: string
 }
 
 /** Basis scalars for the non-`mtco2` units (§17.4). */

@@ -16,11 +16,12 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
-const option = computed(() =>
-  new GlobalStackedAreaOption({ ...props.result, ...props.derived }, props.ctx, props.presentation).build(),
+const chart = computed(
+  () => new GlobalStackedAreaOption({ ...props.result, ...props.derived }, props.ctx, props.presentation),
 )
+const option = computed(() => chart.value.build())
 </script>
 
 <template>
-  <BaseChart :option="option" :loading="loading" />
+  <BaseChart :option="option" :y-unit="chart.yUnit()" :theme="ctx.theme" :loading="loading" />
 </template>

@@ -26,11 +26,11 @@ export interface RenderableControl {
 
 /** The tier-2 chart component names the `Widget` renderer maps to actual components (§11, §17.2). */
 export type ChartComponentName =
-  | 'MainStackedChart'
   | 'GlobalStackedAreaChart'
   | 'CrossingChart'
   | 'FootprintDonut'
   | 'FossilComparisonChart'
+  | 'FluxBarChart'
 
 /** Fields every resolved widget carries: its authored identity and the grid area it occupies. */
 interface RenderableWidgetBase {
@@ -38,17 +38,11 @@ interface RenderableWidgetBase {
   area: string
 }
 
-export interface RenderableHeading extends RenderableWidgetBase {
-  type: 'heading'
-  headingKey: string
-}
 export interface RenderableText extends RenderableWidgetBase {
   type: 'text'
-  textKeys: string[]
-}
-export interface RenderableCaption extends RenderableWidgetBase {
-  type: 'caption'
-  captionKey: string
+  headingKey?: string
+  captionKey?: string
+  textKeys?: string[]
 }
 export interface RenderableControls extends RenderableWidgetBase {
   type: 'controls'
@@ -70,9 +64,7 @@ export interface RenderableEquivalence extends RenderableWidgetBase {
 
 /** A widget resolved for rendering (discriminated by `type`). */
 export type RenderableWidget =
-  | RenderableHeading
   | RenderableText
-  | RenderableCaption
   | RenderableControls
   | RenderableViz
   | RenderableMultiplier
@@ -88,22 +80,23 @@ export interface RenderableSlide {
   widgets: RenderableWidget[]
 }
 
-/** Client-only controls (no refetch): both baseline controls (`baseline` select + `baselineSlider`) —
- *  the ADR-026 client-transform. `horizon`/`domain` mutate DerivationParams and refetch (ADR-021). */
+/** Client-only controls (no refetch): both baseline controls (`baseline` select + `baselineSlider`)
+ *  and the `rMultiplier` R-amplifier — all ADR-026 client-transforms. `horizon` mutates
+ *  DerivationParams and refetches (ADR-021). */
 const CLIENT_ONLY_CONTROLS: ReadonlySet<ControlKey> = new Set<ControlKey>([
   'baseline',
   'baselineSlider',
+  'rMultiplier',
 ])
 
 const controlMode = (key: ControlKey): DerivationMode =>
   CLIENT_ONLY_CONTROLS.has(key) ? 'client-only' : 'server-refetch'
 
-/** Resolve a viz `kind` to its concrete component. `mainStacked` picks the global stacked-area or the
- *  single-domain stack from the effective scope (business §6.1); the rest are fixed. */
-const resolveComponent = (kind: VizKind, params: DerivationParams): ChartComponentName => {
+/** Resolve a viz `kind` to its concrete component. The global stacked-area shows the domains as stacked
+ *  layers (business §6.1); the rest are fixed. */
+const resolveComponent = (kind: VizKind): ChartComponentName => {
   switch (kind) {
     case 'mainStacked':
-      return params.scope === 'global' ? 'GlobalStackedAreaChart' : 'MainStackedChart'
     case 'globalStackedArea':
       return 'GlobalStackedAreaChart'
     case 'crossing':
@@ -112,20 +105,24 @@ const resolveComponent = (kind: VizKind, params: DerivationParams): ChartCompone
       return 'FootprintDonut'
     case 'fossilComparison':
       return 'FossilComparisonChart'
+    case 'fluxBar':
+      return 'FluxBarChart'
   }
 }
 
-/** Resolve one authored widget against the effective params. Each widget owns its resolution: viz →
- *  concrete component + presentation; controls → mode-tagged controls; the rest pass config through. */
-const resolveWidget = (widget: WidgetDef, params: DerivationParams): RenderableWidget => {
+/** Resolve one authored widget. Each widget owns its resolution: viz → concrete component +
+ *  presentation; controls → mode-tagged controls; the rest pass config through. */
+const resolveWidget = (widget: WidgetDef): RenderableWidget => {
   const base = { id: widget.id, area: widget.area }
   switch (widget.type) {
-    case 'heading':
-      return { ...base, type: 'heading', headingKey: widget.headingKey }
     case 'text':
-      return { ...base, type: 'text', textKeys: widget.textKeys }
-    case 'caption':
-      return { ...base, type: 'caption', captionKey: widget.captionKey }
+      return {
+        ...base,
+        type: 'text',
+        headingKey: widget.headingKey,
+        captionKey: widget.captionKey,
+        textKeys: widget.textKeys,
+      }
     case 'controls':
       return {
         ...base,
@@ -137,7 +134,7 @@ const resolveWidget = (widget: WidgetDef, params: DerivationParams): RenderableW
         ...base,
         type: 'viz',
         kind: widget.kind,
-        component: resolveComponent(widget.kind, params),
+        component: resolveComponent(widget.kind),
         presentation: { metrics: widget.metrics },
       }
     case 'multiplier':
@@ -150,7 +147,7 @@ const resolveWidget = (widget: WidgetDef, params: DerivationParams): RenderableW
 /**
  * Resolve an authored slide against the current scene's params into a render-ready unit (§17.2).
  * `params` is the scene's live `DerivationParams` (§10.1); the slide's immutable `forced` overrides
- * are applied on top so scope/horizon locks (crossing/footprint → global) always win.
+ * are applied on top so horizon locks (crossing/footprint) always win.
  */
 export const renderSlide = (def: SlideDef, params: DerivationParams): RenderableSlide => {
   const effective: DerivationParams = { ...params, ...def.forced }
@@ -159,6 +156,6 @@ export const renderSlide = (def: SlideDef, params: DerivationParams): Renderable
     scene: def.scene,
     grid: def.grid,
     params: effective,
-    widgets: def.widgets.map((w) => resolveWidget(w, effective)),
+    widgets: def.widgets.map((w) => resolveWidget(w)),
   }
 }

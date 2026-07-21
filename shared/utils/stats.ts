@@ -270,6 +270,40 @@ export function projectSeries(series: Series, targetYear: number, lookback = 9):
 }
 
 /**
+ * The first PROJECTED year at which a series reaches zero — the year its linear projection implies
+ * the flow has fully halted (`projectSeries` clamps at 0, so it stays 0 thereafter). Only projected
+ * years (year > `projectedFrom`) count; a series with no projection, or whose projected tail never
+ * reaches zero (e.g. a rising trend), returns null. Used to couple a domain's forgone sink to its
+ * OWN stock projection: once the stock says deforestation stops, the sink must stop growing rather
+ * than track area's independent trend (business §2.4b).
+ */
+export function projectedHaltYear(series: Series): number | null {
+  const from = series.meta.projectedFrom
+  if (from == null) return null
+  for (const p of series.points) {
+    if (p.year > from && p.value === 0) return p.year
+  }
+  return null
+}
+
+/**
+ * Hold a cumulative (state) series constant from `haltYear` onward at the level it reached the year
+ * before — a plateau. A `null` haltYear returns the series unchanged; years before `haltYear` are
+ * untouched. This is how a domain's cumulative area loss (and thus forgone sink) is coupled to its
+ * stock-projection halt: when stock is projected to zero, cumulative loss plateaus instead of rising
+ * on area's independent trend (business §2.4b).
+ */
+export function freezeCumulativeAfter(cumLoss: Series, haltYear: number | null): Series {
+  if (haltYear == null) return cumLoss
+  const plateau =
+    [...cumLoss.points].reverse().find((p) => p.year < haltYear && p.value != null)?.value ?? null
+  const points: DataPoint[] = cumLoss.points.map((p) =>
+    p.year >= haltYear ? { ...p, value: plateau } : p,
+  )
+  return { ...cumLoss, points }
+}
+
+/**
  * Forgone sink = R × cumulative area loss (business §2.2), converted to Mt CO₂/yr.
  * The central line uses the scenario-selected R; the band spans the RRange endpoints (may be
  * asymmetric — business §6, §16.26). `isEstimate = true`.

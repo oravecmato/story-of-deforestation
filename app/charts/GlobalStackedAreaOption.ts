@@ -1,4 +1,4 @@
-import type { EChartsOption, SeriesOption } from 'echarts'
+import type { SeriesOption } from 'echarts'
 import type { GlobalResultDTO, GlobalDerived } from '../../shared/types'
 import { BaseChartOption } from './BaseChartOption'
 
@@ -14,7 +14,7 @@ export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO & G
     const forgone = this.data.aggregateForgoneSink
     const stock = this.data.aggregateStock
     // The forgone sink (extra stacked layer + band) appears only when the slide's metric set includes
-    // it — the main-scene reveal on the global chart, mirroring MainStackedOption (§11.2).
+    // it — the main-scene reveal on the global chart (§11.2).
     const showForgone = this.has('forgoneSink')
     const stockJoin = this.data.perDomainStock[0]?.meta.projectedFrom ?? null
     const join = stockJoin ?? (showForgone ? forgone.meta.projectedFrom : null) ?? null
@@ -30,7 +30,11 @@ export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO & G
 
     const lastDomain = this.data.perDomainStock.length - 1
     const domainAreas: SeriesOption[] = this.data.perDomainStock.map((s, i) => ({
-      name: s.id,
+      // Legend + tooltip must read the pretty, translated domain name — not the raw series id
+      // (`stock:congo`). The id half after the colon is the DomainId, which is also the `domain.*`
+      // i18n key. The name stays stable + unique per domain, so the cross-slide animation id mapping
+      // is unaffected.
+      name: t(`domain.${s.id.slice(s.id.indexOf(':') + 1)}`),
       type: 'line',
       stack: 'stock',
       areaStyle: {},
@@ -72,16 +76,5 @@ export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO & G
       ...this.edgeLines(total, forgone.meta.projectedFrom ?? join, theme.data.forgoneSink, true, 'total'),
       ...this.bandSeries(this.bandOnTop(stock, forgone)),
     ]
-  }
-
-  // Legend shows the per-domain layers + (when present) the forgone sink; projected twins
-  // (name-suffixed) and band helpers (names prefixed '__') are omitted (§11.1).
-  override build(): EChartsOption {
-    const data = [...this.data.perDomainStock.map((s) => s.id)]
-    if (this.has('forgoneSink')) data.push(this.ctx.t('series.forgoneSink'))
-    return {
-      ...super.build(),
-      legend: { textStyle: { color: this.ctx.theme.text.mid }, data },
-    }
   }
 }

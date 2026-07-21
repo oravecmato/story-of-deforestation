@@ -2,58 +2,40 @@
 import { describe, it, expect, vi } from 'vitest'
 import { defineComponent, h, onMounted, onUnmounted } from 'vue'
 import { mount } from '@vue/test-utils'
-import ProgressIndicator from '../app/components/deck/ProgressIndicator.vue'
 import DeckNav from '../app/components/deck/DeckNav.vue'
 import SlideLayout from '../app/components/deck/SlideLayout.vue'
-import { SLUGS, FIRST_SLUG, nextSlug, prevSlug, slideIndex } from '../app/story/slides'
+import { SLUGS, FIRST_SLUG, nextSlug, prevSlug } from '../app/story/slides'
 
-// Deck navigation components (tech-spec §17.2). Nuxt's auto-imported `useI18n` is stubbed (t echoes
-// its key); PrimeVue's Button is stubbed to a plain <button> so we can drive clicks without the plugin.
+// Deck navigation components (tech-spec §17.2). Nuxt's auto-imported `useI18n` is stubbed (t echoes its
+// key). DeckNav is now two edge-arrow ghost lanes (plain <button>s + inline SVG chevrons), each present
+// only when a slide exists in that direction — no PrimeVue, no progress dots.
 vi.stubGlobal('useI18n', () => ({ t: (k: string) => k, locale: { value: 'en' } }))
 
-const ButtonStub = {
-  props: ['label', 'disabled', 'icon', 'iconPos', 'severity', 'text'],
-  emits: ['click'],
-  template: '<button :disabled="disabled" @click="$emit(\'click\')">{{ label }}</button>',
-}
+describe('DeckNav (edge arrow lanes)', () => {
+  const mountAt = (slug: string) => mount(DeckNav, { props: { slug } })
 
-describe('ProgressIndicator', () => {
-  it('renders one dot per slide and marks the active one', () => {
-    const w = mount(ProgressIndicator, { props: { slug: 'crossing' } })
-    const dots = w.findAll('.progress__dot')
-    expect(dots).toHaveLength(SLUGS.length)
-    const active = w.findAll('.progress__dot--active')
-    expect(active).toHaveLength(1)
-    expect(dots[slideIndex('crossing')]!.classes()).toContain('progress__dot--active')
-  })
-})
-
-describe('DeckNav', () => {
-  const mountAt = (slug: string) =>
-    mount(DeckNav, {
-      props: { slug },
-      global: { stubs: { Button: ButtonStub } },
-    })
-
-  it('disables Back on the first slide', () => {
+  it('renders only the Next lane on the first slide', () => {
     const w = mountAt(FIRST_SLUG)
-    const [back, next] = w.findAll('button')
-    expect((back!.element as HTMLButtonElement).disabled).toBe(true)
-    expect((next!.element as HTMLButtonElement).disabled).toBe(false)
+    expect(w.find('.deck-nav__lane--prev').exists()).toBe(false)
+    expect(w.find('.deck-nav__lane--next').exists()).toBe(true)
   })
 
-  it('disables Next on the last slide', () => {
+  it('renders only the Back lane on the last slide', () => {
     const last = SLUGS[SLUGS.length - 1] as string
     const w = mountAt(last)
-    const [back, next] = w.findAll('button')
-    expect((back!.element as HTMLButtonElement).disabled).toBe(false)
-    expect((next!.element as HTMLButtonElement).disabled).toBe(true)
+    expect(w.find('.deck-nav__lane--prev').exists()).toBe(true)
+    expect(w.find('.deck-nav__lane--next').exists()).toBe(false)
   })
 
-  it('emits navigate to the next slug on Next click', async () => {
+  it('renders both lanes on a middle slide', () => {
     const w = mountAt('main')
-    const next = w.findAll('button')[1]!
-    await next.trigger('click')
+    expect(w.find('.deck-nav__lane--prev').exists()).toBe(true)
+    expect(w.find('.deck-nav__lane--next').exists()).toBe(true)
+  })
+
+  it('emits navigate to the next slug on the Next lane click', async () => {
+    const w = mountAt('main')
+    await w.find('.deck-nav__lane--next').trigger('click')
     expect(w.emitted('navigate')?.[0]).toEqual([nextSlug('main')])
   })
 

@@ -1,19 +1,18 @@
 import { defineStore } from 'pinia'
 import type {
   DerivationParams,
-  Scope,
   Horizon,
   RScenario,
-  DomainId,
   SceneId,
   EquivalenceUnit,
 } from '../../shared/types'
 import {
   PRESET_PARAMS,
-  DEFAULT_DOMAIN_ID,
   DEFAULT_BASELINE,
+  DEFAULT_R_MULTIPLIER,
   coerceDerivationParams,
   coerceBaseline,
+  coerceRMultiplier,
   paramsToQuery,
 } from '../../shared/config/derivation'
 
@@ -37,23 +36,24 @@ export interface SceneSeed {
 
 /** A snapshot of one scene's control/view state (policy A save/restore). */
 interface SceneSnapshot {
-  scope: Scope
-  domainId: DomainId
   horizon: Horizon
   rScenario: RScenario
   baseline: number
+  rMultiplier: number
 }
 
 export const useViewStore = defineStore('view', {
   state: () => ({
     currentScene: 'main' as SceneId,
-    scope: PRESET_PARAMS.scope as Scope,
-    domainId: DEFAULT_DOMAIN_ID as DomainId, // meaningful only in local scope
     horizon: PRESET_PARAMS.horizon as Horizon,
     rScenario: PRESET_PARAMS.rScenario as RScenario,
     /** Sink-integration origin (ADR-026). Client-transform view-state: URL-synced for shareability
      *  but NEVER refetches — the server ships the full-range area and the client re-derives locally. */
     baseline: DEFAULT_BASELINE,
+    /** R-amplification factor (slide 10). Client-transform view-state like `baseline`: URL-synced for
+     *  shareability but NEVER refetches — it scales the sink rate R uniformly and the client re-derives
+     *  the forgone sink locally. Per-scene (snapshotted), so leaving slide 10 restores 1× everywhere else. */
+    rMultiplier: DEFAULT_R_MULTIPLIER,
     /** The unit the slide-6 equivalence strip renders in (ADR-025, §17.4). Pure client view state —
      *  NOT part of `derivationParams`/`query` (no refetch, out of the URL). Default
      *  `car`; the `country` unit is locale-driven (SVK/UK). Scene-invariant (only slide 6 reads it). */
@@ -63,20 +63,21 @@ export const useViewStore = defineStore('view', {
   }),
 
   getters: {
-    /** The cache-key surface (ADR-005) of the CURRENT scene. Includes domainId only in local scope. */
+    /** The cache-key surface (ADR-005) of the CURRENT scene. */
     derivationParams(state): DerivationParams {
-      const p: DerivationParams = {
-        scope: state.scope,
+      return {
         horizon: state.horizon,
         rScenario: state.rScenario,
       }
-      if (state.scope === 'local') p.domainId = state.domainId
-      return p
     },
     /** URL-sync object (ADR-017): the refetch cache-key surface PLUS the client-transform `baseline`
      *  (ADR-026 — in the URL for shareability, but not a DerivationParam, so it never refetches). */
     query(): Record<string, string> {
-      return { ...paramsToQuery(this.derivationParams), baseline: String(this.baseline) }
+      return {
+        ...paramsToQuery(this.derivationParams),
+        baseline: String(this.baseline),
+        rMultiplier: String(this.rMultiplier),
+      }
     },
   },
 
@@ -85,11 +86,10 @@ export const useViewStore = defineStore('view', {
      *  missing/invalid key (composer path; the deck uses `initSceneFromQuery`). */
     initFromQuery(query: Record<string, unknown>) {
       const p = coerceDerivationParams(query)
-      this.scope = p.scope
       this.horizon = p.horizon
       this.rScenario = p.rScenario
       this.baseline = coerceBaseline(query.baseline)
-      if (p.domainId) this.domainId = p.domainId
+      this.rMultiplier = coerceRMultiplier(query.rMultiplier)
     },
 
     /** Hydrate a scene's params from the route query on initial load, with the scene's authored
@@ -98,11 +98,10 @@ export const useViewStore = defineStore('view', {
       const authored = { ...PRESET_PARAMS, ...seed.params } as DerivationParams
       const p = coerceDerivationParams(query, authored)
       const f = seed.forced ?? {}
-      this.scope = f.scope ?? p.scope
-      this.domainId = f.domainId ?? p.domainId ?? DEFAULT_DOMAIN_ID
       this.horizon = f.horizon ?? p.horizon
       this.rScenario = f.rScenario ?? p.rScenario
       this.baseline = coerceBaseline(query.baseline, seed.baseline ?? DEFAULT_BASELINE)
+      this.rMultiplier = coerceRMultiplier(query.rMultiplier)
       this.currentScene = scene
     },
 
@@ -125,59 +124,37 @@ export const useViewStore = defineStore('view', {
     /** Capture the current scene's live state for later restore (policy A). */
     snapshot(): SceneSnapshot {
       return {
-        scope: this.scope,
-        domainId: this.domainId,
         horizon: this.horizon,
         rScenario: this.rScenario,
         baseline: this.baseline,
+        rMultiplier: this.rMultiplier,
       }
     },
 
     /** Load a previously-saved scene snapshot into the live fields. */
     restore(snap: SceneSnapshot) {
-      this.scope = snap.scope
-      this.domainId = snap.domainId
       this.horizon = snap.horizon
       this.rScenario = snap.rScenario
       this.baseline = snap.baseline
+      this.rMultiplier = snap.rMultiplier
     },
 
     /** First-entry seed: authored defaults over the preset. */
     seedScene(seed: SceneSeed) {
       const p = { ...PRESET_PARAMS, ...seed.params } as DerivationParams
-      this.scope = p.scope
-      this.domainId = p.domainId ?? DEFAULT_DOMAIN_ID
       this.horizon = p.horizon
       this.rScenario = p.rScenario
       this.baseline = seed.baseline ?? DEFAULT_BASELINE
+      this.rMultiplier = DEFAULT_R_MULTIPLIER
     },
 
-    /** Apply a slide's immutable `forced` overrides (scope/horizon locks, e.g. crossing/footprint). */
+    /** Apply a slide's immutable `forced` overrides (horizon lock, e.g. crossing/footprint). */
     applyForced(forced?: Partial<DerivationParams>) {
       if (!forced) return
-      if (forced.scope != null) this.scope = forced.scope
-      if (forced.domainId != null) this.domainId = forced.domainId
       if (forced.horizon != null) this.horizon = forced.horizon
       if (forced.rScenario != null) this.rScenario = forced.rScenario
     },
 
-    /** The main-scene domain control: Global (global scope) or a single domain (local scope). */
-    selectDomain(sel: 'global' | DomainId) {
-      if (sel === 'global') this.setScope('global')
-      else {
-        this.setScope('local')
-        this.setDomain(sel)
-      }
-    },
-
-    setScope(scope: Scope) {
-      if (scope === this.scope) return
-      this.scope = scope
-    },
-    setDomain(domainId: DomainId) {
-      if (domainId === this.domainId) return
-      this.domainId = domainId
-    },
     setHorizon(horizon: Horizon) {
       this.horizon = horizon
     },
@@ -186,6 +163,10 @@ export const useViewStore = defineStore('view', {
     },
     setBaseline(baseline: number) {
       this.baseline = baseline
+    },
+    /** The R-amplification factor (client-only, slide 10 — no refetch, re-derives the forgone sink). */
+    setRMultiplier(rMultiplier: number) {
+      this.rMultiplier = rMultiplier
     },
     /** The equivalence-strip unit (client-only, no refetch, not in the URL — ADR-025, §17.4). */
     setUnit(unit: EquivalenceUnit) {

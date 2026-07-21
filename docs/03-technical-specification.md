@@ -67,17 +67,15 @@ code is written this round.
 │  ├─ components/
 │  │  ├─ deck/                     # AppHeader, DeckNav, ProgressIndicator, GenericSlide, SlideLayout,
 │  │  │                            #   SlideHeading, SlideText, MultiplierBadge, MethodologyDisclosure
-│  │  ├─ controls/                 # HorizonSelect, DomainSelect, BaselineControl, TimeRangeZoom
+│  │  ├─ controls/                 # HorizonSelect, BaselineControl, TimeRangeZoom
 │  │  └─ charts/
 │  │     ├─ BaseChart.vue          # tier 1: dumb <VChart> wrapper (autoresize, emits timeRange)
-│  │     ├─ MainStackedChart.vue   # tier 2: per-chart components (Pinia-unaware, typed props+metrics)
-│  │     ├─ GlobalStackedAreaChart.vue
+│  │     ├─ GlobalStackedAreaChart.vue  # tier 2: per-chart components (Pinia-unaware, typed props+metrics)
 │  │     ├─ CrossingChart.vue
 │  │     ├─ FossilComparisonChart.vue   # one grid, two categories (ADR-024)
 │  │     └─ FootprintDonut.vue
 │  ├─ charts/                      # tier 3: chart-option classes (pure; take a metrics/presentation arg)
 │  │  ├─ BaseChartOption.ts        # abstract base
-│  │  ├─ MainStackedOption.ts
 │  │  ├─ GlobalStackedAreaOption.ts
 │  │  ├─ CrossingOption.ts
 │  │  ├─ FootprintDonutOption.ts
@@ -96,7 +94,6 @@ code is written this round.
 │     └─ primevue, echarts config as needed
 ├─ server/
 │  ├─ api/
-│  │  ├─ domain/[id].get.ts        # /api/domain/{id}
 │  │  ├─ global.get.ts             # /api/global
 │  │  ├─ reference.get.ts          # /api/reference
 │  │  └─ equivalence.get.ts        # /api/equivalence
@@ -243,35 +240,15 @@ its **unit switcher** (`mtco2`/`car`/`country`, default `car`). The strip's four
 forgone-sink figure a TRUE finite integral `Σ` over that window (business §2.4 #2), consistent with
 stock/fossil — so no `EquivalenceDTO` fetch is required for the strip itself.
 
-### 2.4 Scope / Domain selector config (`scopeSelector.ts`)
-The scope and domain axes stay two independent state variables (`DerivationParams.scope` +
-`domainId`, §3.2). The time horizon (§2.3, §3.2) is the third derivation axis that replaced the old
-official↔full accounting switch — **the data model otherwise unchanged.** In the story deck the app
-is **global-first**: only the **main scene** surfaces a `DomainSelect` (the crossing/footprint scenes
-are forced global, §17.1). This constant drives that select — its entries are the sole mapping from
-the single control back onto the two variables (a `Global` entry = `scope:'global'`; a domain entry =
-`scope:'local'` + `domainId`).
-```ts
-interface ScopeSelectorOption {
-  labelKey: string;                       // i18n key — never a literal label
-  divider: boolean;                       // render a simple delimiter before this item
-  scope: DerivationParams['scope'];       // 'global' | 'local'
-  domainId: DomainConfig['id'] | null;    // local domain id; null for the global entry
-}
-
-// Display order; the dropdown is rendered from this array (no hardcoded strings).
-const SCOPE_SELECTOR_OPTIONS: readonly ScopeSelectorOption[] = [
-  { labelKey: 'scope.domain.amazon', divider: false, scope: 'local',  domainId: 'amazon' },
-  { labelKey: 'scope.domain.congo',  divider: false, scope: 'local',  domainId: 'congo' },
-  { labelKey: 'scope.domain.seasia', divider: false, scope: 'local',  domainId: 'seasia' },
-  { labelKey: 'scope.domain.other',  divider: false, scope: 'local',  domainId: 'other_tropical' },
-  { labelKey: 'scope.global',        divider: true,  scope: 'global', domainId: null },  // DEFAULT
-];
-```
-`DomainSelect` (the main scene's control, UI §5/§11) renders one item per entry, drawing a delimiter
-before any entry with `divider:true`; the Global entry is the deck's default (global-first). Selecting
-an entry copies **both** `scope` and `domainId` onto the **current scene's** params in `useViewStore`
-(§10.1), the only place the two axes are held.
+### 2.4 Global-only view
+The frontend surfaces a **single view — the global one**, with the individual domains rendered as
+stacked layers (`GlobalStackedAreaOption`). There is no scope/domain selector and no per-domain
+("local") view: the only derivation axes are `horizon` (§2.3, §3.2) and `rScenario`. The time horizon
+replaced the old official↔full accounting switch — the data model is otherwise unchanged. Domains
+remain a **server-side** concept only: `AggregationService.buildDomain` still builds each domain's
+area+stock bundle and `globalResult()` sums them (and decomposes the projected aggregate back into
+additive per-domain stock layers, §7). The domain labels (`domain.amazon`, …) survive in i18n purely
+as the stacked-layer legend/tooltip labels driven by `DOMAINS` config, not as a selectable scope.
 
 ---
 
@@ -298,8 +275,6 @@ interface BandSeries extends Series { lower: DataPoint[]; upper: DataPoint[]; } 
 ### 3.2 Endpoint DTOs (BFF → store)
 ```ts
 interface DerivationParams {           // the SERVER cache-key surface (ADR-005; baseline removed per ADR-026)
-  scope: 'global' | 'local';
-  domainId?: DomainConfig['id'];       // required if scope=local
   horizon: Horizon;                    // 'today' | '20y' | '30y' | '50y' | '75y' | '100y' (§2.3) — replaced accounting
   rScenario: 'conservative' | 'mid' | 'high';
 }
@@ -326,13 +301,6 @@ interface SeriesMeta {                 // (§3.1, extended) — projection + rec
 // (reconstructed 1800–1990 + measured 1990→latest + projected future) and `stock`. All
 // baseline-DEPENDENT quantities are recomputed by the isomorphic derive layer (§3.2a) from `area`
 // + per-domain `R` at the chosen `baseline`, in SSR and browser alike.
-interface DomainResultDTO {            // GET /api/domain/{id}
-  params: DerivationParams;
-  referenceYear: number;               // min common data year for composite scalars (ADR-016)
-  area: Series;                        // AG.LND.FRST.K2 (state); FULL range 1800→projected horizon, dashed pre-1990 (meta.reconstructedBefore) and projected post-latest (meta.projectedFrom)
-  stock: Series;                       // WB .DF (flow, solid); measured then projected past latest year (projectedFrom)
-}
-
 interface GlobalResultDTO {            // GET /api/global
   params: DerivationParams;
   referenceYear: number;
@@ -341,15 +309,8 @@ interface GlobalResultDTO {            // GET /api/global
   aggregateStock: Series;              // Σ perDomainStock (denominator for multiplier + fossil comparison)
 }
 
-// Client/SSR-derived from a *ResultDTO + baseline via the isomorphic core (stats.ts). Recomputed on every
-// baseline-slider frame with NO refetch (ADR-026). Was previously carried on the DTO; now derived.
-interface DomainDerived {              // derive(DomainResultDTO, baseline)
-  cumulativeLoss: Series;              // cumulative area loss from baseline (state); projected past latest measured year
-  forgoneSink: BandSeries;             // R * cumulativeLoss (estimate, dashed+band); same R band pre/post 1990 (central estimate, business §7.2a)
-  fullEmissions: Series;               // stock + forgoneSink
-  multiplier: number;                  // ΣfullEmissions ÷ ΣWB stock over [referenceYear, referenceYear+horizonYears(horizon)] (business §2.5/§4.2; horizon-reactive, today=single-year)
-  crossingYear: number | null;         // annual stock impulse × cumulative forgone-sink crossing (may fall in projected range)
-}
+// Client/SSR-derived from the GlobalResultDTO + baseline via the isomorphic core (stats.ts). Recomputed on
+// every baseline-slider frame with NO refetch (ADR-026). Was previously carried on the DTO; now derived.
 interface GlobalDerived {              // derive(GlobalResultDTO, baseline)
   perDomainForgoneSink: Series[];      // stacked layers
   aggregateForgoneSink: BandSeries;    // sum + single aggregate band; lower/upper deviations combined separately (asymmetric-safe, §5)
@@ -358,7 +319,7 @@ interface GlobalDerived {              // derive(GlobalResultDTO, baseline)
   crossingYear: number | null;
 }
 
-interface ReferenceDTO {               // GET /api/reference (global fossil bar) — always fetched in global scope
+interface ReferenceDTO {               // GET /api/reference (global fossil bar)
   params: DerivationParams;
   referenceYear: number;
   fossilTotal: Series;                 // denominator = global fossil emissions (also the fossil bar in the side-by-side)
@@ -378,7 +339,7 @@ carried on the DTO. The `multiplier` (`Σ fullEmissions ÷ Σ WB stock` over the
 `[referenceYear, referenceYear + horizonYears(horizon)]`, business §2.5) is **horizon-reactive** —
 `today` collapses the window to the single reference year (the measured-year ratio), a longer horizon
 widens it over projected years; the deck **surfaces the badge from slide 3** with the forgone-sink
-reveal (§11.2, UI §6.6). `ReferenceDTO` (the fossil denominator) is fetched in every global-scope view
+reveal (§11.2, UI §6.6). `ReferenceDTO` (the fossil denominator) is fetched for every footprint view
 (no fossil-reference toggle — business §4.1) and its `fossilTotal` is **projected to the horizon target
 year** so it integrates over the same forward window as stock/forgone.
 
@@ -430,10 +391,10 @@ share, equivalence annual rate) are computed on **measured data only**, never on
 story deck (§17) is a **frontend-only presentation layer**: `SlideDef[]`, scenes and slides live in
 `app/story/` and are invisible to the server. Each visualisation names a **metric subset** of the DTO
 it already receives (e.g. slide 2 draws `stock` only; slide 3 adds `forgoneSink`/`fullEmissions` from
-the *same* `DomainResultDTO`; slide 6 pulls `forgoneSink` out of the deforestation bar). Metric
+the *same* `GlobalResultDTO`; slide 6 pulls `forgoneSink` out of the deforestation bar). Metric
 selection is a **client-side presentation transform** applied by the chart-option class (§11) over a
 DTO the store already holds — it adds **no route, DTO field or `DerivationParams` key**, and never
-triggers a refetch. The deck controls tagged *server-refetch* (`domain`, `horizon`) change
+triggers a refetch. The deck control tagged *server-refetch* (`horizon`) changes
 `DerivationParams` and thus the cache key; `timeRange` (ECharts `dataZoom`), **`baseline`** (ADR-026,
 client-transform → isomorphic derive §3.2a) and metric selection are pure view state (§10.1, ADR-023).
 
@@ -552,7 +513,7 @@ stats to produce DTOs.
   the core orchestrator. `buildDomain` fetches the per-country area + stock, runs the **`CoverageGate`
   once** to get the shared excluded set + per-indicator window, then for each metric **filters
   survivors → `stats.sumSeries` → clips to that indicator's window** (single consistent country set).
-  It then produces `DomainResultDTO`/`GlobalResultDTO` carrying only the **baseline-independent** series —
+  It then produces the `GlobalResultDTO` carrying only the **baseline-independent** series —
   the full-range **`area`** (reconstruction spliced 1800–1990 + measured + projection) and **`stock`**
   (ADR-026). It **no longer** computes `cumulativeLoss`/`forgoneSink`/`fullEmissions`/`multiplier`/
   `crossingYear` on the DTO — those move to the isomorphic client/SSR derive layer (§3.2a), since they
@@ -618,15 +579,14 @@ Thin Nitro handlers: **parse/validate params → cache wrapper → service call 
 
 | Route | DTO | Applies to (scene) |
 |---|---|---|
-| `GET /api/domain/[id]` | `DomainResultDTO` | main scene, local domain (main chart, multiplier) |
-| `GET /api/global` | `GlobalResultDTO` | main scene (global) + crossing scene, multiplier |
+| `GET /api/global` | `GlobalResultDTO` | main scene (global stacked layers) + crossing scene, multiplier |
 | `GET /api/reference` | `ReferenceDTO` | footprint scene: donut + fossil bar + share-of-footprint |
 | `GET /api/equivalence` | `EquivalenceDTO` | equivalence — **not fetched for the slide-6 strip** (its 4 magnitudes are client-derived from the global DTO, §17.4); reused only for the locale-driven reference-country scalar behind the `country` unit |
 
 **Param validation:** `baseline` is **not an endpoint param** (ADR-026 — it is client-transform; the
-server ships the full-range `area` regardless of baseline). The endpoints validate only `scope`/
-`domainId` (require `domainId` when `scope=local`), `horizon` (`today`/`20y`/`30y`/`50y`/`75y`/`100y`)
-and `rScenario`. The **client** clamps `baseline` to `[BASELINE_FLOOR=1800, latestMeasuredYear]`.
+server ships the full-range `area` regardless of baseline). The endpoints validate only `horizon`
+(`today`/`20y`/`30y`/`50y`/`75y`/`100y`) and `rScenario`. The **client** clamps `baseline` to
+`[BASELINE_FLOOR=1800, latestMeasuredYear]`.
 Invalid → 400 with a localized-key error code.
 
 **Caching (ADR-005/014) — CDN-first:** `routeRules` set cache headers so the **Vercel CDN** caches
@@ -660,20 +620,19 @@ persistent route (§17, ADR-023), control/view state is **keyed per scene**, not
 current-view — revisiting a scene restores its state (reset policy A), first entry uses the slide's
 authored defaults.
 
-**Authored scene defaults (business §4.1):** the *main* scene opens at `scope='global'`,
-`horizon='today'`, `domainId='amazon'` (surfaced control), `rScenario='mid'`, `baseline=1990` (now a
-client-transform default, not part of `params` — ADR-026), `timeRange=null`; the *crossing* and
-*footprint* scenes are `forced` to `scope='global'`. Opening at
+**Authored scene defaults (business §4.1):** the *main* scene opens at
+`horizon='today'`, `rScenario='mid'`, `baseline=1990` (now a
+client-transform default, not part of `params` — ADR-026), `timeRange=null`. Opening at
 `horizon='today'` (measured data only, no projection) and pushing the horizon out is the signature
 interaction that reveals the forward debt.
 
 ### 10.1 `useViewStore` — per-scene control/view state
 ```ts
-type EndpointKey = 'domain' | 'global' | 'reference' | 'equivalence';
+type EndpointKey = 'global' | 'reference' | 'equivalence';
 type SceneId = 'intro' | 'main' | 'crossing' | 'footprint';
 
 interface SceneState {
-  params: DerivationParams;            // scope/domainId/horizon/rScenario for THIS scene (server cache key; NO baseline — ADR-026)
+  params: DerivationParams;            // horizon/rScenario for THIS scene (server cache key; NO baseline — ADR-026)
   baseline: number;                    // client-transform control (ADR-026): drives isomorphic derive §3.2a, never refetch; 1800–present
   timeRange: [number, number] | null;  // ECharts dataZoom view-state ONLY — no refetch, no data crop (ADR-005)
 }
@@ -693,11 +652,11 @@ actions: {
   setTimeRange(range);                  // mutate current scene's timeRange — pure view state, never refetch
 }
 ```
-Controls are tagged by **derivation mode** (ADR-021): `domain`, `horizon` are *server-refetch* (they
-change `derivationParams` → the data store fetches); **`baseline`** (ADR-026) and `timeRange` are
+Controls are tagged by **derivation mode** (ADR-021): `horizon` is *server-refetch* (it
+changes `derivationParams` → the data store fetches); **`baseline`** (ADR-026) and `timeRange` are
 *client-transform / client-only* (pure view state — `baseline` re-runs the isomorphic derive §3.2a, no
 fetch). There is no `fossilReference`/`equivalenceHorizon` field — the donut
-is always shown in global scope and slide 6's equivalence strip (§17.4) reads `baseline` + `horizon`
+is always shown for the global footprint and slide 6's equivalence strip (§17.4) reads `baseline` + `horizon`
 directly (its forward window is `[referenceYear, referenceYear + horizonYears(horizon)]`, `sceneWindow`;
 `baseline` shapes the forgone depth, `horizon` the window width); its
 **unit** choice is a separate client-only
@@ -720,7 +679,7 @@ x-ranges).
 ### 10.2 `useDataStore` — fetched/derived DTOs + caching
 ```ts
 state: {
-  dtoCache: Map<string, DomainResultDTO | GlobalResultDTO | ReferenceDTO | EquivalenceDTO>;
+  dtoCache: Map<string, GlobalResultDTO | ReferenceDTO | EquivalenceDTO>;
   inFlight: Map<string, Promise<unknown>>;   // dedupe concurrent identical fetches
   loading: Record<EndpointKey, boolean>;
   errors:  Record<EndpointKey, StoreError | null>;
@@ -730,7 +689,7 @@ actions: {
   prefetch(params);       // idle-time warm of the next slide's scene params (ADR-023)
 }
 getters: {
-  currentMainResult;      // domain or global DTO for current scene's params (baseline-independent, ADR-026)
+  currentMainResult;      // global DTO for current scene's params (baseline-independent, ADR-026)
   currentDerived;         // = derive(currentMainResult, viewStore.baseline, cfg) — isomorphic §3.2a; recomputed on baseline change, NO fetch
   currentReference; currentEquivalence;   // equivalence restaged on slide 6 (strip §17.4, mostly client-derived from the global DTO)
   multiplier;             // from currentDerived (baseline-dependent, ADR-026)
@@ -738,7 +697,7 @@ getters: {
 ```
 **Caching key** = `endpoint + JSON(derivationParams)` — **baseline-free** (ADR-026), so moving the
 baseline slider **never** changes the key and **never** refetches. On a scene entry or a server-refetch
-control change (`domain`/`horizon`) the action computes the key; a cache hit returns instantly
+control change (`horizon`) the action computes the key; a cache hit returns instantly
 (server-authoritative first fetch warms `dtoCache` → instant re-select of an already-visited
 horizon/scene, ADR-005). `inFlight` dedupes simultaneous identical requests, and `prefetch` warms the
 next slide's params on idle so forward navigation is instant. The **baseline slider** and the
@@ -815,15 +774,14 @@ projection join year. This is a **binding contract** with UI §4.5 / design prop
 
 ### 11.2 Concrete subclasses (one responsibility: data + presentation → complete `Option`)
 Each takes the `presentation.metrics` set (§11.1) so the deck can reveal metrics in place:
-- **`MainStackedOption`** (main scene): stock (solid) always; forgone-sink (dashed + band) and the
-  `fullEmissions` framing appear **only when `metrics` includes `forgoneSink`** — this is the whole
-  slide-2→slide-3 reveal (business §4.3, UI §6.1). Each series is split into a **dashed reconstructed
-  (pre-1990)** + solid measured + **dashed projected** segment at `reconstructedBefore`/`projectedFrom`
-  (ADR-026). When the reader drags the baseline back, the forgone-sink curve re-derives client-side
-  (§3.2a) and the pre-1990 dashed segment lengthens in place. Same DTO/`ctx` on both slides → the added
-  series animate in (ADR-022), no remount.
-- **`GlobalStackedAreaOption`**: per-domain stacked area + one aggregate band; each layer split
-  measured/projected at its own join year, with a single join-year divider.
+- **`GlobalStackedAreaOption`** (main scene, the only view): per-domain stock as stacked layers
+  (solid) always; the aggregate forgone-sink (dashed + band) and the `fullEmissions` framing appear
+  **only when `metrics` includes `forgoneSink`** — this is the whole slide-2→slide-3 reveal (business
+  §4.3, UI §6.1). Each layer is split measured/projected at its own join year (single join-year
+  divider) and into a **dashed reconstructed (pre-1990)** + solid measured + **dashed projected**
+  segment at `reconstructedBefore`/`projectedFrom` (ADR-026). When the reader drags the baseline back,
+  the forgone-sink re-derives client-side (§3.2a) and the pre-1990 dashed segment lengthens in place.
+  Same DTO/`ctx` on both slides → the added series animate in (ADR-022), no remount.
 - **`CrossingOption`** (crossing scene, global): **annual stock impulse** vs **cumulative
   forgone-sink level** + marked crossing point (semantics unchanged — business §4.4). The extended
   horizon window is what finally gives it enough span to reach the crossing; the projected tail is
@@ -1051,7 +1009,7 @@ Every new element checked against the earlier documents; conflicts resolved for 
     client-side **ECharts `dataZoom`** over data already in the store — *not* part of
     `DerivationParams`, triggers **no** refetch. The time **horizon** (`today`/`20y`/…/`100y`) *is*
     part of `DerivationParams` and *does* refetch (the server projects each series to
-    `horizonTargetYear`). Only `scope / domainId / horizon / rScenario / baseline` re-derive on the
+    `horizonTargetYear`). Only `horizon / rScenario` re-derive on the
     server; `timeRange` never does. **Consistent** — instant range-zoom over a server-projected series.
 
 14. **Reference year for composite scalars vs. uneven series end-years.**
@@ -1063,7 +1021,7 @@ Every new element checked against the earlier documents; conflicts resolved for 
 
 15. **Fossil-reference share as a toggle vs. always-visible context.**
     *Resolution (business §4.1, UI §3/§7, per user B6):* there is **no** fossil-reference toggle
-    anywhere; in global scope the share-of-footprint **donut and the share number are always shown**.
+    anywhere; the share-of-footprint **donut and the share number are always shown**.
     No `fossilReference` field exists in state, DTOs or params. **Consistent** — a single always-on
     presentation, no hidden mode.
 
@@ -1089,13 +1047,13 @@ Every new element checked against the earlier documents; conflicts resolved for 
     control); at `horizon='today'` only the annual rate shows (`cumulativeCO2 = null`). **Consistent**
     with point 5 and the "permanent debt" framing.
 
-19. **Single Domain control vs. two-axis data model (global-first deck).**
-    *Resolution (§2.4/§17.1, UI §5):* scope and domain remain **two independent state variables**
-    (`DerivationParams.scope` + `domainId`). The deck is **global-first**: only the **main scene**
-    surfaces a `DomainSelect` (rendered from `SCOPE_SELECTOR_OPTIONS` — four local domains, delimiter,
-    default Global), each entry mapping back onto both variables; the crossing/footprint scenes
-    **force `scope:'global'`**. No change to DTOs, params, endpoints or the cache key. **Consistent** —
-    server contract untouched; there is no standalone scope toggle.
+19. **Global-only view; domains as server-side stacked layers.**
+    *Resolution (§2.4/§17.1, UI §5):* the frontend surfaces **only the global view**, with the domains
+    rendered as stacked layers. There is no scope/domain selector and no `scope`/`domainId` param —
+    `DerivationParams` is `{ horizon, rScenario }`. Domains stay a **server-side** concept:
+    `AggregationService.buildDomain` builds each domain's bundle and `globalResult()` sums them. The
+    domain labels survive in i18n purely as the stacked-layer legend/tooltip labels. **Consistent** —
+    one view, one server contract.
 
 20. **URL-synced deck state vs. cache key and view-only time range.**
     *Resolution (ADR-017/023, §10.1, UI §4):* the active slug + the **current scene's**
@@ -1122,19 +1080,17 @@ Every new element checked against the earlier documents; conflicts resolved for 
     stock-only slide 2) and is not duplicated in the header. **Consistent** — one source of truth for
     the headline number, surfaced when the full accounting is on screen.
 
-24. **Local "side by side" variant referenced but deferred.**
-    *Resolution (per user F7a; business §4.2/§12, UI §4.1/§13, §11.2):* the local stock-vs-forgone
-    side-by-side variant is **deferred** from V1; the local canvas ships **stacked-only**. All four
-    documents mark it deferred and `MainStackedOption` carries no side-by-side branch.
-    **Consistent** — no dangling control or option path.
+24. **Single global canvas — stacked-only.**
+    *Resolution (business §4.2/§12, UI §4.1/§13, §11.2):* the main canvas ships **stacked-only** — the
+    global stock stacked by domain, with the forgone-sink revealed on top. There is no per-domain or
+    side-by-side variant. **Consistent** — no dangling control or option path.
 
-25. **New global "deforestation vs. fossil" side-by-side with a shared Y-scale.**
-    *Resolution (per user F7b; business §4.3/§4.5, UI §5/§8, §11.2/§11.3, §3.2):* a **global-only**
+25. **Global "deforestation vs. fossil" side-by-side with a shared Y-scale.**
+    *Resolution (per user F7b; business §4.3/§4.5, UI §5/§8, §11.2/§11.3, §3.2):* the
     `FossilComparisonOption` draws two grids sharing a computed `sharedYAxis()` max+interval
     (overriding ECharts auto-scale); it reuses the already-fetched `ReferenceDTO` (fossil, plus the
     3-slice `composition` powering the donut) and `currentMainResult` (aggregate deforestation =
-    stock + forgone sink at the reference year). Global-only, matching the "local fossil comparison
-    is weak" rule (§4.5). No new endpoint or param. **Consistent** — hidden in local scope.
+    stock + forgone sink at the reference year). No new endpoint or param. **Consistent.**
 
 26. **Asymmetric `R` CI bands vs. symmetric `mid ± σ` assumptions.**
     *Resolution (business §6, §2.1/§5):* `RRange` stores **absolute `{ low, high }`** endpoints, not
@@ -1242,7 +1198,7 @@ Every new element checked against the earlier documents; conflicts resolved for 
     is recomputed by the **isomorphic** `stats` core (§5) in a client/SSR derive layer (§3.2a) on every
     slider frame with **no refetch**. This narrowly amends #1's "no client re-implementation" **for the
     `baseline` dimension only** — there is **no math drift** because the *same* module runs both tiers
-    (exactly the mitigation #1 relied on). `scope`/`domain`/`horizon`/`rScenario` stay server-refetch.
+    (exactly the mitigation #1 relied on). `horizon`/`rScenario` stay server-refetch.
     `baseline` leaves `DerivationParams`/the cache key but stays in the URL (client-transform, ADR-017
     amendment). **Consistent.**
 
@@ -1275,7 +1231,7 @@ type LayoutPreset =
   | 'text' | 'viz-text' | 'duo-viz-text' | 'duo-viz-equiv'  // closed set (ADR-024/025)
   | 'caption-viz' | 'viz-equiv';                             // + ADR-026 baseline scene
 type VizKind   = 'mainStacked' | 'globalStackedArea' | 'crossing' | 'donut' | 'fossilComparison';
-type ControlKey = 'horizon' | 'domain' | 'baseline' | 'baselineSlider' | 'timeRange';  // deck-surfaced controls only
+type ControlKey = 'horizon' | 'baseline' | 'baselineSlider' | 'timeRange';  // deck-surfaced controls only
 
 interface VizConfig {
   id: string;                 // STABLE chart identity; SHARED across a scene's slides (ADR-022)
@@ -1291,7 +1247,7 @@ interface SlideDef {
   visualizations: VizConfig[];// 0 (intro) | 1 (main/crossing/baseline) | 2 (footprint)
   controls?: ControlKey[];    // controls this slide surfaces (subset of its scene's controls)
   params?: Partial<DerivationParams>;  // authored defaults seeded on first scene entry (policy A)
-  forced?: Partial<DerivationParams>;  // immutable overrides (e.g. crossing/footprint/baseline → scope:'global')
+  forced?: Partial<DerivationParams>;  // immutable overrides (e.g. crossing → horizon:'100y')
   baseline?: number;          // authored client-transform baseline seed (ADR-026, not a DerivationParam)
 }
 ```
@@ -1303,14 +1259,14 @@ on slide 6** as a redesigned `EquivalenceStrip` (ADR-025, §17.4) and **reused o
 the `visualizations[]` list.
 
 **Baseline scene controls (ADR-026).** Slides 7–8 both carry `controls: ['baselineSlider','horizon']`
-and share per-scene state (ADR-023). `scope:'global'` is `forced`; slide 7 seeds `horizon:'100y'` so the
+and share per-scene state (ADR-023). Slide 7 seeds `horizon:'100y'` so the
 projection (and the slide-8 crossing) is meaningful on first entry. Slide 7 uses `layout:'caption-viz'`
 with a `captionKey` (`story.baselineLab.caption`); slide 8 uses `layout:'viz-equiv'` (crossing viz +
 equivalence strip). Both baseline controls (`baseline` select + `baselineSlider`) are `client-only`.
 
 **Footprint scene controls (ADR-025).** Slides 5–6 both carry `controls: ['baseline','horizon']`; the
-per-scene state (ADR-023) shares those values across the two slides. Only `scope:'global'` stays
-`forced` (the old `forced.horizon:'today'` is dropped so the horizon is reader-driven and feeds the
+per-scene state (ADR-023) shares those values across the two slides. Neither slide carries `forced`
+overrides (the old `forced.horizon:'today'` is dropped so the horizon is reader-driven and feeds the
 strip's window). Slide 6's `SlideDef` uses `layout:'duo-viz-equiv'` with a `captionKey` and **no**
 text-block `textKeys`.
 
@@ -1406,7 +1362,7 @@ measured ratio); a longer horizon widens it and every magnitude grows.
 | Server-authoritative derivations + cache | ADR-005 | §9, §2.6 |
 | `stats.ts` pure module | ADR-005/008 | §8 |
 | Domain unit + config | ADR-012 | §3, §3.1, §6 |
-| Domain as a main-scene control (global-first deck; no standalone scope toggle) | §17.1, UI §5 | §3, §4.1 |
+| Global-only view; domains as server-side stacked layers (no scope/domain selector) | §17.1, UI §5 | §3, §4.1 |
 | Time horizon (signature derivation axis, `today`/20y/…/100y), R scenario tri-state | §2.3/§3.2, §16.30 | §2.4a, §4.1, §5, §6 |
 | Per-domain forward projection (`projectSeries`, before ×R + aggregation) | §3.2/§5/§6, §16.30 | §2.4a, §8 |
 | Dashed projected series (twin series, legend allowlist, join divider) | §11.1/§11.2, §16.31 | §2.4a |
@@ -1417,7 +1373,7 @@ measured ratio); a longer horizon widens it and every magnitude grows.
 | Equivalence driven by global horizon (committed = rate × horizonYears) | §2.3/§5, UI §6 | §4.4, §2.4 |
 | Slide-6 `EquivalenceStrip` (4 client-derived values, colour-coded; unit switcher car-default; forward window `[referenceYear, referenceYear + horizonYears(horizon)]` with forgone as a true Σ integral, donut + fossil bar share the same window totals, fossil projected server-side) | ADR-025, §17.4, UI §6.7 | §4.5 |
 | 4th layout preset `duo-viz-equiv`; layout change keeps `#viz` outlet stable → charts preserved 5→6 | ADR-025, §17.2/§17.3 | §4.5 |
-| Footprint scene shares `baseline`+`horizon` across slides 5–6; only `scope:'global'` forced | ADR-025, §17.1 | §4.5 |
+| Footprint scene shares `baseline`+`horizon` across slides 5–6; no `forced` overrides | ADR-025, §17.1 | §4.5 |
 | `data.total` theme token (red-adjacent, distinct from error red) for the combined figure | ADR-025, §17.4, design §2.3 | §4.5 |
 | Reference year = min common data year | ADR-016 | §7.1a |
 | Single country coverage gate (union; stock & forgone share one country set; no domain exclusion) | ADR-020, §16.33 | §7.1 |

@@ -201,17 +201,17 @@ and tested in the statistics core but dormant (no UI panel). The series type att
 
 ---
 
-## 3. Two operating modes and the "domain" unit
+## 3. The global view and the "domain" unit
 
-The application operates at two scales on the **scope** axis:
+The application surfaces a **single view — the global aggregate**: the sum of the forgone sink across
+the main rainforest domains, with the individual domains shown as **stacked layers**.
 
-- **Global aggregate** — sum of the forgone sink across the main rainforest domains.
-- **Local domain** — one selected rainforest domain.
-
-**The unit is the "domain," not the country.** In local mode the user selects from a small set of
-predefined domains, not from a list of countries. A domain = a set of ISO3 codes in config (e.g.,
+**The unit is the "domain," not the country.** A domain = a set of ISO3 codes in config (e.g.,
 Amazon = Brazil + Peru + Colombia + …). This resolves the fact that biogeographic rainforests
-cross country borders; countries are an internal aggregation detail, invisible in the UI.
+cross country borders; countries are an internal aggregation detail, invisible in the UI. The domains
+are an internal building block — the global aggregate (and its projections) is derived by summing the
+per-domain aggregates on the server — and appear in the UI only as the stacked layers of the one
+global chart, never as a selectable scope.
 
 A second, independent axis is the **time horizon** (§2.4a): the upper edge of the window — *today*
 or a projected *+20 / +30 / +50 / +75 / +100 y* — set by the horizon selector, the app's signature
@@ -254,7 +254,7 @@ inclusion. The exact membership per domain is defined in the domain config and i
 
 The app is a **linear deck of eight slides** the reader advances through (Next / Back, keyboard, or
 scroll). It is **not** a composer dashboard. The deck opens on the same functional preset as before —
-**global scope, `R` = mid, baseline 1990, horizon = today** — but the reader meets the argument one
+**the global view, `R` = mid, baseline 1990, horizon = today** — but the reader meets the argument one
 step at a time rather than reconfiguring an open canvas.
 
 **Scenes.** The eight slides are grouped into **five scenes**. A scene is a run of consecutive slides
@@ -285,9 +285,6 @@ deck only stages it.
   reset policy below, are restored when they return to it):
   - **Time horizon** — *today · +20 · +30 · +50 · +75 · +100 y* (§2.4a). Exposed by the **main**
     scene. Pushing it out extends the dashed forward projection.
-  - **Domain** — one of the ~4 rainforest domains. Exposed by the **main** scene; it switches the main
-    chart from the global aggregate to a single domain. (In the deck, the global aggregate is the
-    default the reader can *narrow*; see §4.6 on scope.)
   - **Baseline** — reference year, **1800–present** via a real-time **slider** (§7.2a); ≥ 1990 is
     measured, 1800–1990 is the LUH2 reconstruction (dashed). Label always explicit ("forgone sink computed
     from forest loss after {X}"). A **client-transform** control (ADR-026): dragging it recomputes the
@@ -325,7 +322,7 @@ The core of the argument, delivered as a **reveal** across two sibling slides th
   happened — that the reported number was only the visible part.
 
 If the horizon is pushed past *today*, both slides extend the series with the dashed forward
-projection (§2.4a); the domain control narrows the aggregate to one domain; the baseline moves the
+projection (§2.4a); the baseline moves the
 integration origin. The `×N` **multiplier** (`ΣfullEmissions ÷ ΣWB stock` over the forward window
 `[referenceYear, referenceYear + horizonYears(horizon)]`, §2.5) is shown alongside the main chart
 from slide 3 on (once the forgone sink is present).
@@ -341,8 +338,8 @@ A single **crossing chart** (its own scene, mounted fresh): the annual one-off *
 (impulse, ~flat) vs. the **forgone sink** as a cumulative-driven level (`R × cumulative area loss`,
 rising, §2.3); in year **N** the rising forgone sink overtakes the stock. That point sits *beyond* the
 measured window, so it is only visible once the series runs far enough into the projection — hence the
-scene exposes the **time-range** zoom (to frame the crossing) and the **baseline** control. The
-**domain control disappears and the data is forced to the global aggregate** — a single crossing for
+scene exposes the **time-range** zoom (to frame the crossing) and the **baseline** control. The data
+is the **global aggregate** — a single crossing for
 the whole tropical belt is the honest, legible framing (a per-domain crossing race is out of scope for
 V1). Below the chart, one full-width text block describes what the crossing means.
 
@@ -359,7 +356,7 @@ replaces it with a thin caption on top and adds a full-width equivalence strip a
   next to global fossil emissions, so the reader sees how the (still smaller) deforestation total sits
   against fossil. Both integrate over the forward window `[referenceYear, referenceYear +
   horizonYears(horizon)]` anchored at the reference year (§7.1a) — at *today* the single measured
-  reference year, growing with the horizon into the dashed projection. Global scope.
+  reference year, growing with the horizon into the dashed projection.
 - **Slide 6 — zoom into deforestation (`deforestation-insight`).** The **same** two visualisations,
   **not remounted** — only animated: **fossil is removed from both** the donut and the bar. With the
   fossil slice/bar gone, the axis rescales and the remaining deforestation composition "zooms in": the
@@ -427,10 +424,10 @@ latest measured year, so the reader can watch the forgone sink grow as the origi
   `EN.GHG.CO2.MT.CE.AR5`. The old single headline (annual rate; future horizon adding
   `annualRate × horizonYears`) is superseded by the strip's **four figures + unit switcher** (§4.5a);
   the "never an infinite total" rule (§2.4) still holds — every figure is bounded by the chosen window.
-- **Scope.** The deck is **global-first.** Local single-domain viewing survives only as the **domain
-  control inside the main scene** (§4.1) — the reader narrows the global aggregate to one domain there.
-  The crossing and footprint scenes are global-only (a single-domain crossing/footprint is weak, as
-  the old fossil-comparison rule already noted). There is no standalone global/local scope toggle.
+- **View.** The deck surfaces **only the global view** — the global aggregate with domains as stacked
+  layers. There is no per-domain ("local") view and no scope/domain selector; domains are an internal
+  server-side building block (the global aggregate and its projections are summed from the per-domain
+  aggregates), surfaced only as the stacked layers of the one global chart.
 - **`R` scenario** is likewise present in the model but not surfaced as a deck control in V1 (§4.1).
 
 ### 4.7 Slide / scene matrix
@@ -438,9 +435,9 @@ latest measured year, so the reader can watch the forgone sink grow as the origi
 | # | Slide | Scene | Visualisation(s) | Metrics shown | Controls | Transition in |
 |---|---|---|---|---|---|---|
 | 1 | Intro | `intro` | — | — | — | (entry) |
-| 2 | Main — reported | `main` | main stacked chart | stock | horizon, domain, baseline | scene mount |
-| 3 | Main — hidden cost | `main` | *same* main chart | stock + forgone sink | horizon, domain, baseline | in-place animation |
-| 4 | Crossing | `crossing` | crossing chart | stock impulse + forgone level | time-range, baseline (global forced) | scene mount |
+| 2 | Main — reported | `main` | global stacked chart | stock | horizon, baseline | scene mount |
+| 3 | Main — hidden cost | `main` | *same* global chart | stock + forgone sink | horizon, baseline | in-place animation |
+| 4 | Crossing | `crossing` | crossing chart | stock impulse + forgone level | time-range, baseline (100y forced) | scene mount |
 | 5 | Footprint | `footprint` | donut + defo-vs-fossil bar | fossil + stock + forgone sink | baseline, horizon | scene mount |
 | 6 | Deforestation zoom | `footprint` | *same* donut + bar **+ equivalence strip** | stock + forgone sink (fossil removed) | baseline, horizon, unit | in-place animation |
 
@@ -730,9 +727,9 @@ Robustness (for the optional correlation view): take a signal seriously only if 
   "state/cumulative vs. flow/increment."
 - **Series-agnostic chart components** (`components/charts/`): take normalized series via props,
   fetch nothing.
-- **Indicative endpoints:** `/api/domain/{id}` (area, stock, forgone sink, full emissions, incl. the
-  projection to the requested horizon), `/api/global` (sum across domains + aggregate band),
-  `/api/reference` (global fossil bar). Each takes the `R` scenario and the horizon as parameters.
+- **Indicative endpoints:** `/api/global` (per-domain area + stock, summed to the aggregate + aggregate
+  band, incl. the projection to the requested horizon), `/api/reference` (global fossil bar). Each takes
+  the `R` scenario and the horizon as parameters.
 - **Deploy:** Vercel (Nitro `vercel` preset).
 
 ---
@@ -768,8 +765,8 @@ across 2–3 domains including the aggregate band.
   `baseline`); sibling slides in a scene animate the shared chart in place (2→3 forgone sink appears,
   5→6 fossil drops out, 7→8 baseline lab → crossing/equivalence). The scientific model and server
   contract are unchanged.
-- Unit = domain (a set of ISO3), not country; the deck is **global-first**, with a domain control
-  inside the main scene to narrow the aggregate (no standalone scope toggle, §4.6).
+- Unit = domain (a set of ISO3), not country; the deck surfaces **only the global view**, with domains
+  as stacked layers — no per-domain view and no scope/domain selector (§4.6).
 - **No "official ↔ full" switch** — the app always shows "full" (stock + forgone sink). The
   **time-horizon selector** (§2.4a: *today/+20/+30/+50/+75/+100 y*, per-domain dashed forward
   projection) is now a **scene control** (in the `main` scene), not the whole-page hero.
@@ -831,8 +828,8 @@ across 2–3 domains including the aggregate band.
   design docs (02, 04).
 - **Whether to include the optional correlation view** at all before a future version (deferred
   from V1, kept dormant).
-- **Local "side by side" stock-vs-forgone variant** of the domain chart — **deferred** from V1
-  (the local canvas ships stacked-only); may return in a later version.
+- **"Side by side" stock-vs-forgone variant** of the global chart — **deferred** from V1
+  (the canvas ships stacked-only); may return in a later version.
 
 ### Extensions beyond V1 (noted, not approved)
 

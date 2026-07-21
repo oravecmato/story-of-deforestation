@@ -4,7 +4,6 @@ import type {
   DomainId,
   Horizon,
   DerivationParams,
-  DomainResultDTO,
   GlobalResultDTO,
 } from '../../shared/types'
 import type { DomainConfig } from '../../shared/config/domains'
@@ -148,22 +147,7 @@ export class AggregationService {
     })
   }
 
-  /** GET /api/domain/[id] — local-scope baseline-independent bundle (area + stock). */
-  async domainResult(domainId: DomainId, params: DerivationParams): Promise<DomainResultDTO> {
-    const bundle = await this.buildDomain(domainId)
-    const refYear = stats.referenceYear(bundle.area, bundle.stock) // measured (horizon-invariant)
-    const floor = Math.max(BASELINE_FLOOR, STOCK_FLOOR)
-    const project = this.projectFn(params.horizon)
-
-    return {
-      params,
-      referenceYear: refYear,
-      area: project(clamp(bundle.area, BASELINE_FLOOR)),
-      stock: project(clamp(bundle.stock, floor)),
-    }
-  }
-
-  /** GET /api/global — global-scope baseline-independent stacked layers (area + stock). */
+  /** GET /api/global — global baseline-independent stacked layers (area + stock). */
   async globalResult(params: DerivationParams): Promise<GlobalResultDTO> {
     const ids = Object.keys(this.domains) as DomainId[]
     const bundles = await Promise.all(ids.map((id) => this.buildDomain(id)))

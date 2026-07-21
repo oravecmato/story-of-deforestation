@@ -42,7 +42,7 @@ for the showcase value; the extra hydration care is contained and documented.
 ## ADR-002 — UI component library: PrimeVue v4 (Aura), dark by default
 
 **Context.** The UI is a "composer": a narrow control panel (segmented toggles, a tri-state
-scenario control, a domain selector, a baseline control, a timeline brush) + a main canvas. Design
+scenario control, a baseline control, a timeline brush) + a main canvas. Design
 is dark with light text by default.
 
 **Decision.** **PrimeVue v4** with the **Aura** theme preset, dark mode as the default. Integrated
@@ -123,7 +123,7 @@ change to feel instant.
 **Decision.** All `R`-scenario- and horizon-dependent derivations are computed
 **server-side** (single source of truth). Changing the scenario or horizon **refetches** the
 corresponding endpoint (the horizon drives per-domain forward projection — ADR-019). The endpoint is
-cached on the BFF (`defineCachedFunction`) keyed by `(scope, domain, horizon, rScenario, baseline)`.
+cached on the BFF (`defineCachedFunction`) keyed by `(horizon, rScenario)`.
 The **store additionally caches responses by the same parameter signature**, so re-selecting a
 previously seen combination is served from memory with no network round-trip. The **time range**
 (zoom) is a pure client-side ECharts `dataZoom` view state (`viewStore.timeRange`) — distinct from
@@ -151,7 +151,7 @@ chosen for a single source of truth, with store caching to recover interactivity
 **Superseded in part (ADR-026).** For the **`baseline` dimension only**, the rejected "client-side recompute
 via a shared isomorphic module" alternative is now **adopted**: `baseline` leaves this cache-key signature
 and its dependent derivations run on the client/SSR from a shipped baseline-independent `area` series (there
-is no math drift because the *same* isomorphic `stats` module runs both tiers). `scope`, `horizon`,
+is no math drift because the *same* isomorphic `stats` module runs both tiers). `horizon` and
 `rScenario` remain server-refetch as decided here.
 
 ---
@@ -189,7 +189,7 @@ into the component. It asks whether per-chart classes should share an abstract b
 **Decision.** A three-tier design:
 1. **`BaseChart.vue`** (lowest tier) — a thin, dumb wrapper over `<VChart>`. Props: `option`,
    `loading`, `theme`. Responsive (`autoresize`). Contains no domain logic.
-2. **Per-chart Vue components** (e.g., `MainStackedChart.vue`, `CrossingChart.vue`,
+2. **Per-chart Vue components** (e.g., `GlobalStackedAreaChart.vue`, `CrossingChart.vue`,
    `FootprintDonut.vue`) — receive already-shaped series + view context
    via props, obtain a finished `Option` from a chart-option class, and pass it to `BaseChart`.
    They hold no business math.
@@ -434,12 +434,12 @@ scalar; the UI binds a "data as of {X}" note to it.
 
 ## ADR-017 — Composer state is shareable via the URL query
 
-**Context.** The app is a portfolio composer: a configured view (scope, domain, time horizon, R
+**Context.** The app is a portfolio composer: a configured view (time horizon, R
 scenario, baseline) is worth **sharing and bookmarking**, and SSR should render the requested state,
 not only the opening preset.
 
-**Decision.** The **`DerivationParams`** (`scope`, `domainId`, `horizon`, `rScenario`,
-`baseline`) are **synced to the URL query string** — including the time `horizon`, since it is a
+**Decision.** The **`DerivationParams`** (`horizon`, `rScenario`) plus the client-transform
+`baseline` are **synced to the URL query string** — including the time `horizon`, since it is a
 derivation param. On load the view store initializes **from the URL**, falling back to the opening
 preset for any missing/invalid key (validation reuses the server param validation). Changing a
 derivation control rewrites the query. Only the **client-only** time range (`dataZoom`) is **not**
@@ -626,9 +626,9 @@ interface SlideDef {
   headingKey?: string;        // i18n
   textKeys?: string[];        // i18n body copy
   visualizations: VizConfig[];
-  controls?: ControlKind[];   // which scene controls this slide exposes (horizon/domain/baseline/timeRange)
+  controls?: ControlKind[];   // which scene controls this slide exposes (horizon/baseline/timeRange)
   params?: Partial<DerivationParams>;  // authored defaults for the scene
-  forced?: (keyof DerivationParams)[]; // e.g. crossing/footprint force scope=global
+  forced?: (keyof DerivationParams)[]; // e.g. crossing forces horizon=100y
 }
 ```
 A `SlideFactory` turns a `SlideDef` + the current scene state + the fetched DTO(s) into a
@@ -641,11 +641,11 @@ A `SlideFactory` turns a `SlideDef` + the current scene state + the fetched DTO(
   authoritative scientific derivations**.
 - **Controls carry an explicit derivation mode.** Each scene control is tagged **client-transform**
   (no refetch — e.g. `timeRange`, and now `baseline` per ADR-026) vs. **server-refetch** (cached — e.g.
-  `horizon`, `domain`). This foresaw exactly the ADR-026 move: "a future scene could make a
+  `horizon`). This foresaw exactly the ADR-026 move: "a future scene could make a
   baseline-hindcast a client-side control without reworking the model" — now realized.
 - **Refetch analysis (V1, amended by ADR-026).** Client-only (no refetch): `timeRange`, **`baseline`**
   (client/SSR-recomputed from the shipped baseline-independent `area` series). Server-refetch (cached DTO):
-  `scope`/`domain`, `horizon` (and `rScenario` if ever surfaced). Mitigation: prefetch the next slide's
+  `horizon` (and `rScenario` if ever surfaced). Mitigation: prefetch the next slide's
   DTO(s) on idle (ADR-023); server-refetch controls are fetch-then-animate; `baseline` is instant (slider).
 
 **Rationale.** The narrative is a *view* concern; keeping it entirely on the frontend means the BFF
@@ -791,8 +791,8 @@ branch would relocate the `#viz` slot outlet and **remount** the charts, destroy
   ECharts). Adding a sibling widget (the strip) in its own slot does **not** touch chart identity.
 - **Footprint scene surfaces `baseline` + `horizon`, shared across slides 5–6.** Per-scene state
   (ADR-023) already shares control state between sibling slides in a scene; the old
-  `forced { horizon:'today' }` is dropped (only `scope:'global'` stays forced). Both are server-refetch
-  controls (ADR-021); changing them re-derives the donut/bar and the strip alike.
+  `forced { horizon:'today' }` is dropped (the footprint slides carry no `forced` overrides). `horizon`
+  is a server-refetch control (ADR-021); changing it re-derives the donut/bar and the strip alike.
 - **Restaged, redesigned equivalence strip (slide 6).** The equivalence panel is **no longer deferred**
   (business §4.6 / UI §8 updated). A redesigned `EquivalenceStrip` shows **four** magnitudes derived
   from the footprint scene's Pinia state, colour-coded to the chart grammar:
@@ -889,7 +889,7 @@ magnitudes (rejected — they are pure reductions over data the scene already ho
   isomorphic precisely for this per ADR-005's consequence, though ADR-005
   kept it server-only). **ADR-026 supersedes ADR-005 for the `baseline` dimension only**: ADR-005's rejected
   alternative ("client-side recompute via a shared isomorphic module") is now adopted *for `baseline`*, while
-  `scope`/`horizon`/`rScenario` stay server-refetch. They are recomputed from the shipped `area` (+ per-domain
+  `horizon`/`rScenario` stay server-refetch. They are recomputed from the shipped `area` (+ per-domain
   `R` from config) in a **client/SSR derivation layer** (Pinia getter/composable). Because `stats` is isomorphic the
   **same** derivation runs during SSR (honouring the URL `baseline` on first paint) and on every slider
   frame in the browser — **zero server round-trips** on drag. This is the natural extension of ADR-005's
@@ -917,8 +917,8 @@ control taxonomy (ADR-021) and with `timeRange` being client-only (ADR-005).
 - `BASELINE_FLOOR = 1800`; `baseline` leaves the server derivation cache key and the `DerivationParams`
   that shape the DTO, but stays a URL-synced client-transform control (ADR-017 note updated: `timeRange`
   **and** `baseline` are excluded from *refetch*; `baseline` remains in the query for shareability).
-- DTO shape changes: `DomainResultDTO`/`GlobalResultDTO` carry the **full-range `area`** (and per-domain
-  area for global) as the shipped baseline-independent series; the previously server-derived
+- DTO shape changes: the `GlobalResultDTO` carries the **full-range per-domain `area`**
+  as the shipped baseline-independent series; the previously server-derived
   `cumulativeLoss`/`forgoneSink`/`fullEmissions`/`multiplier`/`crossingYear` become **client/SSR-derived**
   (tech-spec §3.2 / §6 updated).
 - New offline `scripts/luh2/` preprocessing pipeline + bundled static `area` JSON per domain; new

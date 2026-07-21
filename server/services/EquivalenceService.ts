@@ -21,10 +21,10 @@ export class EquivalenceService {
     private readonly cfg: EquivalenceConfig,
   ) {}
 
-  /** The locale country unit basis for the current scope. `locale` selects the reference country; its
-   *  annual emissions are read at the composite `referenceYear` (baseline-independent). */
+  /** The locale country unit basis. `locale` selects the reference country; its annual emissions are
+   *  read at the composite `referenceYear` (baseline-independent). */
   async equivalence(params: DerivationParams, locale: string): Promise<EquivalenceDTO> {
-    const referenceYear = await this.referenceYear(params)
+    const referenceYear = (await this.aggregation.globalResult(params)).referenceYear
     const country = resolveReferenceCountry(locale, this.cfg)
     const fossil = await this.aggregation.referenceCountryEmissions(country.iso3)
     return {
@@ -33,13 +33,5 @@ export class EquivalenceService {
       referenceCountry: { iso3: country.iso3 },
       referenceCountryAnnualCO2: valueAt(fossil, referenceYear),
     }
-  }
-
-  /** The composite reference year (ADR-016) for the current scope — baseline-independent. */
-  private async referenceYear(params: DerivationParams): Promise<number> {
-    if (params.scope === 'global') {
-      return (await this.aggregation.globalResult(params)).referenceYear
-    }
-    return (await this.aggregation.domainResult(params.domainId!, params)).referenceYear
   }
 }

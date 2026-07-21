@@ -22,15 +22,17 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
-const option = computed(() =>
-  new FossilComparisonOption(
-    { reference: props.reference, main: { ...props.main, ...props.derived } },
-    props.ctx,
-    props.presentation,
-  ).build(),
+const chart = computed(
+  () =>
+    new FossilComparisonOption(
+      { reference: props.reference, main: { ...props.main, ...props.derived } },
+      props.ctx,
+      props.presentation,
+    ),
 )
+const option = computed(() => chart.value.build())
 </script>
 
 <template>
-  <BaseChart :option="option" :loading="loading" />
+  <BaseChart :option="option" :y-unit="chart.yUnit()" :theme="ctx.theme" :loading="loading" />
 </template>

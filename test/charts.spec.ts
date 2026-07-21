@@ -4,8 +4,6 @@ import type {
   Series,
   BandSeries,
   DerivationParams,
-  DomainResultDTO,
-  DomainDerived,
   GlobalResultDTO,
   GlobalDerived,
   ReferenceDTO,
@@ -14,7 +12,6 @@ import type {
 import { CompactNumberFormatter } from '../app/format/Formatter'
 import type { ChartContext } from '../app/charts/BaseChartOption'
 import { PROJECTED_SUFFIX } from '../app/charts/BaseChartOption'
-import { MainStackedOption } from '../app/charts/MainStackedOption'
 import { GlobalStackedAreaOption } from '../app/charts/GlobalStackedAreaOption'
 import { CrossingOption, type CrossingInput } from '../app/charts/CrossingOption'
 import { FootprintDonutOption } from '../app/charts/FootprintDonutOption'
@@ -66,8 +63,7 @@ function band(id: string, rows: Array<[number, number, number, number]>, project
   }
 }
 
-const localParams: DerivationParams = { scope: 'local', domainId: 'amazon', horizon: 'today', rScenario: 'mid' }
-const globalParams: DerivationParams = { scope: 'global', horizon: 'today', rScenario: 'mid' }
+const globalParams: DerivationParams = { horizon: 'today', rScenario: 'mid' }
 
 interface AnySeries {
   name?: string
@@ -86,70 +82,6 @@ interface AxisLike {
   interval?: number
   inverse?: boolean
 }
-
-// --- MainStackedOption ------------------------------------------------------
-
-describe('MainStackedOption', () => {
-  const dto = (): DomainResultDTO & DomainDerived => ({
-    params: localParams,
-    referenceYear: 2001,
-    area: series('area', [[2000, 100]]),
-    cumulativeLoss: series('loss', [[2000, 1]]),
-    stock: series('stock', [[2000, 10], [2001, 12]]),
-    forgoneSink: band('fs', [[2000, 5, 8, 11], [2001, 6, 10, 14]]),
-    fullEmissions: series('full', [[2000, 15]]),
-    multiplier: 1.5,
-    crossingYear: null,
-  })
-
-  it('continuous stock + forgone stacked fills + dashed forgone top-edge + CI band', () => {
-    const s = seriesOf(new MainStackedOption(dto(), ctx()).build())
-    // stock area, forgone area, stock top-edge, forgone top-edge, band lower + upper
-    expect(s).toHaveLength(6)
-    expect(s[0]!.stack).toBe('main')
-    const forgone = s.find((x) => x.name === 'series.forgoneSink')!
-    expect(forgone.stack).toBe('main') // stacked on stock, not an independent floating line
-    // the forgone's dashed identity is its non-stacked top-edge overlay line
-    const forgoneEdge = s.find((x) => x.name === PROJECTED_SUFFIX + 'forgone')!
-    expect(forgoneEdge.stack).toBeUndefined()
-    expect(forgoneEdge.lineStyle?.type).toBe('dashed')
-    const fill = s.find((x) => x.name === '__bandUpper')!
-    expect(fill.areaStyle?.color).toBe('rgba(232, 161, 58, 0.18)')
-    const lo = s.find((x) => x.name === '__bandLower')!
-    expect(lo.data?.[0]).toEqual([Date.UTC(2000, 0, 1), 15]) // stock(10) + forgone.lower(5)
-  })
-
-  it('future horizon → dashed-lighter projected top-edge twin + join-year divider', () => {
-    const d = dto()
-    d.stock = series('stock', [[2000, 10], [2001, 12], [2002, 14]], 2001)
-    const s = seriesOf(new MainStackedOption(d, ctx({ horizon: '20y' })).build())
-    // stock top-edge is split into a measured ('stockm') + a dashed-lighter projected ('stockp') twin
-    const twin = s.find((x) => x.name === PROJECTED_SUFFIX + 'stockp')!
-    expect(twin).toBeDefined()
-    expect(twin.lineStyle?.type).toBe('dashed')
-    expect(twin.lineStyle?.opacity).toBe(0.55)
-    // the continuous stock area carries the join-year divider markLine
-    const area = s.find((x) => x.name === 'series.stock')!
-    expect(area.markLine?.data?.[0]?.xAxis).toBe(Date.UTC(2001, 0, 1))
-  })
-
-  it('stock-only presentation (slide 2) → stock area + top-edge only; no forgone/band; legend = stock', () => {
-    const o = new MainStackedOption(dto(), ctx(), { metrics: ['stock'] }).build()
-    const s = seriesOf(o)
-    expect(s.find((x) => x.name === 'series.forgoneSink')).toBeUndefined()
-    expect(s.find((x) => x.name === '__bandUpper')).toBeUndefined()
-    expect(s.find((x) => x.name === '__bandLower')).toBeUndefined()
-    // stock area + stock top-edge
-    expect(s).toHaveLength(2)
-    expect((o.legend as { data?: string[] }).data).toEqual(['series.stock'])
-  })
-
-  it('+forgone presentation (slide 3) → full reveal (6 series) + legend gains forgone', () => {
-    const o = new MainStackedOption(dto(), ctx(), { metrics: ['stock', 'forgoneSink'] }).build()
-    expect(seriesOf(o)).toHaveLength(6)
-    expect((o.legend as { data?: string[] }).data).toEqual(['series.stock', 'series.forgoneSink'])
-  })
-})
 
 // --- GlobalStackedAreaOption -----------------------------------------------
 
@@ -191,7 +123,7 @@ describe('GlobalStackedAreaOption', () => {
     expect(s).toHaveLength(3)
     const edge = s.find((x) => x.name === PROJECTED_SUFFIX + 'total')!
     expect(edge.lineStyle?.type).toBe('solid')
-    expect((o.legend as { data?: string[] }).data).toEqual(['stock:amazon', 'stock:congo'])
+    expect((o.legend as { data?: string[] }).data).toEqual(['domain.amazon', 'domain.congo'])
   })
 })
 

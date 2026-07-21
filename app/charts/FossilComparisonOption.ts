@@ -80,7 +80,7 @@ export class FossilComparisonOption extends BaseChartOption<FossilComparisonData
         axisLabel: { color: theme.text.mid },
         splitLine: { lineStyle: { color: theme.border } },
       },
-      tooltip: { trigger: 'axis', backgroundColor: theme.surface2, borderColor: theme.border, textStyle: { color: theme.text.hi } },
+      tooltip: { trigger: 'axis', backgroundColor: theme.surface2, borderColor: theme.border, textStyle: { color: theme.text.hi }, formatter: this.axisTooltipFormatter() },
       legend: { textStyle: { color: theme.text.mid }, data: legendData },
       series: this.buildSeries(),
     }

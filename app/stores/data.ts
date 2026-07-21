@@ -1,15 +1,13 @@
 import { defineStore } from 'pinia'
 import type {
   DerivationParams,
-  DomainResultDTO,
   GlobalResultDTO,
-  DomainDerived,
   GlobalDerived,
   ReferenceDTO,
   EquivalenceDTO,
 } from '../../shared/types'
 import { paramsKey } from '../../shared/config/derivation'
-import { deriveDomain, deriveGlobal } from '../composables/useDerived'
+import { deriveGlobal } from '../composables/useDerived'
 import { useViewStore } from './view'
 import { useUiStore } from './ui'
 import type { ApiClient, StoreError } from '../services/apiClient'
@@ -22,17 +20,15 @@ import type { ApiClient, StoreError } from '../services/apiClient'
 // `loadForScene`/`prefetch` take the ApiClient explicitly (DI, so the store stays free of Nuxt globals
 // and is unit-testable); callers pass `useApi()`.
 
-export type EndpointKey = 'domain' | 'global' | 'reference' | 'equivalence'
-type AnyDTO = DomainResultDTO | GlobalResultDTO | ReferenceDTO | EquivalenceDTO
+export type EndpointKey = 'global' | 'reference' | 'equivalence'
+type AnyDTO = GlobalResultDTO | ReferenceDTO | EquivalenceDTO
 
 const noneLoading = (): Record<EndpointKey, boolean> => ({
-  domain: false,
   global: false,
   reference: false,
   equivalence: false,
 })
 const noneError = (): Record<EndpointKey, StoreError | null> => ({
-  domain: null,
   global: null,
   reference: null,
   equivalence: null,
@@ -55,8 +51,6 @@ const fetchEndpoint = (
   locale: string,
 ): Promise<AnyDTO> => {
   switch (endpoint) {
-    case 'domain':
-      return client.domain(params)
     case 'global':
       return client.global(params)
     case 'reference':
@@ -66,10 +60,9 @@ const fetchEndpoint = (
   }
 }
 
-/** The endpoints a scope needs by default (deck scenes pass an explicit subset). Equivalence is
+/** The endpoints a scene needs by default (deck scenes pass an explicit subset). Equivalence is
  *  consumed by the slide-6 strip's country-unit basis (ADR-025, §17.4). */
-const defaultEndpoints = (scope: DerivationParams['scope']): EndpointKey[] =>
-  scope === 'global' ? ['global', 'reference', 'equivalence'] : ['domain', 'equivalence']
+const defaultEndpoints = (): EndpointKey[] => ['global', 'reference', 'equivalence']
 
 /** Options for a scene load / prefetch: override the params and/or the endpoint set. */
 export interface LoadOptions {
@@ -86,11 +79,9 @@ export const useDataStore = defineStore('data', {
   }),
 
   getters: {
-    currentMainResult(state): DomainResultDTO | GlobalResultDTO | undefined {
+    currentMainResult(state): GlobalResultDTO | undefined {
       const view = useViewStore()
-      const endpoint = view.scope === 'global' ? 'global' : 'domain'
-      return state.dtoCache.get(paramsKey(endpoint, view.derivationParams)) as
-        | DomainResultDTO
+      return state.dtoCache.get(paramsKey('global', view.derivationParams)) as
         | GlobalResultDTO
         | undefined
     },
@@ -108,14 +99,13 @@ export const useDataStore = defineStore('data', {
         | undefined
     },
     /** The baseline-dependent tail (ADR-026 §3.2a) re-derived off the current DTO at the live
-     *  `view.baseline` via the isomorphic core — recomputed on every slider frame, no refetch. */
-    currentDerived(): DomainDerived | GlobalDerived | undefined {
+     *  `view.baseline` (and `view.rMultiplier`, slide 10) via the isomorphic core — recomputed on every
+     *  slider frame, no refetch. */
+    currentDerived(): GlobalDerived | undefined {
       const view = useViewStore()
       const main = this.currentMainResult
       if (!main) return undefined
-      return view.scope === 'global'
-        ? deriveGlobal(main as GlobalResultDTO, view.baseline)
-        : deriveDomain(main as DomainResultDTO, view.baseline)
+      return deriveGlobal(main, view.baseline, view.rMultiplier)
     },
     multiplier(): number | undefined {
       return this.currentDerived?.multiplier
@@ -130,7 +120,7 @@ export const useDataStore = defineStore('data', {
       const view = useViewStore()
       const ui = useUiStore()
       const params = opts.params ?? view.derivationParams
-      const endpoints = opts.endpoints ?? defaultEndpoints(params.scope)
+      const endpoints = opts.endpoints ?? defaultEndpoints()
       await Promise.all(
         endpoints.map((ep) =>
           this.ensure(ep, keyFor(ep, params, ui.locale), () =>
@@ -144,7 +134,7 @@ export const useDataStore = defineStore('data', {
      *  error surfaces), skipping anything already cached or in flight. */
     prefetch(client: ApiClient, params: DerivationParams, endpoints?: EndpointKey[]): void {
       const ui = useUiStore()
-      const eps = endpoints ?? defaultEndpoints(params.scope)
+      const eps = endpoints ?? defaultEndpoints()
       for (const ep of eps) {
         const key = keyFor(ep, params, ui.locale)
         if (this.dtoCache.has(key) || this.inFlight.has(key)) continue

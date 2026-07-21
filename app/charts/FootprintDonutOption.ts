@@ -45,12 +45,23 @@ export class FootprintDonutOption extends BaseChartOption<FootprintDonutData> {
 
   // A donut has no cartesian grid/axes; keep only the palette + tooltip/legend chrome.
   override build(): EChartsOption {
-    const { theme } = this.ctx
+    const { theme, formatter } = this.ctx
+    const unit = this.yUnit()
     return {
       color: this.themeColors(),
       backgroundColor: 'transparent',
       textStyle: { color: theme.text.mid },
-      tooltip: { trigger: 'item', backgroundColor: theme.surface2, borderColor: theme.border, textStyle: { color: theme.text.hi } },
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: theme.surface2,
+        borderColor: theme.border,
+        textStyle: { color: theme.text.hi },
+        formatter: (p: unknown) => {
+          const it = p as { marker?: string; name?: string; value?: unknown; percent?: number }
+          const num = typeof it.value === 'number' ? it.value : null
+          return `${it.marker ?? ''}${it.name}: ${formatter.format(num)} ${unit} (${it.percent ?? 0}%)`
+        },
+      },
       legend: { bottom: 0, textStyle: { color: theme.text.mid } },
       series: this.buildSeries(),
     }

@@ -23,7 +23,6 @@ function stubClient(overrides: Partial<Record<keyof ApiClient, () => Promise<unk
       return { tag: name, args } as unknown
     }
   const client = {
-    domain: make('domain'),
     global: make('global'),
     reference: make('reference'),
     equivalence: make('equivalence'),
@@ -32,21 +31,11 @@ function stubClient(overrides: Partial<Record<keyof ApiClient, () => Promise<unk
 }
 
 describe('useDataStore.loadForScene', () => {
-  it('global scope fetches global + reference + equivalence', async () => {
+  it('fetches global + reference + equivalence by default', async () => {
     const data = useDataStore()
     const { client, counts } = stubClient()
     await data.loadForScene(client)
     expect(counts).toEqual({ global: 1, reference: 1, equivalence: 1 })
-    expect(counts.domain).toBeUndefined()
-  })
-
-  it('local scope fetches domain + equivalence only', async () => {
-    const view = useViewStore()
-    view.setScope('local')
-    const data = useDataStore()
-    const { client, counts } = stubClient()
-    await data.loadForScene(client)
-    expect(counts).toEqual({ domain: 1, equivalence: 1 })
   })
 
   it('a warm cache short-circuits the second load (no refetch)', async () => {
@@ -94,22 +83,19 @@ describe('useDataStore.loadForScene', () => {
     const view = useViewStore()
     const data = useDataStore()
     const { client, counts } = stubClient()
-    const local: DerivationParams = {
-      scope: 'local',
-      domainId: 'amazon',
-      horizon: 'today',
+    const other: DerivationParams = {
+      horizon: '50y',
       rScenario: 'mid',
     }
-    await data.loadForScene(client, { params: local, endpoints: ['domain'] })
-    expect(counts).toEqual({ domain: 1 })
-    // Current (global) scene still needs a fetch — the explicit-params load didn't cache it.
+    await data.loadForScene(client, { params: other, endpoints: ['global'] })
+    expect(counts).toEqual({ global: 1 })
+    // Current scene (different horizon) still needs a fetch — the explicit-params load didn't cache it.
     expect(data.dtoCache.has(paramsKey('global', view.derivationParams))).toBe(false)
   })
 })
 
 describe('useDataStore.prefetch', () => {
   const globalParams: DerivationParams = {
-    scope: 'global',
     horizon: 'today',
     rScenario: 'mid',
   }

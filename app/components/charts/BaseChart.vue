@@ -11,8 +11,12 @@ const props = withDefaults(
     option: EChartsOption
     loading?: boolean
     theme?: ThemeTokens
+    /** Y-axis unit (e.g. "MtCO₂"). Rendered by the wrapper — NOT ECharts' `yAxis.name` — as a vertical
+     *  (bottom-to-top), left-side label centred along the axis. Omit for charts without a value axis
+     *  (the donut), which then shows no unit label. */
+    yUnit?: string
   }>(),
-  { loading: false, theme: undefined },
+  { loading: false, theme: undefined, yUnit: undefined },
 )
 
 // The chart-identity contract (ADR-022/025/027): sibling slides in a scene reuse a viz's `id`, so the
@@ -97,7 +101,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="base-chart" :style="theme ? { backgroundColor: 'transparent', color: theme.text.mid } : undefined">
+  <div
+    class="base-chart"
+    :class="{ 'base-chart--has-unit': yUnit }"
+    :style="theme ? { backgroundColor: 'transparent', color: theme.text.mid } : undefined"
+  >
+    <div v-if="yUnit" class="base-chart__y-unit" :style="theme ? { color: theme.text.mid } : undefined">
+      {{ yUnit }}
+    </div>
     <ClientOnly>
       <VChart ref="vchart" :option="normalizedOption" :update-options="UPDATE_OPTIONS" :loading="loading" manual-update />
       <template #fallback>
@@ -115,6 +126,29 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   min-height: 240px;
+}
+/* Reserve a narrow gutter on the left for the wrapper-drawn Y-axis unit so it never overlaps the plot
+   or the axis tick labels. */
+.base-chart--has-unit {
+  padding-left: 18px;
+}
+/* The Y-axis unit: vertical, reading bottom-to-top, centred along the full axis height in the gutter. */
+.base-chart__y-unit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  /* Match ECharts' default axis-label size so the unit reads as prominent as the tick labels. */
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
 }
 /* vue-echarts renders <x-vue-echarts class="echarts"> with no intrinsic height; a child height:100%
    can't resolve against our min-height-only box, so ECharts would init at 0px and draw nothing.

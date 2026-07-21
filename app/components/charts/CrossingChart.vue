@@ -12,9 +12,10 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
-const option = computed(() => new CrossingOption(props.input, props.ctx).build())
+const chart = computed(() => new CrossingOption(props.input, props.ctx))
+const option = computed(() => chart.value.build())
 </script>
 
 <template>
-  <BaseChart :option="option" :loading="loading" />
+  <BaseChart :option="option" :y-unit="chart.yUnit()" :theme="ctx.theme" :loading="loading" />
 </template>

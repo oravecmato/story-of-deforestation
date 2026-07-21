@@ -53,9 +53,17 @@ export abstract class BaseChartOption<TData> {
   protected abstract buildSeries(): SeriesOption[]
 
   /** Assembles the shared scaffolding + `buildSeries()` into a full Option. Subclasses that need
-   *  extra structure (two grids, markPoint…) override and spread `super.build()`. */
+   *  extra structure (two grids, markPoint…) override and spread `super.build()`. The legend is
+   *  derived generically from the built series (helper twins/bands filtered) so no subclass has to
+   *  hand-maintain `legend.data` (§11.1). */
   build(): EChartsOption {
-    return { ...this.baseGrid(), series: this.buildSeries() }
+    const series = this.buildSeries()
+    const base = this.baseGrid()
+    return {
+      ...base,
+      series,
+      legend: { ...(base.legend as object), data: this.legendData(series) },
+    }
   }
 
   // --- shared scaffolding -------------------------------------------------
@@ -176,6 +184,72 @@ export abstract class BaseChartOption<TData> {
     }
   }
 
+  /** The Y-axis unit label (§11, design). Defaults to the cumulative CO₂ unit; a rate chart can
+   *  override to `unit.mtco2yr`. Public so the wrapper (`BaseChart.vue`) can render it alongside the
+   *  Y axis — the unit is drawn by the wrapper, not by ECharts (`yAxis.name`), so it can sit vertically
+   *  centred along the axis. Also consumed by the axis tooltip + donut tooltip. */
+  yUnit(): string {
+    return this.ctx.t('unit.mtco2')
+  }
+
+  /** Helper series carry no legend/tooltip identity: the invisible projected twins (name prefixed or
+   *  suffixed with the zero-width marker) and the CI band scaffolding (names prefixed `__`). Anything
+   *  unnamed is a helper too. This single predicate is the source of truth for excluding them from BOTH
+   *  the legend and the axis tooltip (§11.1) so no chart shows duplicated/phantom entries. */
+  protected isHelperSeries(name: unknown): boolean {
+    return typeof name !== 'string' || name.length === 0 || name.includes(PROJECTED_SUFFIX) || name.startsWith('__')
+  }
+
+  /** Deduped list of the real (public) series names in series order — the generic `legend.data`. */
+  protected legendData(series: SeriesOption[]): string[] {
+    const out: string[] = []
+    const seen = new Set<string>()
+    for (const s of series) {
+      const name = s.name
+      if (this.isHelperSeries(name) || seen.has(name as string)) continue
+      seen.add(name as string)
+      out.push(name as string)
+    }
+    return out
+  }
+
+  /** The tooltip header text for one hovered axis point: the year for the time axis, else the category
+   *  label. Keeps annual data reading as a plain year, matching the axis ticks. */
+  protected tooltipHeader(p: { axisValue?: unknown; axisValueLabel?: string; name?: string }): string {
+    if (typeof p.axisValue === 'number') return String(new Date(p.axisValue).getUTCFullYear())
+    return p.axisValueLabel ?? (typeof p.axisValue === 'string' ? p.axisValue : p.name ?? '')
+  }
+
+  /** Axis-tooltip formatter shared by every cartesian chart: filters helper series (so projected twins
+   *  and band scaffolding never appear), dedupes by name, and formats each value through the injected
+   *  `Formatter` + unit — the same numbers the axis labels use (§11.5, ADR-018). */
+  protected axisTooltipFormatter(): (params: unknown) => string {
+    const { formatter } = this.ctx
+    const unit = this.yUnit()
+    return (params: unknown): string => {
+      const items = (Array.isArray(params) ? params : [params]) as Array<{
+        seriesName?: string
+        marker?: string
+        value?: unknown
+        axisValue?: unknown
+        axisValueLabel?: string
+        name?: string
+      }>
+      const seen = new Set<string>()
+      const rows: string[] = []
+      let header = ''
+      for (const p of items) {
+        if (!header) header = this.tooltipHeader(p)
+        if (this.isHelperSeries(p.seriesName) || seen.has(p.seriesName as string)) continue
+        seen.add(p.seriesName as string)
+        const raw = Array.isArray(p.value) ? p.value[p.value.length - 1] : p.value
+        const num = typeof raw === 'number' ? raw : null
+        rows.push(`${p.marker ?? ''}${p.seriesName}: ${formatter.format(num)} ${unit}`)
+      }
+      return rows.length > 0 ? `${header}<br/>${rows.join('<br/>')}` : ''
+    }
+  }
+
   /** Shared grid/axis/tooltip/legend defaults, all coloured from the theme tokens. */
   protected baseGrid(): EChartsOption {
     const { theme } = this.ctx
@@ -183,11 +257,15 @@ export abstract class BaseChartOption<TData> {
       color: this.themeColors(),
       backgroundColor: 'transparent',
       textStyle: { color: theme.text.mid },
-      grid: { left: 48, right: 24, top: 32, bottom: 48, containLabel: true },
+      // `left` trimmed by 30px (was 48) — the Y-tick labels reserved more room than they need; with
+      // `containLabel` the plot stretches left to fill it while the right edge stays put.
+      grid: { left: 18, right: 24, top: 40, bottom: 48, containLabel: true },
       xAxis: {
         type: 'time',
         axisLine: { lineStyle: { color: theme.border } },
-        axisLabel: { color: theme.text.low, formatter: '{yyyy}' },
+        // `showMinLabel` forces the first tick's label (our earliest data year, e.g. 2000) to render —
+        // a real year, not 0 — which the time axis otherwise drops in favour of a later "nice" tick.
+        axisLabel: { color: theme.text.low, formatter: '{yyyy}', showMinLabel: true },
         // annual data → show only the year on ticks and in the tooltip header (not a full datetime).
         axisPointer: { label: { formatter: (p: { value: number | string | Date }) => String(new Date(p.value).getUTCFullYear()) } },
         splitLine: { show: false },
@@ -195,7 +273,9 @@ export abstract class BaseChartOption<TData> {
       yAxis: {
         type: 'value',
         axisLine: { show: false },
-        axisLabel: { color: theme.text.mid },
+        // Hide the Y min label (the 0 at the origin): with `xAxis.showMinLabel` on, the two min labels
+        // sit at the same corner and visually collide.
+        axisLabel: { color: theme.text.mid, showMinLabel: false },
         splitLine: { lineStyle: { color: theme.border } },
       },
       tooltip: {
@@ -203,6 +283,7 @@ export abstract class BaseChartOption<TData> {
         backgroundColor: theme.surface2,
         borderColor: theme.border,
         textStyle: { color: theme.text.hi },
+        formatter: this.axisTooltipFormatter(),
       },
       legend: { textStyle: { color: theme.text.mid } },
     }

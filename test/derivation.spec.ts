@@ -6,7 +6,6 @@ import {
   paramsToQuery,
   isDomainId,
   PRESET_PARAMS,
-  DEFAULT_DOMAIN_ID,
   DEFAULT_BASELINE,
 } from '../shared/config/derivation'
 
@@ -15,19 +14,15 @@ describe('coerceDerivationParams (lenient client path)', () => {
     expect(coerceDerivationParams({})).toEqual(PRESET_PARAMS)
   })
 
-  it('parses a valid full local query (baseline is not a DerivationParam, ADR-026)', () => {
-    expect(
-      coerceDerivationParams({ scope: 'local', domainId: 'congo', horizon: '50y', rScenario: 'high' }),
-    ).toEqual({ scope: 'local', domainId: 'congo', horizon: '50y', rScenario: 'high' })
+  it('parses a valid full query (baseline is not a DerivationParam, ADR-026)', () => {
+    expect(coerceDerivationParams({ horizon: '50y', rScenario: 'high' })).toEqual({
+      horizon: '50y',
+      rScenario: 'high',
+    })
   })
 
   it('falls back to preset for invalid enum (never throws)', () => {
-    expect(coerceDerivationParams({ scope: 'moon', horizon: 'x', rScenario: 'y' })).toEqual(PRESET_PARAMS)
-  })
-
-  it('local scope without a valid domain → default domain', () => {
-    expect(coerceDerivationParams({ scope: 'local' }).domainId).toBe(DEFAULT_DOMAIN_ID)
-    expect(coerceDerivationParams({ scope: 'local', domainId: 'atlantis' }).domainId).toBe(DEFAULT_DOMAIN_ID)
+    expect(coerceDerivationParams({ horizon: 'x', rScenario: 'y' })).toEqual(PRESET_PARAMS)
   })
 
   it('takes the first value of a repeated field', () => {
@@ -37,20 +32,16 @@ describe('coerceDerivationParams (lenient client path)', () => {
 
 describe('paramsKey / paramsToQuery', () => {
   it('key is stable and endpoint-scoped (baseline is not part of it, ADR-026)', () => {
-    const p = { scope: 'global', horizon: 'today', rScenario: 'mid' } as const
-    expect(paramsKey('global', p)).toBe('global:global::today:mid')
+    const p = { horizon: 'today', rScenario: 'mid' } as const
+    expect(paramsKey('global', p)).toBe('global:today:mid')
     expect(paramsKey('reference', p)).not.toBe(paramsKey('global', p))
   })
 
-  it('query drops domainId in global, includes it in local (no baseline — ADR-026)', () => {
-    expect(paramsToQuery({ scope: 'global', horizon: 'today', rScenario: 'mid' })).toEqual({
-      scope: 'global',
+  it('query mirrors the params (no baseline — ADR-026)', () => {
+    expect(paramsToQuery({ horizon: 'today', rScenario: 'mid' })).toEqual({
       horizon: 'today',
       rScenario: 'mid',
     })
-    expect(
-      paramsToQuery({ scope: 'local', domainId: 'amazon', horizon: '30y', rScenario: 'mid' }),
-    ).toMatchObject({ scope: 'local', domainId: 'amazon' })
   })
 })
 

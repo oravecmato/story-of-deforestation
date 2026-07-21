@@ -55,9 +55,7 @@ function makeEquiv(): EquivalenceService {
   return new EquivalenceService(agg, EQUIVALENCE_CONFIG)
 }
 
-const localToday: DerivationParams = {
-  scope: 'local',
-  domainId: 'amazon',
+const todayParams: DerivationParams = {
   horizon: 'today',
   rScenario: 'mid',
 }
@@ -65,7 +63,7 @@ const localToday: DerivationParams = {
 describe('EquivalenceService', () => {
   it('en locale → UK reference country basis at referenceYear (baseline-independent)', async () => {
     const svc = makeEquiv()
-    const dto = await svc.equivalence(localToday, 'en')
+    const dto = await svc.equivalence(todayParams, 'en')
 
     expect(dto.referenceYear).toBe(2002)
     expect(dto.referenceCountry.iso3).toBe('GBR')
@@ -79,15 +77,15 @@ describe('EquivalenceService', () => {
 
   it('is horizon-invariant (country basis reads referenceYear only)', async () => {
     const svc = makeEquiv()
-    const today = await svc.equivalence(localToday, 'en')
-    const h30 = await svc.equivalence({ ...localToday, horizon: '30y' }, 'en')
+    const today = await svc.equivalence(todayParams, 'en')
+    const h30 = await svc.equivalence({ ...todayParams, horizon: '30y' }, 'en')
     expect(h30.referenceYear).toBe(today.referenceYear)
     expect(h30.referenceCountryAnnualCO2).toBe(today.referenceCountryAnnualCO2)
   })
 
   it('sk locale switches the reference country to Slovakia', async () => {
     const svc = makeEquiv()
-    const dto = await svc.equivalence(localToday, 'sk')
+    const dto = await svc.equivalence(todayParams, 'sk')
     expect(dto.referenceCountry.iso3).toBe('SVK')
     expect(dto.referenceCountryAnnualCO2).toBe(30)
   })

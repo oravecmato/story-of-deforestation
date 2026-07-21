@@ -1,31 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useFormatter } from '../../composables/useFormatter'
+import WindowLabel from './WindowLabel.vue'
 
-// The live ×N headline (UI §7, design §6), now a dumb leaf (ADR-027): the ratio and its forward window
-// `[from, to]` are resolved in the Widget seam and passed in; this component only renders. A `today`
-// window collapses `from === to` to the single-year caption; a longer horizon widens it. A null value
-// (official mode / no data) renders nothing. Shown through the injected Formatter's mono multiplier
-// form (×3.2). Real DOM text (a11y §12).
-const props = defineProps<{ value: number | null; window: { from: number; to: number } | null }>()
+// The live ×N headline (UI §7, design §6), a dumb leaf for the ratio (ADR-027): the value is resolved
+// in the Widget seam and passed in; a null value (official mode / no data) renders nothing. The forward
+// window it summarises is printed by the Pinia-aware `WindowLabel` (point 5), so the badge no longer
+// carries year props. Shown through the injected Formatter's mono multiplier form (×3.2). Real DOM
+// text (a11y §12).
+const props = defineProps<{ value: number | null }>()
 
-const { t } = useI18n()
 const formatter = useFormatter()
 
 const formatted = computed(() => (props.value != null ? formatter.multiplier(props.value) : ''))
-const caption = computed<string | null>(() => {
-  const w = props.window
-  if (!w) return null
-  return w.from === w.to
-    ? t('multiplier.caption', { year: w.from })
-    : t('multiplier.captionWindow', { from: w.from, to: w.to })
-})
 </script>
 
 <template>
   <div v-if="value != null" class="multiplier">
     <span class="multiplier__value mono">{{ formatted }}</span>
-    <span v-if="caption != null" class="multiplier__caption">{{ caption }}</span>
+    <WindowLabel class="multiplier__caption" />
   </div>
 </template>
 

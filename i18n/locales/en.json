@@ -4,16 +4,6 @@
     "thesis": "Reported forest emissions are only half the story — the lost future carbon sink is the rest.",
     "footer": "Data: World Bank Open Data · EDGAR (EN.GHG.*). A portfolio piece."
   },
-  "scope": {
-    "label": "Region",
-    "global": "Global (all tropical)",
-    "domain": {
-      "amazon": "Amazon",
-      "congo": "Congo Basin",
-      "seasia": "Southeast Asia",
-      "other": "Other tropical"
-    }
-  },
   "horizon": {
     "label": "Time horizon",
     "today": "Today",
@@ -43,30 +33,28 @@
     "fossil": { "title": "Deforestation vs fossil emissions" },
     "crossing": { "title": "Stock release vs forgone sink" },
     "donut": { "title": "Share of footprint" },
-    "equivalence": { "title": "What this means" },
-    "dataYear": "data to {year}",
-    "referenceYear": "compared at {year}"
+    "equivalence": { "title": "What this means" }
   },
-  "multiplier": {
-    "caption": "full vs reported at {year}",
-    "captionWindow": "full vs reported, {from}–{to}"
+  "window": {
+    "single": "in {year}",
+    "range": "over {from}–{to}"
   },
   "share": {
     "label": "Share of global footprint",
     "value": "{value}"
   },
   "equivalenceStrip": {
-    "stockWindow": "Reported stock over the window",
+    "stockPeriod": "Reported emissions over the period",
     "forgoneAnnual": "Forgone sink, per year",
-    "forgoneWindow": "Forgone sink to the horizon",
-    "combined": "Everything combined",
+    "forgonePeriod": "Forgone sink over the period",
+    "combinedPeriod": "Combined over the period",
     "unit": {
       "label": "Unit",
       "mtco2": "Mt CO₂",
       "car": "Cars",
       "country": "UK",
-      "carSuffix": "passenger cars",
-      "countrySuffix": "× {country}'s annual emissions"
+      "carLong": "annual emissions of a passenger car",
+      "countryLong": "annual emissions of {country}"
     }
   },
   "methodology": {
@@ -105,6 +93,14 @@
   "fossil": {
     "deforestation": "Deforestation",
     "fossil": "Fossil"
+  },
+  "flux": {
+    "absorbed": "CO₂ absorbed",
+    "released": "CO₂ released",
+    "net": "Net sink lost"
+  },
+  "rMultiplier": {
+    "label": "R multiplier"
   },
   "chart": {
     "crossing": {
@@ -146,6 +142,19 @@
     },
     "baselineLab": {
       "caption": "See what happens when you manipulate with the baseline year — drag it back toward 1800 and watch the forgone sink grow."
+    },
+    "method": {
+      "heading": "How is the forgone carbon sink actually computed?",
+      "p1": "The forgone sink is a simple product: a sequestration rate R times the area of forest lost each year. R is just how much CO₂ a hectare of that forest would keep pulling out of the air every year if it were still standing.",
+      "p2": "R is not one universal number. It differs from forest to forest, because it depends on the balance between two opposing flows: the CO₂ a living forest absorbs as it grows, and the CO₂ it releases as wood dies and decomposes.",
+      "p3": "The R values we use are traceable gross-flux measurements — the net sink is the difference between those two flows, absorbed minus released. The bigger that gap, the more sink each cleared hectare quietly costs us."
+    },
+    "methodMore": {
+      "heading": "Placeholder heading",
+      "p1": "Placeholder body copy — to be written."
+    },
+    "amplified": {
+      "caption": "For these very reasons, some climate models suggest the forgone sink could be up to six times larger. What would that mean in practice? Slide the R multiplier and watch."
     }
   }
 }

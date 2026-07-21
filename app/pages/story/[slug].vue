@@ -2,7 +2,6 @@
 import { computed, watch } from 'vue'
 import { getSlide, nextSlug, FIRST_SLUG, slideIndex, SLUGS } from '../../story/slides'
 import { renderSlide, type RenderableSlide, type ChartComponentName } from '../../story/SlideFactory'
-import type { Scope } from '../../../shared/types'
 import GenericSlide from '../../components/deck/GenericSlide.vue'
 import DeckNav from '../../components/deck/DeckNav.vue'
 import LanguageSwitcher from '../../components/controls/LanguageSwitcher.vue'
@@ -48,18 +47,19 @@ const slide = computed<RenderableSlide>(() => renderSlide(def.value, view.deriva
 const slideNumber = computed(() => slideIndex(slug.value) + 1)
 
 /** The DTO endpoints a resolved visualisation needs (deck subset). */
-const vizEndpoints = (component: ChartComponentName, scope: Scope): EndpointKey[] => {
+const vizEndpoints = (component: ChartComponentName): EndpointKey[] => {
   switch (component) {
-    case 'MainStackedChart':
-      return ['domain']
     case 'GlobalStackedAreaChart':
       return ['global']
     case 'CrossingChart':
-      return scope === 'global' ? ['global'] : ['domain']
+      return ['global']
     case 'FootprintDonut':
       return ['reference', 'global']
     case 'FossilComparisonChart':
       return ['reference', 'global']
+    case 'FluxBarChart':
+      // Editorial illustration with hardcoded values — needs no server data.
+      return []
   }
 }
 
@@ -69,7 +69,7 @@ const vizEndpoints = (component: ChartComponentName, scope: Scope): EndpointKey[
 const endpointsFor = (s: RenderableSlide): EndpointKey[] => {
   const set = new Set<EndpointKey>()
   for (const w of s.widgets) {
-    if (w.type === 'viz') for (const e of vizEndpoints(w.component, s.params.scope)) set.add(e)
+    if (w.type === 'viz') for (const e of vizEndpoints(w.component)) set.add(e)
     else if (w.type === 'equivalence') set.add('equivalence')
   }
   return [...set]
@@ -159,8 +159,13 @@ const onNavigate = (target: string) => {
 </template>
 
 <style scoped lang="scss">
+// The gutter reserved on each side for the fixed edge-arrow nav lanes (DeckNav). Capping the content
+// container's max-width by twice this guarantees the arrows always have room and never overlap a slide.
+.deck {
+  --arrow-lane: clamp(44px, 6vw, 120px);
+}
 .deck__inner {
-  max-width: 1360px;
+  max-width: min(1360px, calc(100vw - 2 * var(--arrow-lane)));
   margin: 0 auto;
   padding: 0 24px 24px;
   min-height: 100vh;

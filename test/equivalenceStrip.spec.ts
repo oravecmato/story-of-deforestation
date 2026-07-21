@@ -63,38 +63,38 @@ describe('deriveStripValues', () => {
     // referenceYear 2020, horizon 20y → window [2020, 2040]
     const v = deriveStripValues(global, forgone, '20y')
     // stock window excludes 2010 (pre-refYear) and 2050/2070 (past target): 200 + 300 = 500
-    expect(v.stockWindow).toBe(500)
+    expect(v.stockPeriod).toBe(500)
     // annual forgone = level at referenceYear (2020) → the 2020 point
     expect(v.forgoneAnnual).toBe(50)
     // forgone to horizon = TRUE Σ over the window: 50 + 120 = 170
-    expect(v.forgoneWindow).toBe(170)
+    expect(v.forgonePeriod).toBe(170)
     // combined = stock window + forgone over the window
-    expect(v.combined).toBe(670)
+    expect(v.combinedPeriod).toBe(670)
   })
 
   it('grows the window with the horizon (upper edge)', () => {
     // referenceYear 2020, horizon 30y → window [2020, 2050]: 2050 now falls inside
     const v = deriveStripValues(global, forgone, '30y')
-    expect(v.stockWindow).toBe(900) // 200 + 300 + 400
-    expect(v.forgoneWindow).toBe(300) // 50 + 120 + 130
-    expect(v.combined).toBe(1200)
+    expect(v.stockPeriod).toBe(900) // 200 + 300 + 400
+    expect(v.forgonePeriod).toBe(300) // 50 + 120 + 130
+    expect(v.combinedPeriod).toBe(1200)
   })
 
   it('collapses to the single reference year at horizon today (continuity with the measured ratio)', () => {
     // referenceYear 2020, horizon today → window [2020, 2020]: the measured year only
     const v = deriveStripValues(global, forgone, 'today')
-    expect(v.stockWindow).toBe(200) // 2020 only
-    expect(v.forgoneWindow).toBe(50) // 2020 only
-    expect(v.combined).toBe(250)
+    expect(v.stockPeriod).toBe(200) // 2020 only
+    expect(v.forgonePeriod).toBe(50) // 2020 only
+    expect(v.combinedPeriod).toBe(250)
   })
 
   it('anchors the window at the DTO referenceYear (not a fixed calendar year)', () => {
     // A DTO whose referenceYear is 2040 shifts the window forward: 30y → [2040, 2070]
     const shifted = { ...global, referenceYear: 2040 } as unknown as GlobalResultDTO
     const v = deriveStripValues(shifted, forgone, '30y')
-    expect(v.stockWindow).toBe(1200) // 300 + 400 + 500
+    expect(v.stockPeriod).toBe(1200) // 300 + 400 + 500
     expect(v.forgoneAnnual).toBe(120) // level at 2040
-    expect(v.forgoneWindow).toBe(390) // 120 + 130 + 140
+    expect(v.forgonePeriod).toBe(390) // 120 + 130 + 140
   })
 })
 

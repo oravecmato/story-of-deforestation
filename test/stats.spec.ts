@@ -16,6 +16,8 @@ import {
   aggregateForgoneSink,
   sharePercent,
   projectSeries,
+  projectedHaltYear,
+  freezeCumulativeAfter,
   pearson,
   lagCorrelation,
   KM2_TO_HA,
@@ -314,6 +316,58 @@ describe('projectSeries (fix A: anchored on the last measured point)', () => {
     const p = projectSeries(s, 2002)
     expect(p.meta.projectedFrom).toBeNull()
     expect(values(p)).toEqual([10, 12, 20])
+  })
+})
+
+describe('forgone-sink plateau: coupling to the stock-projection halt (business §2.4b)', () => {
+  it('projectedHaltYear: first projected year the value reaches zero', () => {
+    // Stock projected to zero at 2004 (clamped), so it stays 0 from there on.
+    const stock = mkSeries(
+      'stock',
+      [[2000, 30], [2001, 20], [2002, 10], [2003, 0], [2004, 0]],
+      { projectedFrom: 2002 },
+    )
+    expect(projectedHaltYear(stock)).toBe(2003)
+  })
+
+  it('projectedHaltYear: null when there is no projection', () => {
+    const s = mkSeries('s', [[2000, 10], [2001, 0]]) // projectedFrom null by default
+    expect(projectedHaltYear(s)).toBeNull()
+  })
+
+  it('projectedHaltYear: null when the projected tail never reaches zero', () => {
+    const rising = mkSeries('s', [[2000, 10], [2001, 12], [2002, 15]], { projectedFrom: 2001 })
+    expect(projectedHaltYear(rising)).toBeNull()
+  })
+
+  it('freezeCumulativeAfter: plateaus at the pre-halt level, leaves earlier years untouched', () => {
+    const cumLoss = mkSeries('cl', [
+      [2000, 5],
+      [2001, 12],
+      [2002, 20],
+      [2003, 30],
+      [2004, 42],
+    ])
+    // Stock halts at 2003 → hold the 2002 level (20) for 2003+, earlier years unchanged.
+    expect(values(freezeCumulativeAfter(cumLoss, 2003))).toEqual([5, 12, 20, 20, 20])
+  })
+
+  it('freezeCumulativeAfter: null haltYear returns the series unchanged', () => {
+    const cumLoss = mkSeries('cl', [[2000, 5], [2001, 12], [2002, 20]])
+    expect(values(freezeCumulativeAfter(cumLoss, null))).toEqual([5, 12, 20])
+  })
+
+  it('forgoneSink plateaus once the coupled cumulative loss is frozen', () => {
+    const cumLoss = mkSeries('cl', [
+      [2000, 10_000],
+      [2001, 25_000],
+      [2002, 40_000],
+    ])
+    const frozen = freezeCumulativeAfter(cumLoss, 2002) // hold the 2001 level (25_000)
+    const fs = forgoneSink(frozen, { mid: 2, low: 1, high: 3 }, 'mid')
+    const at = (y: number) => fs.points.find((p) => p.year === y)!.value!
+    expect(at(2001)).toBeCloseTo(5, 10) // 25_000 × 1e-4 × 2
+    expect(at(2002)).toBeCloseTo(5, 10) // plateaued, NOT 8 (would be 40_000 × 1e-4 × 2)
   })
 })
 

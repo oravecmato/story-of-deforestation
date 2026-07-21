@@ -61,52 +61,14 @@ function makeAgg(): { agg: AggregationService; emissions: EmissionsService } {
 }
 
 const base: DerivationParams = {
-  scope: 'local',
-  domainId: 'amazon',
   horizon: 'today',
   rScenario: 'mid',
 }
 
-describe('AggregationService.domainResult', () => {
-  it('clamps area to baseline and stock to the composite floor (2000); referenceYear = min-common', async () => {
-    const { agg } = makeAgg()
-    const dto = await agg.domainResult('amazon', base)
-
-    expect(dto.referenceYear).toBe(2002)
-    expect(dto.area.points[0]!.year).toBe(1990) // area from baseline
-    expect(dto.stock.points[0]!.year).toBe(2000) // stock from composite floor
-    // The forgone-sink family (cumulativeLoss/forgoneSink/fullEmissions/multiplier/crossingYear) is
-    // NOT shipped — the client derives it at the live baseline (ADR-026, see test/derived.spec.ts).
-    expect('cumulativeLoss' in dto).toBe(false)
-    expect('forgoneSink' in dto).toBe(false)
-    expect('multiplier' in dto).toBe(false)
-  })
-
-  it('future horizon: projects the stock past the last measured year, keeps refYear measured', async () => {
-    const { agg } = makeAgg()
-    const dto = await agg.domainResult('amazon', { ...base, horizon: '30y' })
-    expect(dto.stock.meta.projectedFrom).toBe(2002)
-    expect(dto.stock.points.at(-1)!.year).toBeGreaterThan(2002)
-    expect(dto.referenceYear).toBe(2002) // composite scalar stays on measured data
-  })
-
-  it('today horizon: nowcasts area + stock uniformly to the anchor year (no inter-series gap)', async () => {
-    const { agg } = makeAgg()
-    const dto = await agg.domainResult('amazon', base) // horizon 'today'
-    // Both series now reach the same anchor year (HORIZON_ANCHOR_YEAR = 2026), projected off their own
-    // last measured year — so a stock series that lags fresher area data is filled to close the gap.
-    expect(dto.area.points.at(-1)!.year).toBe(HORIZON_ANCHOR_YEAR)
-    expect(dto.stock.points.at(-1)!.year).toBe(HORIZON_ANCHOR_YEAR)
-    expect(dto.area.meta.projectedFrom).toBe(2002)
-    expect(dto.stock.meta.projectedFrom).toBe(2002)
-    expect(dto.referenceYear).toBe(2002) // composite scalar stays measured (horizon-invariant)
-  })
-})
-
 describe('AggregationService.globalResult', () => {
   it('global: baseline-independent stacked per-domain area + stock + aggregate stock', async () => {
     const { agg } = makeAgg()
-    const dto = await agg.globalResult({ ...base, scope: 'global' })
+    const dto = await agg.globalResult(base)
     expect(dto.perDomainArea).toHaveLength(1)
     expect(dto.perDomainArea[0]!.points[0]!.year).toBe(1990) // full-range area from BASELINE_FLOOR
     expect(dto.perDomainStock).toHaveLength(1)
@@ -115,6 +77,26 @@ describe('AggregationService.globalResult', () => {
     expect('perDomainForgoneSink' in dto).toBe(false)
     expect('aggregateForgoneSink' in dto).toBe(false)
     expect('multiplier' in dto).toBe(false)
+  })
+
+  it('future horizon: projects the stock past the last measured year, keeps refYear measured', async () => {
+    const { agg } = makeAgg()
+    const dto = await agg.globalResult({ ...base, horizon: '30y' })
+    expect(dto.aggregateStock.meta.projectedFrom).toBe(2002)
+    expect(dto.aggregateStock.points.at(-1)!.year).toBeGreaterThan(2002)
+    expect(dto.referenceYear).toBe(2002) // composite scalar stays on measured data
+  })
+
+  it('today horizon: nowcasts area + stock uniformly to the anchor year (no inter-series gap)', async () => {
+    const { agg } = makeAgg()
+    const dto = await agg.globalResult(base) // horizon 'today'
+    // Both series now reach the same anchor year (HORIZON_ANCHOR_YEAR = 2026), projected off their own
+    // last measured year — so a stock series that lags fresher area data is filled to close the gap.
+    expect(dto.perDomainArea[0]!.points.at(-1)!.year).toBe(HORIZON_ANCHOR_YEAR)
+    expect(dto.aggregateStock.points.at(-1)!.year).toBe(HORIZON_ANCHOR_YEAR)
+    expect(dto.perDomainArea[0]!.meta.projectedFrom).toBe(2002)
+    expect(dto.aggregateStock.meta.projectedFrom).toBe(2002)
+    expect(dto.referenceYear).toBe(2002) // composite scalar stays measured (horizon-invariant)
   })
 })
 
@@ -163,7 +145,7 @@ function makeAgg2(): AggregationService {
 describe('AggregationService.globalResult stock additivity (Option B)', () => {
   it('Σ perDomainStock == aggregateStock at every projected year (no per-domain runaway)', async () => {
     const agg = makeAgg2()
-    const dto = await agg.globalResult({ scope: 'global', horizon: '100y', rScenario: 'mid' })
+    const dto = await agg.globalResult({ horizon: '100y', rScenario: 'mid' })
 
     const byYear = (s: Series) => new Map(s.points.map((p) => [p.year, p.value]))
     const aggByYear = byYear(dto.aggregateStock)
