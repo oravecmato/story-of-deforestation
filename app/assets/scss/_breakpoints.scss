@@ -1,0 +1,22 @@
+// Shared responsive boundary for the deck (ADR-021..027). The desktop grid holds until 1120px, below
+// which every slide reflows to the single-column mobile stack. Injected into every component style
+// block via nuxt.config's `additionalData`, so components use `@include desktop { … }` /
+// `@include mobile { … }` instead of repeating raw media queries.
+
+// The deck's desktop floor: at and above this width the CSS-grid slide templates apply; below it the
+// mobile column variants take over.
+$bp-desktop: 1120px;
+
+/// Rules that apply on the desktop grid (>= $bp-desktop).
+@mixin desktop {
+  @media (min-width: $bp-desktop) {
+    @content;
+  }
+}
+
+/// Rules that apply on the mobile stack (< $bp-desktop).
+@mixin mobile {
+  @media (max-width: #{$bp-desktop - 1px}) {
+    @content;
+  }
+}

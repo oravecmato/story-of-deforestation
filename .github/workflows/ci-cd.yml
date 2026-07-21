@@ -1,0 +1,89 @@
+name: CI / CD
+
+# Runs on every PR into main and on every push to main. The `deploy` job is gated behind the
+# quality + security jobs and only fires on a real push to main (never on PRs / forks), so nothing
+# ships unless lint, typecheck, the full test suite and the security scans are all green.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A newer push to the same branch cancels the in-flight run to save CI minutes.
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege by default; jobs opt into more only where needed.
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint · Typecheck · Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # version comes from package.json "packageManager"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20 # project engines: node >=20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile # also runs postinstall → `nuxt prepare` (types for typecheck)
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit + integration tests
+        run: pnpm test
+
+  security:
+    name: Security · deps + secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans the full commit history, not just the tip
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Audit dependencies (fail on high / critical)
+        run: pnpm audit --audit-level high
+      - name: Scan git history for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # free for personal-account repos; no license needed
+
+  deploy:
+    name: Deploy · Vercel production
+    needs: [quality, security] # ships only if BOTH gates pass …
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # … and only on a push to main
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      # Org + project IDs are non-secret identifiers Vercel needs to target the right project.
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # `vercel build` runs the install step locally → pnpm must be on PATH
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Pull project settings (production)
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build (Nitro `vercel` preset → .vercel/output)
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy prebuilt output
+        id: deploy
+        run: echo "url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})" >> "$GITHUB_OUTPUT"

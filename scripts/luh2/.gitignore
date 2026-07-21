@@ -1,0 +1,8 @@
+# Build-only artifacts for the LUH2 reconstruction (ADR-026). Committed: extract.py,
+# README.md, and the generated shared/data/luh2/*.json. Everything below is re-downloadable
+# / re-creatable and must NOT be committed.
+.venv/
+*.nc
+*.zip
+*.log
+__pycache__/
