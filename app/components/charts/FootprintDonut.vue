@@ -5,7 +5,7 @@ import type {
   GlobalResultDTO,
   GlobalDerived,
   VizPresentation,
-} from '../../../shared/types'
+} from '#shared/types'
 import BaseChart from './BaseChart.vue'
 import { FootprintDonutOption } from '../../charts/FootprintDonutOption'
 import type { ChartContext } from '../../charts/BaseChartOption'

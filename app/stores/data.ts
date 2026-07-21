@@ -5,8 +5,8 @@ import type {
   GlobalDerived,
   ReferenceDTO,
   EquivalenceDTO,
-} from '../../shared/types'
-import { paramsKey } from '../../shared/config/derivation'
+} from '#shared/types'
+import { paramsKey } from '#shared/config/derivation'
 import { deriveGlobal } from '../composables/useDerived'
 import { useViewStore } from './view'
 import { useUiStore } from './ui'

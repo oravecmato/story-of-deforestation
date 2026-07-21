@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import type { ThemeTokens } from '../../shared/types'
+import type { ThemeTokens } from '#shared/types'
 
 // UI store (tech-spec §10.3): locale, theme, presentation. V1 is fixed dark (ADR-002), so theme is
 // not a toggle yet. `locale` is the single source of truth for the language and drives the

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Slider from 'primevue/slider'
 import { computed } from 'vue'
-import { R_MULTIPLIER_MIN, R_MULTIPLIER_MAX, R_MULTIPLIER_STEP } from '../../../shared/config/derivation'
+import { R_MULTIPLIER_MIN, R_MULTIPLIER_MAX, R_MULTIPLIER_STEP } from '#shared/config/derivation'
 import { useViewStore } from '../../stores/view'
 
 // R-amplification slider (slide 10). A discrete 1×–6× coefficient that scales the sink rate R

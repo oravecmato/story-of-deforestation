@@ -1,4 +1,4 @@
-import type { GridTemplateId } from '../../shared/types'
+import type { GridTemplateId } from '#shared/types'
 
 // The named grid-template library (ADR-027, design §5). Each template is pure geometry: the CSS grid
 // columns/rows and the `grid-template-areas` map a slide's widgets are placed into (a widget's `area`

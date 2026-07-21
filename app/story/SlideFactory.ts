@@ -8,7 +8,7 @@ import type {
   VizKind,
   VizPresentation,
   WidgetDef,
-} from '../../shared/types'
+} from '#shared/types'
 
 // The pure slide factory (tech-spec §17.2, ADR-021/027). It resolves an authored `SlideDef` against the
 // current scene's `DerivationParams` into a render-ready `RenderableSlide`: effective params (scene

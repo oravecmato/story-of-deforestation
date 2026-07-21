@@ -5,7 +5,7 @@ import type {
   GlobalResultDTO,
   GlobalDerived,
   VizPresentation,
-} from '../../../shared/types'
+} from '#shared/types'
 import BaseChart from './BaseChart.vue'
 import { FossilComparisonOption } from '../../charts/FossilComparisonOption'
 import type { ChartContext } from '../../charts/BaseChartOption'

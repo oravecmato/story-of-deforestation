@@ -1,7 +1,7 @@
 import type { EChartsOption, SeriesOption } from 'echarts'
-import type { Series, BandSeries, DataPoint, SeriesType, ThemeTokens, Horizon, VizPresentation } from '../../shared/types'
+import type { Series, BandSeries, DataPoint, SeriesType, ThemeTokens, Horizon, VizPresentation } from '#shared/types'
 import type { Formatter } from '../format/Formatter'
-import { sumWindow } from '../../shared/utils/stats'
+import { sumWindow } from '#shared/utils/stats'
 
 /** Opacity applied to the projected (dashed) twin of a metric (design §2, business §2.4a). */
 export const PROJECTED_OPACITY = 0.55

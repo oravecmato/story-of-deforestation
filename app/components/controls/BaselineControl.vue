@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Select from 'primevue/select'
 import { computed, ref, useId, onMounted, onBeforeUnmount } from 'vue'
-import { DEFAULT_BASELINE, BASELINE_MAX } from '../../../shared/config/derivation'
+import { DEFAULT_BASELINE, BASELINE_MAX } from '#shared/config/derivation'
 import { useViewStore } from '../../stores/view'
 
 // Baseline year (UI §3, design §6): the sink-integration origin. Tucked behind a kebab (three-dot)

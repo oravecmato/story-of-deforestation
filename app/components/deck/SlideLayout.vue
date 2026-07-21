@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { GridTemplateId } from '../../../shared/types'
+import type { GridTemplateId } from '#shared/types'
 import { GRID_TEMPLATES } from '../../story/gridTemplates'
 
 // The geometry-only slide shell (ADR-027, design §5). It knows NOTHING about what a widget is — it only

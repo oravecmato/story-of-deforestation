@@ -6,11 +6,11 @@ import type {
   DomainId,
   RRange,
   RScenario,
-} from '../../shared/types'
-import { DOMAINS } from '../../shared/config/domains'
-import { getIndicator } from '../../shared/config/indicators'
-import { isDomainId, sceneWindow } from '../../shared/config/derivation'
-import * as stats from '../../shared/utils/stats'
+} from '#shared/types'
+import { DOMAINS } from '#shared/config/domains'
+import { getIndicator } from '#shared/config/indicators'
+import { isDomainId, sceneWindow } from '#shared/config/derivation'
+import * as stats from '#shared/utils/stats'
 
 // Isomorphic derive layer (ADR-026 §3.2a). The baseline-dependent tail
 // (cumulativeLoss → forgoneSink → fullEmissions → multiplier → crossingYear) is recomputed OFF the

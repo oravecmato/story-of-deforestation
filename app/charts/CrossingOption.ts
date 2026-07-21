@@ -1,5 +1,5 @@
 import type { SeriesOption } from 'echarts'
-import type { Series, BandSeries } from '../../shared/types'
+import type { Series, BandSeries } from '#shared/types'
 import { BaseChartOption, PROJECTED_OPACITY, PROJECTED_SUFFIX } from './BaseChartOption'
 
 /** The crossing chart's minimal input — the measured stock curve, the forgone-sink band, and the

@@ -1,5 +1,5 @@
 import type { SeriesOption } from 'echarts'
-import type { GlobalResultDTO, GlobalDerived } from '../../shared/types'
+import type { GlobalResultDTO, GlobalDerived } from '#shared/types'
 import { BaseChartOption } from './BaseChartOption'
 
 // Global main chart (§11.2, §4.2): per-domain stacked area + the aggregate forgone sink as one more

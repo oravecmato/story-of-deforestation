@@ -1,4 +1,4 @@
-import type { SlideDef } from '../../shared/types'
+import type { SlideDef } from '#shared/types'
 
 // The authored story deck (tech-spec §17.1, business §4.7, ADR-027). Ten slides across seven scenes.
 // A slide is a grid template + the widgets placed on it (copy is i18n keys only). Sibling slides in a

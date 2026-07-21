@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 
@@ -9,6 +10,13 @@ export default defineConfig({
   // shapes differ at the type level only; the transform is runtime-compatible.
   // @ts-expect-error cross-version vite Plugin type mismatch (vitest 5 vs plugin-vue 6/7)
   plugins: [vue()],
+  // App code imports `shared/**` via Nuxt's `#shared` alias (Nuxt 4 auto-registers it); vitest runs
+  // its own vite instance without Nuxt, so mirror the alias here → `shared/` at the repo root.
+  resolve: {
+    alias: {
+      '#shared': fileURLToPath(new URL('./shared', import.meta.url)),
+    },
+  },
   test: {
     environment: 'node',
     include: ['test/**/*.spec.ts'],

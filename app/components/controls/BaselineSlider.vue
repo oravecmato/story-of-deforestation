@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Slider from 'primevue/slider'
 import { computed } from 'vue'
-import { BASELINE_FLOOR, BASELINE_MAX } from '../../../shared/config/derivation'
+import { BASELINE_FLOOR, BASELINE_MAX } from '#shared/config/derivation'
 import { useViewStore } from '../../stores/view'
 
 // Baseline slider (ADR-026): the fine, full-range alternative to the coarse `BaselineControl` select.

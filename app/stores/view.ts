@@ -5,7 +5,7 @@ import type {
   RScenario,
   SceneId,
   EquivalenceUnit,
-} from '../../shared/types'
+} from '#shared/types'
 import {
   PRESET_PARAMS,
   DEFAULT_BASELINE,
@@ -14,7 +14,7 @@ import {
   coerceBaseline,
   coerceRMultiplier,
   paramsToQuery,
-} from '../../shared/config/derivation'
+} from '#shared/config/derivation'
 
 // View store (tech-spec §10.1) — per-scene control/view state. Because the deck is a single persistent
 // route (§17, ADR-023), control state is keyed per SCENE, not one flat current-view: revisiting a scene

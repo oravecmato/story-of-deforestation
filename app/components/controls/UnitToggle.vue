@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import SelectButton from 'primevue/selectbutton'
 import { computed } from 'vue'
-import type { EquivalenceUnit } from '../../../shared/types'
+import type { EquivalenceUnit } from '#shared/types'
 import { useViewStore } from '../../stores/view'
 
 // The equivalence-strip unit switcher (UI §6.7, design §6, ADR-025): a compact segmented pill that

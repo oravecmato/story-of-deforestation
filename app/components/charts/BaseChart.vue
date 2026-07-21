@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import type { EChartsOption, SetOptionOpts } from 'echarts'
-import type { ThemeTokens } from '../../../shared/types'
+import type { ThemeTokens } from '#shared/types'
 
 // Tier-1 dumb chart wrapper (tech-spec §11.4): a client-only <VChart>; no domain logic. Options are
 // built by the chart-option classes and passed in as props. <VChart> (nuxt-echarts) and <ClientOnly>

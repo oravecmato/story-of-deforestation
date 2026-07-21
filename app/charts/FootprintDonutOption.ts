@@ -1,6 +1,6 @@
 import type { EChartsOption, SeriesOption } from 'echarts'
-import type { GlobalResultDTO, GlobalDerived, ReferenceDTO } from '../../shared/types'
-import { sceneWindow } from '../../shared/config/derivation'
+import type { GlobalResultDTO, GlobalDerived, ReferenceDTO } from '#shared/types'
+import { sceneWindow } from '#shared/config/derivation'
 import { BaseChartOption } from './BaseChartOption'
 
 export interface FootprintDonutData {

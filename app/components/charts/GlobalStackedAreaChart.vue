@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { GlobalResultDTO, GlobalDerived, VizPresentation } from '../../../shared/types'
+import type { GlobalResultDTO, GlobalDerived, VizPresentation } from '#shared/types'
 import BaseChart from './BaseChart.vue'
 import { GlobalStackedAreaOption } from '../../charts/GlobalStackedAreaOption'
 import type { ChartContext } from '../../charts/BaseChartOption'

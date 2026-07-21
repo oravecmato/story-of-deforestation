@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useViewStore } from '../../stores/view'
-import { resolveReferenceCountry } from '../../../shared/config/equivalences'
+import { resolveReferenceCountry } from '#shared/config/equivalences'
 import UnitToggle from './UnitToggle.vue'
 
 // Equivalence-strip unit selector (UI §6.7, design §6). The strip cells now show only a pictogram

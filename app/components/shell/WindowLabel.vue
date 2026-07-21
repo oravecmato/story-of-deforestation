@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { HORIZON_ANCHOR_YEAR, horizonTargetYear } from '../../../shared/config/derivation'
+import { HORIZON_ANCHOR_YEAR, horizonTargetYear } from '#shared/config/derivation'
 import { useViewStore } from '../../stores/view'
 
 // The single reusable window caption (point 5): every scene figure — the ×N badge and the equivalence

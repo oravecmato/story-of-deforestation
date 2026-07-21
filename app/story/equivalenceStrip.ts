@@ -1,6 +1,6 @@
-import type { BandSeries, EquivalenceUnit, GlobalResultDTO, Horizon, Series } from '../../shared/types'
-import { sceneWindow } from '../../shared/config/derivation'
-import { sumWindow } from '../../shared/utils/stats'
+import type { BandSeries, EquivalenceUnit, GlobalResultDTO, Horizon, Series } from '#shared/types'
+import { sceneWindow } from '#shared/config/derivation'
+import { sumWindow } from '#shared/utils/stats'
 
 // Pure client-side reductions behind the slide-6 equivalence strip (ADR-025, §17.4). The four
 // magnitudes are derived from the ALREADY-FETCHED global DTO over the forward magnitude window

@@ -4,8 +4,8 @@ import type {
   GlobalResultDTO,
   ReferenceDTO,
   EquivalenceDTO,
-} from '../../shared/types'
-import { paramsToQuery } from '../../shared/config/derivation'
+} from '#shared/types'
+import { paramsToQuery } from '#shared/config/derivation'
 
 // Typed BFF client (tech-spec §9). The ONLY place the store touches the network; one method per
 // endpoint returning the matching DTO. Pure factory over an injected Axios instance (the axios plugin

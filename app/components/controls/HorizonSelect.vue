@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import SelectButton from 'primevue/selectbutton'
 import { computed } from 'vue'
-import type { Horizon } from '../../../shared/types'
-import { HORIZONS } from '../../../shared/config/derivation'
+import type { Horizon } from '#shared/types'
+import { HORIZONS } from '#shared/config/derivation'
 import { useViewStore } from '../../stores/view'
 
 // The signature interaction (UI §3, ADR-019): a wide SelectButton today / +20 … +100 y that sets the
