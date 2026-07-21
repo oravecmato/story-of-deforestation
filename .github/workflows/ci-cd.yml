@@ -52,8 +52,14 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Audit dependencies (fail on high / critical)
+      - name: Audit production dependencies (fail on high / critical)
+        # Gate only on what actually ships (the Nitro server bundle). `--prod` skips devDependencies,
+        # so advisories in test-only tooling (vitest / happy-dom / dev vite) don't block a deploy.
+        run: pnpm audit --audit-level high --prod
+      - name: Audit all dependencies (informational — dev tooling)
+        # Full audit for visibility of dev-dep advisories; non-blocking (tracked, not deploy-gating).
         run: pnpm audit --audit-level high
+        continue-on-error: true
       - name: Scan git history for committed secrets
         uses: gitleaks/gitleaks-action@v2
         env:
