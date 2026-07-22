@@ -48,11 +48,12 @@ export class FluxBarOption extends BaseChartOption<FluxBarData> {
   override build(): EChartsOption {
     const { theme, t } = this.ctx
     const { max, interval } = this.sharedYAxis([this.data.absorbed])
+    const { legendTop, gridTop } = this.legendReserve(2)
     return {
       color: this.themeColors(),
       backgroundColor: 'transparent',
       textStyle: { color: theme.text.mid },
-      grid: { left: 24, right: 24, top: 32, bottom: 40, containLabel: true },
+      grid: { left: 24, right: 24, top: Math.max(32, gridTop), bottom: 40, containLabel: true },
       xAxis: {
         type: 'category',
         data: [t('flux.absorbed'), t('flux.released')],
@@ -75,7 +76,11 @@ export class FluxBarOption extends BaseChartOption<FluxBarData> {
         textStyle: { color: theme.text.hi },
         formatter: this.axisTooltipFormatter(),
       },
-      legend: { textStyle: { color: theme.text.mid }, data: [t('flux.released'), t('flux.net')] },
+      legend: {
+        textStyle: { color: theme.text.mid },
+        data: [t('flux.released'), t('flux.net')],
+        ...(legendTop != null ? { top: legendTop, left: 'center' } : {}),
+      },
       series: this.buildSeries(),
     }
   }

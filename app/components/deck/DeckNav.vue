@@ -96,4 +96,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   width: clamp(22px, 2.4vw, 40px);
   height: clamp(22px, 2.4vw, 40px);
 }
+/* Mobile + tablet (< $bp-desktop): no edge arrows — navigation is swipe-only there (design §5.1). */
+@media (max-width: 1119px) {
+  .deck-nav {
+    display: none;
+  }
+}
 </style>

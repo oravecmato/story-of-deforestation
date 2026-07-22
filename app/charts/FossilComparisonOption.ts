@@ -61,11 +61,12 @@ export class FossilComparisonOption extends BaseChartOption<FossilComparisonData
       : this.sharedYAxis([deforestation])
     const legendData = [t('series.stock'), t('series.forgoneSink')]
     if (showFossil) legendData.push(t('series.fossil'))
+    const { legendTop, gridTop } = this.legendReserve(legendData.length)
     return {
       color: this.themeColors(),
       backgroundColor: 'transparent',
       textStyle: { color: theme.text.mid },
-      grid: { left: 48, right: 24, top: 32, bottom: 40, containLabel: true },
+      grid: { left: 48, right: 24, top: Math.max(32, gridTop), bottom: 40, containLabel: true },
       xAxis: {
         type: 'category',
         data: categories,
@@ -81,7 +82,11 @@ export class FossilComparisonOption extends BaseChartOption<FossilComparisonData
         splitLine: { lineStyle: { color: theme.border } },
       },
       tooltip: { trigger: 'axis', backgroundColor: theme.surface2, borderColor: theme.border, textStyle: { color: theme.text.hi }, formatter: this.axisTooltipFormatter() },
-      legend: { textStyle: { color: theme.text.mid }, data: legendData },
+      legend: {
+        textStyle: { color: theme.text.mid },
+        data: legendData,
+        ...(legendTop != null ? { top: legendTop, left: 'center' } : {}),
+      },
       series: this.buildSeries(),
     }
   }

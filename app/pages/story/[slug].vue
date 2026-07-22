@@ -264,10 +264,16 @@ const onNavigate = (target: string) => {
     display: contents;
   }
 }
-// Mobile/tablet: clip the panel horizontally when it is dragged/settled off-stage (`clip` does NOT
-// create a scroll container, so the page still scrolls vertically), and `pan-y` lets the browser keep
-// vertical scroll while the swipe owns the horizontal axis.
+// Mobile/tablet: no edge-arrow lanes (DeckNav is hidden, swipe-only nav), so the content is no longer
+// capped by the arrow gutters — it spans the full viewport width with a fixed 20px side padding.
+// Also clip the panel horizontally when it is dragged/settled off-stage (`clip` does NOT create a
+// scroll container, so the page still scrolls vertically), and `pan-y` lets the browser keep vertical
+// scroll while the swipe owns the horizontal axis.
 @include mobile {
+  .deck__inner {
+    max-width: none;
+    padding: 0 20px 24px;
+  }
   .deck__stage {
     overflow-x: clip;
     touch-action: pan-y;

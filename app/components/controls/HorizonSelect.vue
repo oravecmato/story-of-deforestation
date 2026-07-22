@@ -1,42 +1,18 @@
 <script setup lang="ts">
-import SelectButton from 'primevue/selectbutton'
 import { computed } from 'vue'
-import type { Horizon } from '#shared/types'
-import { HORIZONS } from '#shared/config/derivation'
-import { useViewStore } from '../../stores/view'
+import { useUiStore } from '../../stores/ui'
+import HorizonSelectDesktop from './HorizonSelectDesktop.vue'
+import HorizonSelectMobile from './HorizonSelectMobile.vue'
 
-// The signature interaction (UI §3, ADR-019): a wide SelectButton today / +20 … +100 y that sets the
-// projected range's upper edge. `today` = last measured year; the future categories extend a dashed
-// forward projection. Changing it re-derives (new DerivationParams signature) → the data store refetches.
-const { t } = useI18n()
-const view = useViewStore()
-
-const options = computed(() => HORIZONS.map((value) => ({ value, label: t(`horizon.${value}`) })))
-
-const model = computed<Horizon>({
-  get: () => view.horizon,
-  set: (v) => {
-    if (v) view.setHorizon(v)
-  },
-})
+// Horizon control shell (design §5.1): the signature interaction (ADR-019) takes two forms. On phones
+// the wide button group does not fit, so it collapses to a compact labelled dropdown; tablet + desktop
+// keep the button group. Both twins bind the SAME view-store horizon, so they are rendered together and
+// toggled with `v-show` (never remounted) — the inactive one is just hidden, the active one stays live.
+const ui = useUiStore()
+const isMobile = computed(() => ui.breakpoint === 'sm')
 </script>
 
 <template>
-  <SelectButton
-    v-model="model"
-    :options="options"
-    option-label="label"
-    option-value="value"
-    :allow-empty="false"
-    :aria-label="t('horizon.label')"
-    class="horizon-select"
-  />
+  <HorizonSelectMobile v-show="isMobile" />
+  <HorizonSelectDesktop v-show="!isMobile" />
 </template>
-
-<style scoped>
-/* The signature control reads larger than the secondary controls (design §5.1). */
-.horizon-select :deep(.p-togglebutton) {
-  font-weight: 600;
-  min-width: 4.5rem;
-}
-</style>

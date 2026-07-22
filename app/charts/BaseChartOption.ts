@@ -59,11 +59,32 @@ export abstract class BaseChartOption<TData> {
   build(): EChartsOption {
     const series = this.buildSeries()
     const base = this.baseGrid()
+    const data = this.legendData(series)
+    const { legendTop, gridTop } = this.legendReserve(data.length)
     return {
       ...base,
+      grid: { ...(base.grid as object), top: gridTop },
       series,
-      legend: { ...(base.legend as object), data: this.legendData(series) },
+      legend: {
+        ...(base.legend as object),
+        data,
+        ...(legendTop != null ? { top: legendTop, left: 'center' } : {}),
+      },
     }
+  }
+
+  /** Mobile/tablet: the plain top legend wraps to several rows on a narrow width and would overlap the
+   *  plot. Reserve vertical room for it — pin it to the top and push the grid down by the estimated
+   *  legend height (rows × line height) — so the chart is always drawn fully below the legend no matter
+   *  how many rows it wraps to. Desktop keeps the compact default (grid top 40, auto-placed legend).
+   *  Rows are estimated from a conservative items-per-row for the breakpoint (mobile 2, tablet 3). */
+  protected legendReserve(itemCount: number): { legendTop?: number; gridTop: number } {
+    const { breakpoint } = this.ctx
+    if (breakpoint === 'lg') return { gridTop: 40 }
+    const perRow = breakpoint === 'md' ? 3 : 2
+    const rows = Math.max(1, Math.ceil(itemCount / perRow))
+    const legendTop = 8
+    return { legendTop, gridTop: legendTop + rows * 24 + 8 }
   }
 
   // --- shared scaffolding -------------------------------------------------
@@ -291,7 +312,14 @@ export abstract class BaseChartOption<TData> {
         axisLine: { lineStyle: { color: theme.border } },
         // `showMinLabel` forces the first tick's label (our earliest data year, e.g. 2000) to render —
         // a real year, not 0 — which the time axis otherwise drops in favour of a later "nice" tick.
-        axisLabel: { color: theme.text.low, formatter: '{yyyy}', showMinLabel: true },
+        // On mobile/tablet the year ticks collide on the narrow axis → tilt them 45° (`containLabel`
+        // grows the bottom margin to fit the taller rotated labels); desktop keeps them horizontal.
+        axisLabel: {
+          color: theme.text.low,
+          formatter: '{yyyy}',
+          showMinLabel: true,
+          rotate: this.ctx.breakpoint === 'lg' ? 0 : 45,
+        },
         // annual data → show only the year on ticks and in the tooltip header (not a full datetime).
         axisPointer: { label: { formatter: (p: { value: number | string | Date }) => String(new Date(p.value).getUTCFullYear()) } },
         splitLine: { show: false },
