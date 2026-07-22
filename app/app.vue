@@ -37,8 +37,8 @@ useSeoMeta({
   ogImage: () => ogImage.value,
   ogImageSecureUrl: () => ogImage.value,
   ogImageType: 'image/png',
-  ogImageWidth: 2048,
-  ogImageHeight: 626,
+  ogImageWidth: 2004,
+  ogImageHeight: 732,
   ogImageAlt: () => t('seo.imageAlt'),
   // Twitter / X large-image card.
   twitterCard: 'summary_large_image',
