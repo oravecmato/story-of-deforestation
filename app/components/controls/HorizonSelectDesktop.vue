@@ -2,7 +2,7 @@
 import SelectButton from 'primevue/selectbutton'
 import { computed } from 'vue'
 import type { Horizon } from '#shared/types'
-import { HORIZONS } from '#shared/config/derivation'
+import { SELECTABLE_HORIZONS } from '#shared/config/derivation'
 import { useViewStore } from '../../stores/view'
 
 // The signature interaction (UI §3, ADR-019): a wide SelectButton today / +20 … +100 y that sets the
@@ -12,7 +12,9 @@ import { useViewStore } from '../../stores/view'
 const { t } = useI18n()
 const view = useViewStore()
 
-const options = computed(() => HORIZONS.map((value) => ({ value, label: t(`horizon.${value}`) })))
+const options = computed(() =>
+  SELECTABLE_HORIZONS.map((value) => ({ value, label: t(`horizon.${value}`) })),
+)
 
 const model = computed<Horizon>({
   get: () => view.horizon,

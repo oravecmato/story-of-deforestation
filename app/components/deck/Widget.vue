@@ -34,7 +34,7 @@ import { useReload } from '../../composables/useReload'
 // Pinia-unaware (charts are dumb by ADR-013); geometry is the caller's concern (this component knows
 // nothing about where it sits on the grid). Sibling slides in a scene reuse a widget's `id`, so the
 // parent keys by it and the viz's `<VChart>` animates in place across a scene's slides (ADR-022).
-const props = defineProps<{ widget: RenderableWidget }>()
+const props = defineProps<{ widget: RenderableWidget; constrainText?: boolean }>()
 
 const { t } = useI18n()
 const data = useDataStore()
@@ -240,6 +240,7 @@ const refetching = computed(
     :heading-key="widget.headingKey"
     :caption-key="widget.captionKey"
     :text-keys="widget.textKeys"
+    :constrain-width="constrainText"
   />
 
   <div v-else-if="widget.type === 'controls'" class="widget-controls">

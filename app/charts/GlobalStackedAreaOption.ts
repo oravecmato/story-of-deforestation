@@ -1,6 +1,10 @@
 import type { SeriesOption } from 'echarts'
-import type { GlobalResultDTO, GlobalDerived } from '#shared/types'
+import type { DomainId, GlobalResultDTO, GlobalDerived } from '#shared/types'
 import { BaseChartOption } from './BaseChartOption'
+
+// Congo's dedicated layer colour: a soft rose/pink, unique among the domain layers (green / grey-blue
+// / teal) and distinct from the forgone-sink amber.
+const CONGO_COLOR = '#fb7185'
 
 // Global main chart (§11.2, §4.2): per-domain stacked area + the aggregate forgone sink as one more
 // stacked layer on top, so the total Y = Σ domain stocks + forgone sink. Each layer is a SINGLE
@@ -28,24 +32,40 @@ export class GlobalStackedAreaOption extends BaseChartOption<GlobalResultDTO & G
           }
         : {}
 
+    // Every domain layer gets an EXPLICIT colour so none is ever auto-assigned from the theme palette.
+    // ECharts advances the palette only over series without an explicit colour, so leaving even one
+    // domain to the palette would hand it the forgone-sink amber (which the forgone layer already owns
+    // on top) — that is exactly the clash to avoid. The three non-Congo domains keep their original
+    // palette colours (stock-green / fossil-grey / accent-teal); Congo takes its own violet.
+    const domainColors: Record<DomainId, string> = {
+      amazon: theme.data.stock,
+      congo: CONGO_COLOR,
+      seasia: theme.data.fossil,
+      other_tropical: theme.accent,
+    }
     const lastDomain = this.data.perDomainStock.length - 1
-    const domainAreas: SeriesOption[] = this.data.perDomainStock.map((s, i) => ({
+    const domainAreas: SeriesOption[] = this.data.perDomainStock.map((s, i) => {
       // Legend + tooltip must read the pretty, translated domain name — not the raw series id
       // (`stock:congo`). The id half after the colon is the DomainId, which is also the `domain.*`
       // i18n key. The name stays stable + unique per domain, so the cross-slide animation id mapping
       // is unaffected.
-      name: t(`domain.${s.id.slice(s.id.indexOf(':') + 1)}`),
-      type: 'line',
-      stack: 'stock',
-      areaStyle: {},
-      lineStyle: { opacity: 0 },
-      symbol: 'none',
-      showSymbol: false,
-      emphasis: { focus: 'series' },
-      data: this.pairs(s),
-      // when the forgone layer is hidden it can't carry the projection divider, so the top domain does.
-      ...(!showForgone && i === lastDomain ? projectionMarks : {}),
-    }))
+      const domainId = s.id.slice(s.id.indexOf(':') + 1) as DomainId
+      return {
+        name: t(`domain.${domainId}`),
+        type: 'line',
+        stack: 'stock',
+        areaStyle: {},
+        lineStyle: { opacity: 0 },
+        symbol: 'none',
+        showSymbol: false,
+        emphasis: { focus: 'series' },
+        // The explicit colour drives both the (invisible) line and the stacked area fill.
+        itemStyle: { color: domainColors[domainId] },
+        data: this.pairs(s),
+        // when the forgone layer is hidden it can't carry the projection divider, so the top domain does.
+        ...(!showForgone && i === lastDomain ? projectionMarks : {}),
+      }
+    })
 
     if (!showForgone) {
       // Stock-only: the stack's top surface is Σ domain stocks; a solid measured top-edge traces it.

@@ -4,6 +4,10 @@
     "thesis": "Reported forest emissions are only half the story — the lost future carbon sink is the rest.",
     "footer": "Data: World Bank Open Data · EDGAR (EN.GHG.*). A portfolio piece."
   },
+  "seo": {
+    "description": "What does deforestation really cost us? What the official numbers show — and what you have to dig up for yourself. Even if we stopped deforesting today, its climate consequences would already be permanent.",
+    "imageAlt": "A stacked-area chart of reported deforestation emissions and the forgone carbon sink over time."
+  },
   "horizon": {
     "label": "Time horizon",
     "today": "Today",
@@ -11,7 +15,8 @@
     "30y": "+30 y",
     "50y": "+50 y",
     "75y": "+75 y",
-    "100y": "+100 y"
+    "100y": "+100 y",
+    "150y": "+150 y"
   },
   "rscenario": {
     "label": "Sink scenario",
@@ -92,7 +97,8 @@
   "flux": {
     "absorbed": "CO₂ absorbed",
     "released": "CO₂ released",
-    "net": "Net sink lost"
+    "offset": "Cancelled by decay",
+    "net": "Net sink (R)"
   },
   "rMultiplier": {
     "label": "R multiplier"
@@ -106,55 +112,61 @@
     "title": "Story of Deforestation",
     "next": "Next",
     "back": "Back",
-    "progress": "Slide {n} of {total}"
+    "slideOf": "{n} of {total}",
+    "slideSelect": "Go to slide"
   },
   "story": {
     "intro": {
-      "heading": "The half of the story we don't count",
-      "p1": "When a forest is cleared, the carbon it stored is reported as an emission. That reported number is real — but it is only the visible half.",
-      "p2": "The other half is the sink we lose: the carbon that forest would have kept absorbing for decades. This piece makes that hidden cost visible. Read it as an \"at least this much\" argument."
+      "heading": "The Story of Deforestation",
+      "p1": "Have you ever wondered what real impact clearing the rainforests has on the climate? In this short presentation we set out to answer that question using officially available data. Along the way we will also see that data alone is not always enough — and that without asking the right questions, it can even leave us with an illusory impression that corresponds to nothing real.",
+      "p2": "Take a look at our story of deforestation."
     },
     "main": {
       "heading": "The reported number",
-      "p1": "This is deforestation as it is officially counted: the carbon stock released when forest is cleared, tracked over time. Explore it by horizon, region and baseline — but hold onto the question of what it leaves out."
+      "p1": "The main official metric used to report the negative climate effect of deforestation is so-called “stock emissions” — the amount of CO₂ held in the felled trees, released into the atmosphere in a single burst once the forest is cleared. The stock-emission coefficient varies with the age, composition and density of the forest, and the reported number is obtained by multiplying it by the area cleared in a given year. The chart above shows how that number has evolved, both globally and across the individual rainforests of the world. Public data is only available for the years 2000–2022; what you see beyond that boundary is our own rough projection, extrapolated from the trend over time."
     },
     "mainSink": {
       "heading": "The hidden cost",
-      "p1": "Now add the forgone sink — the future sequestration lost with the forest. It draws on top of the reported stock, and the full picture is several times larger. The ×N badge shows how much the reported figure understates it."
+      "p1": "If you settle for the first number you are shown, it is easy to miss that the stock emissions released into the air when a forest is cleared are probably not the number that would intuitively come to mind first when thinking about the climate impact of deforestation. We are missing at least one further, so-far invisible number: the forgone carbon sink — how much CO₂ the rainforest would have absorbed every year had it remained standing, but which, now that it no longer stands, it never will. Set against the one-off stock emissions this number is easy to overlook, because it is smaller. Its insidiousness, though, lies in its cumulative nature. A hectare of forest, once cleared, releases N tonnes of CO₂ in the year it is felled and would have absorbed only, say, a tenth of that each year. But starting from the year it is cleared, we forgo that N/10 every single year thereafter, permanently. And with every further hectare cleared, this annual figure grows."
     },
     "crossing": {
       "heading": "When the loss overtakes the release",
-      "p1": "The stock release is a one-off impulse; the forgone sink keeps accumulating year after year. Run the projection far enough and the rising sink loss overtakes the one-time release."
+      "p1": "Let us place two curves side by side — the projection of reported emissions and the projection of the forgone carbon sink. Extend the projection far enough and the rising sink loss will, at one point, overtake the one-off release. And do not forget: in whichever year on this curve humanity were to see the light and stop deforesting, the reported-emissions curve would indeed fall to zero, but the forgone-sink curve would at that point merely turn from rising to constant — and would, hypothetically, stay with us forever."
     },
     "footprint": {
       "heading": "Deforestation in context",
-      "p1": "Against fossil emissions, deforestation is the smaller share — but it is far from negligible once the forgone sink is counted alongside the released stock."
+      "p1": "Everyone understands that deforestation is a problem — but when we view it in the context of all emission sources, it makes up a minority, and our forgone carbon sink is, even within that minority, practically negligible. One might almost conclude that clearing the rainforests is not a pressing enough problem to be worth addressing."
     },
     "insight": {
       "heading": "Zoom into deforestation",
       "p1": "Remove fossil and the deforestation footprint fills the frame: the released stock in green, the forgone sink in amber. The same grammar as the main chart — the reported number, and the cost we don't count.",
-      "caption": "Looking at the absolute numbers, and with fossil emissions set aside, deforestation stops looking so insignificant…"
+      "caption": "But the fact that humanity has gone utterly off the rails in its consumption of fossil fuels does not mean that deforestation does not matter. To get a true picture of the emissions a rainforest releases when it is cleared — and of those it will, because of that clearing, never absorb again — let us look at the absolute numbers instead of the relative ones."
     },
     "baselineLab": {
-      "caption": "See what happens when you manipulate with the baseline year — drag it back toward 1800 and watch the forgone sink grow."
+      "caption": "You may have noticed the baseline-year selector for the forgone sink — this number is always reckoned from some year: “compared with the forest area in year X, we forgo Y Mt CO₂ a year today.” So far we have used 1990, the earliest our data reaches, but historical projections are available too. Watch the curves shift as you drag the baseline into the past."
     },
     "method": {
-      "heading": "How is the forgone carbon sink actually computed?",
-      "p1": "The forgone sink is a simple product: a sequestration rate R times the area of forest lost each year. R is just how much CO₂ a hectare of that forest would keep pulling out of the air every year if it were still standing.",
-      "p2": "R is not one universal number. It differs from forest to forest, because it depends on the balance between two opposing flows: the CO₂ a living forest absorbs as it grows, and the CO₂ it releases as wood dies and decomposes.",
-      "p3": "The R values we use are traceable gross-flux measurements — the net sink is the difference between those two flows, absorbed minus released. The bigger that gap, the more sink each cleared hectare quietly costs us."
+      "heading": "How is it computed?",
+      "p1": "The forgone sink is computed, in the standard way, as a sequestration rate R times the area of forest lost each year. R represents the amount of CO₂ that a hectare of the given forest would pull out of the air every year if it were still standing.",
+      "p2": "It is not a single universal constant — it differs from forest to forest, and is derived not only from the forest's composition and density but from its ratio of living to dead flora. At its most basic, R represents the difference between two opposing flows: the CO₂ a living forest absorbs as it grows, minus the CO₂ it releases as its wood dies and decomposes.",
+      "p3": "The greater the ratio of living plants to dead wood in a forest, the greater its R — and the more sink each cleared hectare quietly costs us."
     },
     "methodMore": {
-      "heading": "Placeholder heading",
-      "p1": "Placeholder body copy — to be written."
+      "heading": "But even R is not a perfect measure.",
+      "p1": "And it is by no means merely that it is a rough estimate, always computed with a certain margin of spread. The trouble with R is that it is a net flow — the difference between two opposing gross flows, which are lost inside that single number. Take an example: for the Amazon rainforests the net flow R is low, and it is expected to drift gradually toward (almost) zero. In practice this means the Amazon region adds little forgone sink to our visualisations, even though the trend in its clearing is currently the most aggressive of all. So ask yourself: does that mean the deforestation of the Amazon deprives us of no — or almost no — future carbon sink?",
+      "p2": "Of course not. Because regardless of the ratio of living to dead matter in a forest, what is dead is dead forever, and deforestation does not touch it — its emissions are released one way or another. Deforestation touches only the living wood. So if we label the CO₂ a living forest absorbs M, and the CO₂ a forest releases as its dead wood decomposes N, then although R = M − N, deforestation selectively lowers M without affecting N at the same time.",
+      "p3": "The ideal metrics for computing the forgone sink would therefore be M and N on their own — but these are not available in any public data source. In any case, computing the forgone sink from the net carbon flow R tends to understate the scale of the problem."
     },
     "amplified": {
-      "caption": "For these very reasons, some climate models suggest the forgone sink could be up to six times larger. What would that mean in practice? Slide the R multiplier and watch."
+      "caption": "For this reason (among others), some climate models suggest the forgone carbon sink could in fact be up to six times higher. What would that mean in practice? Slide the R multiplier and watch."
     },
     "sources": {
       "heading": "Sources",
       "p1": "World Bank (2025). World Development Indicators. Washington, DC: The World Bank. Retrieved from the World Bank Open Data API (https://data.worldbank.org). Deforestation-related CO₂ emissions (indicator EN.GHG.CO2.LU.DF.MT.CE.AR5, EDGAR) and forest area (indicator AG.LND.FRST.K2, FAOSTAT).",
-      "p2": "Klein Goldewijk, K., Beusen, A., Doelman, J., & Stehfest, E. (2017). Anthropogenic land use estimates for the Holocene – HYDE 3.2. Earth System Science Data, 9(2), 927–953. https://doi.org/10.5194/essd-9-927-2017. Used as the basis for reconstructing historical forest loss before 2000 back to 1800."
+      "p2": "Hurtt, G. C., Chini, L., Sahajpal, R., et al. (2020). Harmonization of global land use change and management for the period 850–2100 (LUH2) for CMIP6. Geoscientific Model Development, 13(11), 5425–5464. https://doi.org/10.5194/gmd-13-5425-2020. Used as the basis for reconstructing historical forest area per domain before 1990 back to 1800 (CC BY).",
+      "p3": "Hubau, W., Lewis, S. L., Phillips, O. L., et al. (2020). Asynchronous carbon sink saturation in African and Amazonian tropical forests. Nature, 579, 80–87. https://doi.org/10.1038/s41586-020-2035-0. Source of the aboveground carbon-sink rate R, and its uncertainty range, for the Congo Basin and the Amazon.",
+      "p4": "Qie, L., Lewis, S. L., Sullivan, M. J. P., et al. (2017). Long-term carbon sink in Borneo's forests halted by drought and vulnerable to edge effects. Nature Communications, 8, 1966. https://doi.org/10.1038/s41467-017-01997-0. Source of the aboveground carbon-sink rate R, and its range, for Southeast Asia, with Borneo as a regional proxy.",
+      "p5": "IPCC (2006). 2006 IPCC Guidelines for National Greenhouse Gas Inventories, Volume 4: Agriculture, Forestry and Other Land Use, Chapter 4 — Forest Land (Table 4.4, root-to-shoot ratios). Eggleston, H. S., Buendia, L., Miwa, K., Ngara, T., & Tanabe, K. (Eds.). IGES, Japan. Source of the belowground allometric factor: a root-to-shoot ratio of ≈ 0.24 for tropical rainforest, so total R = aboveground R × 1.24."
     }
   }
 }

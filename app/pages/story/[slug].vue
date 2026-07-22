@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { getSlide, nextSlug, prevSlug, FIRST_SLUG, slideIndex, SLUGS } from '../../story/slides'
+import { getSlide, nextSlug, prevSlug, FIRST_SLUG } from '../../story/slides'
 import { renderSlide, type RenderableSlide, type ChartComponentName } from '../../story/SlideFactory'
 import GenericSlide from '../../components/deck/GenericSlide.vue'
 import DeckNav from '../../components/deck/DeckNav.vue'
+import SlidePicker from '../../components/deck/SlidePicker.vue'
 import LanguageSwitcher from '../../components/controls/LanguageSwitcher.vue'
 import { useApi } from '../../composables/useApi'
 import { useBreakpoint } from '../../composables/useBreakpoint'
@@ -44,7 +45,6 @@ if (!getSlide(slug.value)) {
 
 const def = computed(() => getSlide(slug.value) ?? getSlide(FIRST_SLUG)!)
 const slide = computed<RenderableSlide>(() => renderSlide(def.value, view.derivationParams))
-const slideNumber = computed(() => slideIndex(slug.value) + 1)
 
 /** The DTO endpoints a resolved visualisation needs (deck subset). */
 const vizEndpoints = (component: ChartComponentName): EndpointKey[] => {
@@ -153,7 +153,7 @@ const onNavigate = (target: string) => {
       <header class="deck__header">
         <div class="deck__brand">
           <span class="deck__title">{{ t('deck.title') }}</span>
-          <span class="deck__count">{{ t('deck.progress', { n: slideNumber, total: SLUGS.length }) }}</span>
+          <SlidePicker :slug="slug" @navigate="onNavigate" />
         </div>
         <div class="deck__actions">
           <LanguageSwitcher />
@@ -224,18 +224,14 @@ const onNavigate = (target: string) => {
 }
 .deck__brand {
   display: flex;
-  align-items: baseline;
-  gap: 16px;
+  align-items: center;
+  gap: 24px;
   min-width: 0;
 }
 .deck__title {
+  font-family: 'Arial Black', Arial, sans-serif;
   font-size: 18px;
-  font-weight: 600;
   color: var(--c-text-hi);
-}
-.deck__count {
-  font-size: 13px;
-  color: var(--c-text-low);
 }
 .deck__actions {
   display: flex;
@@ -275,6 +271,10 @@ const onNavigate = (target: string) => {
   .deck__stage {
     overflow-x: clip;
     touch-action: pan-y;
+  }
+  // No heading on mobile: the header starts flush left with the left-aligned slide picker.
+  .deck__title {
+    display: none;
   }
 }
 </style>

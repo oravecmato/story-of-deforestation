@@ -6,7 +6,12 @@ import { DOMAINS } from './domains'
 // of truth. `coerceDerivationParams` is the LENIENT client path: any missing/invalid key falls back
 // to the preset (ADR-017). `paramsKey` is the deterministic cache/CDN key (endpoint + params).
 
-export const HORIZONS: readonly Horizon[] = ['today', '20y', '30y', '50y', '75y', '100y']
+// The full set of server-ACCEPTED horizons (validator whitelist + client coercion). `150y` is here so
+// the crossing slide's forced override passes validation, but it is intentionally NOT in the
+// UI-selectable subset below — no slide offers it as a switchable option.
+export const HORIZONS: readonly Horizon[] = ['today', '20y', '30y', '50y', '75y', '100y', '150y']
+// The subset the horizon switcher renders (design §5.1). Excludes `150y`, which is crossing-only.
+export const SELECTABLE_HORIZONS: readonly Horizon[] = ['today', '20y', '30y', '50y', '75y', '100y']
 export const R_SCENARIOS: readonly RScenario[] = ['conservative', 'mid', 'high']
 // LUH2 reconstruction reaches back to 1800 (ADR-026, business §7.2a); the slider may open the sink
 // integral anywhere from here on. `baseline` is a CLIENT-TRANSFORM (not a DerivationParam): it never
@@ -40,9 +45,10 @@ const HORIZON_YEAR_OFFSET: Record<Horizon, number> = {
   '50y': 50,
   '75y': 75,
   '100y': 100,
+  '150y': 150,
 }
 
-/** Number of forward years the horizon spans (0 | 20 | 30 | 50 | 75 | 100) — drives equivalence. */
+/** Number of forward years the horizon spans (0 | 20 | 30 | 50 | 75 | 100 | 150) — drives equivalence. */
 export const horizonYears = (h: Horizon): number => HORIZON_YEAR_OFFSET[h]
 
 /** Absolute target year for the projected series' upper bound = anchor + offset. */

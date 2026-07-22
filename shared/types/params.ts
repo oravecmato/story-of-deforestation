@@ -5,8 +5,10 @@
 // series and the client re-derives baseline-dependent figures locally).
 
 /** The signature control (ADR-019): time horizon = projected window upper bound, anchored at
- *  HORIZON_ANCHOR_YEAR. `today` = measured data only; others project per-domain to the target year. */
-export type Horizon = 'today' | '20y' | '30y' | '50y' | '75y' | '100y'
+ *  HORIZON_ANCHOR_YEAR. `today` = measured data only; others project per-domain to the target year.
+ *  `150y` is a valid, server-accepted value used ONLY as the crossing slide's forced override — it is
+ *  deliberately absent from the UI selector (SELECTABLE_HORIZONS), so it never appears as a button. */
+export type Horizon = 'today' | '20y' | '30y' | '50y' | '75y' | '100y' | '150y'
 /** conservative / mid / high = lower CI / central / upper CI of R (business §4.1, default mid). */
 export type RScenario = 'conservative' | 'mid' | 'high'
 

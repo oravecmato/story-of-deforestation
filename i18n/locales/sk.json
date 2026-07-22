@@ -4,6 +4,10 @@
     "thesis": "Vykázané emisie z lesov sú len polovica príbehu — zvyškom je stratený budúci uhlíkový záchyt.",
     "footer": "Údaje: World Bank Open Data · EDGAR (EN.GHG.*). Portfóliová ukážka."
   },
+  "seo": {
+    "description": "Čo nás skutočne stojí deforestácia? Čo ukazujú oficiálne čísla a čo si musíte dohľadať sami? I keby sme dnes s deforestáciou prestali, jej klimatické následky by už boli trvalé.",
+    "imageAlt": "Graf vykázaných emisií z odlesňovania a strateného uhlíkového záchytu v čase."
+  },
   "horizon": {
     "label": "Časový horizont",
     "today": "Dnes",
@@ -11,7 +15,8 @@
     "30y": "+30 r",
     "50y": "+50 r",
     "75y": "+75 r",
-    "100y": "+100 r"
+    "100y": "+100 r",
+    "150y": "+150 r"
   },
   "rscenario": {
     "label": "Scenár záchytu",
@@ -92,7 +97,8 @@
   "flux": {
     "absorbed": "Pohltené CO₂",
     "released": "Uvoľnené CO₂",
-    "net": "Stratený čistý záchyt"
+    "offset": "Vynulované rozkladom",
+    "net": "Čistý záchyt (R)"
   },
   "rMultiplier": {
     "label": "Násobič R"
@@ -106,55 +112,61 @@
     "title": "Príbeh deforestácie",
     "next": "Ďalej",
     "back": "Späť",
-    "progress": "Snímka {n} zo {total}"
+    "slideOf": "{n} z {total}",
+    "slideSelect": "Prejsť na snímku"
   },
   "story": {
     "intro": {
-      "heading": "Polovica príbehu, ktorú nerátame",
-      "p1": "Keď sa les vyrúbe, uhlík, ktorý ukladal, sa vykáže ako emisia. To vykázané číslo je skutočné — no je to len viditeľná polovica.",
-      "p2": "Druhou polovicou je záchyt, ktorý strácame: uhlík, ktorý by les ešte desaťročia pohlcoval. Táto ukážka robí túto skrytú cenu viditeľnou. Čítajte ju ako argument „minimálne toľko“."
+      "heading": "Príbeh deforestácie",
+      "p1": "Zamýšľali ste sa niekedy nad tým, aký má výrub dažďových pralesov skutočný dopad na klímu? V tejto krátkej prezentácii sa túto otázku pokúsime zodpovedať za pomoci oficiálne dostupných dát. Zároveň si ukážeme, že dáta nemusia vždy stačiť — a bez kladenia tých správnych otázok nám dokonca hrozí, že v nás vzbudia iluzórny dojem, ktorý nezodpovedá ničomu skutočnému.",
+      "p2": "Pozrite si náš príbeh deforestácie."
     },
     "main": {
       "heading": "Vykázané číslo",
-      "p1": "Toto je odlesňovanie tak, ako sa oficiálne ráta: stav uhlíka uvoľnený pri vyrúbaní lesa, sledovaný v čase. Preskúmajte ho podľa horizontu, regiónu a základného roku — no nezabúdajte na otázku, čo vynecháva."
+      "p1": "Hlavnou oficiálnou metrikou, ktorou sa vykazuje negatívny efekt deforestácie na klímu, sú tzv. „zásobníkové emisie“ — množstvo CO₂ obsiahnuté vo vyrúbaných drevinách, ktoré sa po výrube jednorázovo uvoľní do ovzdušia. Koeficient zásobníkových emisií sa líši podľa veku, zloženia či hustoty lesa, a vykázané číslo sa získa jeho vynásobením veľkosťou vyrúbanej plochy za príslušný rok. Na grafe hore vidíte, ako sa toto číslo vyvíjalo globálne i v rámci jednotlivých svetových pralesov. Verejné dáta sú dostupné len za roky 2000 – 2022; to, čo vidíte za touto hranicou, je naša vlastná hrubá projekcia, vychádzajúca z trendu ich vývoja v čase."
     },
     "mainSink": {
       "heading": "Skrytá cena",
-      "p1": "Teraz pridajte stratený záchyt — budúce ukladanie uhlíka stratené spolu s lesom. Kreslí sa nad vykázaný stav a úplný obraz je niekoľkonásobne väčší. Odznak ×N ukazuje, o koľko vykázané číslo skutočnosť podceňuje."
+      "p1": "Ak sa uspokojíte s prvým číslom, ktoré vidíte, ľahko prehliadnete, že zásobníkové emisie, uvoľnené do ovzdušia pri výrube, pravdepodobne vôbec nie sú tým číslom, ktoré by vám v kontexte klimatického vplyvu deforestácie intuitívne napadlo merať ako prvé. Chýba nám minimálne jedno ďalšie, doteraz neviditeľné číslo: stratený uhlíkový záchyt — koľko CO₂ by prales každoročne pohltil, keby naďalej stál, ale keďže už nestojí, tak nepohltí. Toto číslo popri jednorázovo uvoľnených zásobníkových emisiách ľahko zanikne, keďže je menšie. Jeho zákernosť však spočíva v jeho kumulatívnom charaktere. Raz vyrúbaný hektár lesa v roku výrubu uvoľní do ovzdušia N ton CO₂ a ročne pohltí len povedzme desatinu z toho. Avšak počnúc rokom výrubu o túto N/10 prichádzame už každý ďalší rok, natrvalo. A s každým ďalším vyrúbaným hektárom sa toto každoročné číslo zvyšuje."
     },
     "crossing": {
       "heading": "Keď strata prekoná uvoľnenie",
-      "p1": "Uvoľnenie stavu je jednorazový impulz; stratený záchyt sa hromadí rok čo rok. Predĺžte projekciu dostatočne ďaleko a rastúca strata záchytu prekoná jednorazové uvoľnenie."
+      "p1": "Postavme si vedľa seba dve krivky — projekciu vykázaných emisií a projekciu strateného uhlíkového záchytu. Predĺžte projekciu dostatočne ďaleko a rastúca strata záchytu v jednom bode prekoná jednorazové uvoľnenie. A nezabudnite — v ktoromkoľvek roku na tejto krivke by ľudstvo osvietilo a s deforestáciou by sa prestalo, krivka vykázaných emisií by síce poklesla na nulu, ale krivka strateného uhlíkového záchytu by sa v danom bode iba zmenila zo stúpajúcej na konštantnú a bola by tu s nami hypoteticky už navždy."
     },
     "footprint": {
       "heading": "Odlesňovanie v kontexte",
-      "p1": "Oproti fosílnym emisiám je odlesňovanie menším podielom — no zďaleka nie zanedbateľným, keď sa popri uvoľnenom stave započíta aj stratený záchyt."
+      "p1": "Každý chápe, že deforestácia je problémom — ale keď sa na ňu pozrieme v kontexte všetkých zdrojov emisií, tvorí menšinu, a náš stratený uhlíkový ponor je i v rámci tejto menšiny prakticky zanedbateľný. Jeden by sa až mohol nazdávať, že výrub dažďových pralesov nie je dostatočne pálčivým problémom na to, aby sme ho museli riešiť."
     },
     "insight": {
       "heading": "Priblíženie na odlesňovanie",
       "p1": "Odstráňte fosílne a stopa odlesňovania vyplní celý obraz: uvoľnený stav nazeleno, stratený záchyt naoranžovo. Rovnaká gramatika ako hlavný graf — vykázané číslo a cena, ktorú nerátame.",
-      "caption": "Pri pohľade na absolútne čísla a po odmyslení fosílnych emisií sa deforestácia prestáva javiť tak bezvýznamnou…"
+      "caption": "Lenže to, že sa ľudstvo v oblasti spotreby fosílnych palív absolútne utrhlo z reťaze, ešte neznamená, že na deforestácii nezáleží. Aby sme získali skutočný obraz o emisiách, ktoré prales pri výrube uvoľní, resp. ktoré už v dôsledku výrubu nikdy viac nepohltí, pozrime sa namiesto relatívnych čísel na absolútne."
     },
     "baselineLab": {
-      "caption": "Pozrite sa, čo sa stane, keď posuniete referenčný rok — potiahnite ho späť k roku 1800 a sledujte, ako rastie stratený záchyt."
+      "caption": "Všimli ste si prepínač referenčného roka pre stratený záchyt? Toto číslo sa vždy počíta od nejakého roku: „oproti ploche lesov v roku X dnes prichádzame o Y Mt CO₂ ročne.“ Doteraz sme používali rok 1990, kam najďalej siahajú naše dáta, no máme aj historické projekcie. Sledujte, ako sa krivky menia, keď referenčný rok posúvate do minulosti."
     },
     "method": {
-      "heading": "Ako sa vlastne stratený uhlíkový záchyt počíta?",
-      "p1": "Stratený záchyt je jednoduchý súčin: rýchlosť ukladania R krát plocha lesa stratená za rok. R je len to, koľko CO₂ by hektár daného lesa každý rok ďalej sťahoval zo vzduchu, keby ešte stál.",
-      "p2": "R nie je jedno univerzálne číslo. Líši sa les od lesa, pretože závisí od pomeru dvoch protichodných tokov: CO₂, ktoré živý les pri raste pohltí, a CO₂, ktoré uvoľní, keď drevo odumiera a rozkladá sa.",
-      "p3": "Hodnoty R, ktoré používame, sú dohľadateľné merania hrubých tokov — čistý záchyt je rozdiel medzi týmito dvoma tokmi, pohltené mínus uvoľnené. Čím väčší je tento rozdiel, tým viac záchytu nás každý vyrúbaný hektár potichu stojí."
+      "heading": "Ako sa to počíta?",
+      "p1": "Stratený záchyt sa štandardne počíta ako rýchlosť ukladania CO₂ (R) krát plocha lesa stratená za rok. R predstavuje množstvo CO₂, ktoré by hektár daného lesa každý rok sťahoval zo vzduchu, keby naďalej stál.",
+      "p2": "Nejde pritom o jednu univerzálnu konštantu — líši sa les od lesa, pričom sa počíta nielen podľa zloženia a hustoty lesa, ale podľa jeho pomeru medzi živou a mŕtvou flórou. Na základnej úrovni totiž číslo R reprezentuje rozdiel dvoch protichodných tokov: CO₂, ktoré živý les pri raste pohltí, mínus CO₂, ktoré uvoľní, keď drevo odumiera a rozkladá sa.",
+      "p3": "R daného lesa je tým väčšie, čím väčší je v ňom pomer živých rastlín k mŕtvemu drevu — a tým viac záchytu nás každý vyrúbaný hektár potichu stojí."
     },
     "methodMore": {
-      "heading": "Zástupný nadpis",
-      "p1": "Zástupný text — bude doplnený."
+      "heading": "Lenže ani číslo R nie je dokonalou mierou.",
+      "p1": "A zďaleka nejde len o to, že ide o hrubý odhad, ktorý sa počíta vždy s určitou mierou rozptylu. Problém R je, že ide o čistý tok — teda rozdiel medzi dvoma protichodnými hrubými tokmi, ktoré sa v tomto čísle strácajú. Vezmite si príklad: pre amazonské pralesy je čistý tok R nízky a predpokladá sa jeho postupné smerovanie (takmer) k nule. V praxi to znamená, že oblasť Amazonu do našich vizualizácií veľa strateného ponoru nepridá, hoci trend jej výrubu je v súčasnosti najagresívnejší. A teraz si položte otázku: znamená to, že deforestácia amazonských pralesov nás o žiaden alebo takmer žiaden uhlíkový záchyt v budúcnosti nepripraví?",
+      "p2": "Isteže nie. Pretože bez ohľadu na to, aký je v lese pomer živého a mŕtveho, raz mŕtve je už mŕtve navždy a deforestácia sa ho nedotkne. Emisie sa z neho uvoľnia tak či onak. Deforestácia sa dotýka iba živého dreva. Ak teda CO₂, ktoré živý les pohltí, označíme písmenom M a CO₂, ktoré les uvoľní pri rozklade odumretého dreva, označíme N, tak hoci R = M − N, deforestácia selektívne znižuje M bez toho, aby súčasne ovplyvnila N.",
+      "p3": "Ideálnymi metrikami na výpočet strateného záchytu by teda boli samostatné „M“ a „N“, avšak tie nie sú dostupné v žiadnych verejných zdrojoch dát. V každom prípade, výpočet strateného záchytu z čistého uhlíkového toku R má tendenciu rozsah tohto problému podhodnocovať."
     },
     "amplified": {
-      "caption": "Aj z týchto dôvodov niektoré klimatické vedecké modely navrhujú, že stratený uhlíkový záchyt by mohol byť až šesťnásobne vyšší. Čo by to znamenalo v praxi? Posuňte násobič R a sledujte."
+      "caption": "Aj z tohto dôvodu (okrem iného) niektoré klimatické vedecké modely navrhujú, že stratený uhlíkový záchyt by mohol v skutočnosti byť až šesťnásobne vyšší. Čo by to znamenalo v praxi? Posuňte posuvníkom násobku R a sledujte."
     },
     "sources": {
       "heading": "Zdroje",
       "p1": "World Bank (2025). World Development Indicators. Washington, DC: The World Bank. Získané z rozhrania World Bank Open Data API (https://data.worldbank.org). Emisie CO₂ z odlesňovania (indikátor EN.GHG.CO2.LU.DF.MT.CE.AR5, EDGAR) a plocha lesov (indikátor AG.LND.FRST.K2, FAOSTAT).",
-      "p2": "Klein Goldewijk, K., Beusen, A., Doelman, J., & Stehfest, E. (2017). Anthropogenic land use estimates for the Holocene – HYDE 3.2. Earth System Science Data, 9(2), 927–953. https://doi.org/10.5194/essd-9-927-2017. Použité ako podklad pre rekonštrukciu historickej straty lesov pred rokom 2000 až do roku 1800."
+      "p2": "Hurtt, G. C., Chini, L., Sahajpal, R., a kol. (2020). Harmonization of global land use change and management for the period 850–2100 (LUH2) for CMIP6. Geoscientific Model Development, 13(11), 5425–5464. https://doi.org/10.5194/gmd-13-5425-2020. Použité ako podklad pre rekonštrukciu historickej plochy lesov po doménach pred rokom 1990 až do roku 1800 (CC BY).",
+      "p3": "Hubau, W., Lewis, S. L., Phillips, O. L., a kol. (2020). Asynchronous carbon sink saturation in African and Amazonian tropical forests. Nature, 579, 80–87. https://doi.org/10.1038/s41586-020-2035-0. Zdroj nadzemnej rýchlosti uhlíkového záchytu R a jej rozptylu pre Konžskú panvu a Amazóniu.",
+      "p4": "Qie, L., Lewis, S. L., Sullivan, M. J. P., a kol. (2017). Long-term carbon sink in Borneo's forests halted by drought and vulnerable to edge effects. Nature Communications, 8, 1966. https://doi.org/10.1038/s41467-017-01997-0. Zdroj nadzemnej rýchlosti uhlíkového záchytu R a jej rozptylu pre juhovýchodnú Áziu, s Borneom ako regionálnym zástupcom.",
+      "p5": "IPCC (2006). 2006 IPCC Guidelines for National Greenhouse Gas Inventories, Volume 4: Agriculture, Forestry and Other Land Use, kapitola 4 — Forest Land (tabuľka 4.4, pomery koreň–výhonok). Eggleston, H. S., Buendia, L., Miwa, K., Ngara, T., & Tanabe, K. (eds.). IGES, Japonsko. Zdroj podzemného alometrického faktora: pomer koreň–výhonok ≈ 0,24 pre tropický dažďový prales, teda celkové R = nadzemné R × 1,24."
     }
   }
 }

@@ -12,6 +12,10 @@ const props = defineProps<{
   headingKey?: string
   captionKey?: string
   textKeys?: string[]
+  // A comfortable reading measure only makes sense when the text block owns the whole slide (the
+  // single-text-block `text` grid). On mixed layouts the block already shares a constrained column, so
+  // the cap only wastes the little width it has — the caller sets this true only for `text` slides.
+  constrainWidth?: boolean
 }>()
 const { t } = useI18n()
 
@@ -32,7 +36,7 @@ const revealStyle = (kind: 'heading' | 'caption' | 'body') => {
 </script>
 
 <template>
-  <div class="slide-text">
+  <div class="slide-text" :class="{ 'slide-text--constrained': constrainWidth }">
     <h2 v-if="headingKey" class="slide-text__heading slide-text__reveal" :style="revealStyle('heading')">
       {{ t(headingKey) }}
     </h2>
@@ -52,7 +56,10 @@ const revealStyle = (kind: 'heading' | 'caption' | 'body') => {
   flex-direction: column;
   justify-content: center;
   min-height: 0;
-  max-width: 68ch;
+}
+/* A readable line length, only on the single-text-block layout where the block owns the whole slide. */
+.slide-text--constrained {
+  max-width: 91ch;
 }
 /* Fixed inter-block spacing: the first block hugs the top of the centred stack, every subsequent
    block (caption after heading, body after either) gets a top gap. */

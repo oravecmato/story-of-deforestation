@@ -20,7 +20,7 @@ defineProps<{ slide: RenderableSlide }>()
       :class="{ 'slide__widget--controls': w.type === 'controls' }"
       :style="{ gridArea: w.area }"
     >
-      <Widget :widget="w" />
+      <Widget :widget="w" :constrain-text="slide.grid === 'text'" />
     </div>
   </SlideLayout>
 </template>

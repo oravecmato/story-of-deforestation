@@ -145,7 +145,7 @@ describe('slides.ts — authored deck config', () => {
   })
 
   it('forces a future horizon on the crossing scene so the two series cross on screen', () => {
-    expect(getSlide('crossing')!.forced?.horizon).toBe('100y')
+    expect(getSlide('crossing')!.forced?.horizon).toBe('150y')
     // the footprint scenes carry no forced overrides (baseline + horizon are live, shared 5→6)
     for (const slug of ['footprint', 'deforestation-insight']) {
       expect(getSlide(slug)!.forced).toBeUndefined()
@@ -326,9 +326,9 @@ describe('SlideFactory.renderSlide', () => {
   })
 
   it('applies forced overrides on top of the scene params', () => {
-    // crossing forces 100y even if the scene arrives at today
+    // crossing forces 150y even if the scene arrives at today
     const r = rendered('crossing', params)
-    expect(r.params.horizon).toBe('100y')
+    expect(r.params.horizon).toBe('150y')
     // untouched keys survive
     expect(r.params.rScenario).toBe('mid')
   })

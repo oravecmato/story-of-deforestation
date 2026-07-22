@@ -2,7 +2,7 @@
 import Select from 'primevue/select'
 import { computed, useId } from 'vue'
 import type { Horizon } from '#shared/types'
-import { HORIZONS } from '#shared/config/derivation'
+import { SELECTABLE_HORIZONS } from '#shared/config/derivation'
 import { useViewStore } from '../../stores/view'
 
 // Mobile twin of HorizonSelect (design §5.1): the button group is too wide for a phone, so the same
@@ -12,7 +12,9 @@ const { t } = useI18n()
 const view = useViewStore()
 const selectId = useId()
 
-const options = computed(() => HORIZONS.map((value) => ({ value, label: t(`horizon.${value}`) })))
+const options = computed(() =>
+  SELECTABLE_HORIZONS.map((value) => ({ value, label: t(`horizon.${value}`) })),
+)
 
 const model = computed<Horizon>({
   get: () => view.horizon,

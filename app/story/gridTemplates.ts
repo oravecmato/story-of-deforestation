@@ -92,12 +92,14 @@ export const GRID_TEMPLATES: Record<GridTemplateId, GridTemplate> = {
     },
   },
 
-  // The ADR-026 baseline lab (slide 7): caption + controls + two vizzes STACKED in a 3/4-width main
-  // column, with a full-height equivalence strip in a quarter-width right column.
+  // The ADR-026 baseline lab (slide 7): a FULL-WIDTH caption on top, then controls + two vizzes STACKED
+  // in a 3/4-width main column, with the equivalence strip in a quarter-width right column — the strip
+  // spans only the rows BELOW the caption, so it is as tall as the content beneath the caption, not the
+  // whole slide.
   lab: {
     columns: 'minmax(0, 3fr) minmax(0, 1fr)',
     rows: 'auto auto minmax(0, 1fr) minmax(0, 1fr)',
-    areas: '"caption equiv" "controls equiv" "viz-a equiv" "viz-b equiv"',
+    areas: '"caption caption" "controls equiv" "viz-a equiv" "viz-b equiv"',
     mobile: {
       columns: DUO_MOBILE_COLS,
       rows: 'auto auto auto auto auto',
