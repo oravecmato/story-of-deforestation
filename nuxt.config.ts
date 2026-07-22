@@ -99,11 +99,22 @@ export default defineNuxtConfig({
   },
 
   // Caching = CDN-first (ADR-005/014, tech-spec §8). Every /api/** response is a deterministic
-  // function of its query string (the full DerivationParams signature), so the CDN can cache by URL.
-  // WB data changes ~yearly → a 6h fresh window with stale-while-revalidate. A second in-function
+  // function of its query string (the full DerivationParams signature), so the CDN caches by URL.
+  // WB data changes ~yearly → a 6h fresh window with stale-while-revalidate.
+  //
+  // IMPORTANT: do NOT use the `swr` route-rule shortcut here. On the Vercel preset `swr` compiles to
+  // Vercel ISR, whose cache key is the PATH ONLY (no `allowQuery`) → the query string is stripped, so
+  // every horizon/baseline collapses onto one cached `/api/global` entry and the controls appear dead
+  // in production. Setting an explicit `cache-control` header instead keeps the response a normal
+  // function; Vercel's standard edge cache then keys by the FULL URL (query included) and honours
+  // s-maxage + stale-while-revalidate — 6h fresh window, per-query cache. A second in-function
   // (defineCachedFunction) layer for warm instances is deferred to a follow-up.
   routeRules: {
-    '/api/**': { swr: 60 * 60 * 6 },
+    '/api/**': {
+      headers: {
+        'cache-control': 'public, max-age=0, s-maxage=21600, stale-while-revalidate=86400',
+      },
+    },
   },
 
   // Strict TypeScript across app and server (ADR-015).
