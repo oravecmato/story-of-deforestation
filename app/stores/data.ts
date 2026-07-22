@@ -23,6 +23,12 @@ import type { ApiClient, StoreError } from '../services/apiClient'
 export type EndpointKey = 'global' | 'reference' | 'equivalence'
 type AnyDTO = GlobalResultDTO | ReferenceDTO | EquivalenceDTO
 
+// In-flight request dedup lives OUTSIDE the Pinia state on purpose: it holds pending Promises, which
+// are not serializable. Keeping it in `state` would put a `Promise` into the SSR payload and Nuxt's
+// devalue serializer throws (`Cannot stringify a Promise`) → a 500 on the server-rendered slide.
+// It is transient (entries self-delete on settle) and keyed by params, so a process-wide Map is safe.
+const inFlight = new Map<string, Promise<unknown>>()
+
 const noneLoading = (): Record<EndpointKey, boolean> => ({
   global: false,
   reference: false,
@@ -73,7 +79,6 @@ export interface LoadOptions {
 export const useDataStore = defineStore('data', {
   state: () => ({
     dtoCache: new Map<string, AnyDTO>(),
-    inFlight: new Map<string, Promise<unknown>>(),
     loading: noneLoading(),
     errors: noneError(),
   }),
@@ -137,7 +142,7 @@ export const useDataStore = defineStore('data', {
       const eps = endpoints ?? defaultEndpoints()
       for (const ep of eps) {
         const key = keyFor(ep, params, ui.locale)
-        if (this.dtoCache.has(key) || this.inFlight.has(key)) continue
+        if (this.dtoCache.has(key) || inFlight.has(key)) continue
         void this.ensure(
           ep,
           key,
@@ -157,7 +162,7 @@ export const useDataStore = defineStore('data', {
     ): Promise<unknown> {
       const cached = this.dtoCache.get(key)
       if (cached) return Promise.resolve(cached)
-      const existing = this.inFlight.get(key)
+      const existing = inFlight.get(key)
       if (existing) return existing
 
       if (!opts.silent) {
@@ -175,10 +180,10 @@ export const useDataStore = defineStore('data', {
           throw error
         })
         .finally(() => {
-          this.inFlight.delete(key)
+          inFlight.delete(key)
           if (!opts.silent) this.loading[endpoint] = false
         })
-      this.inFlight.set(key, promise)
+      inFlight.set(key, promise)
       return promise
     },
   },
