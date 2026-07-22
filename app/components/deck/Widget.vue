@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, type Component } from 'vue'
+import { computed, markRaw, ref, watch, type Component } from 'vue'
 import type { ControlKey } from '#shared/types'
 import type { RenderableWidget, ChartComponentName } from '../../story/SlideFactory'
 import TextWidget from './TextWidget.vue'
@@ -177,6 +177,32 @@ const vizState = computed<VizState | null>(() => {
   }
   return null
 })
+
+// The last viz state whose data was ready. Once a chart has rendered we keep this snapshot so a
+// subsequent refetch (switching horizon/baseline) does NOT tear the chart down to a skeleton: we keep
+// the SAME component mounted with its previous props, and swap to the fresh props only when they
+// arrive — so the option change animates in place (setOption, ADR-022) instead of remounting cold. The
+// DTO objects referenced here stay valid because the store cache retains prior entries.
+const lastReady = ref<VizState | null>(null)
+watch(
+  vizState,
+  (s) => {
+    if (s?.ready) lastReady.value = s
+  },
+  { immediate: true },
+)
+
+/** What the viz slot actually renders: the current state once its data is ready, otherwise the last
+ *  ready snapshot (kept on screen through a refetch). Null only before the very first successful load. */
+const displayed = computed<VizState | null>(() =>
+  vizState.value?.ready ? vizState.value : lastReady.value,
+)
+
+/** A refetch is in flight while a chart is already on screen → show a veil over the live chart instead
+ *  of a skeleton, and make the viz non-interactive for its duration (no cold skeleton on horizon switch). */
+const refetching = computed(
+  () => displayed.value != null && !!vizState.value?.loading && !vizState.value.ready,
+)
 </script>
 
 <template>
@@ -213,14 +239,21 @@ const vizState = computed<VizState | null>(() => {
   />
 
   <div v-else-if="widget.type === 'viz' && vizState" class="widget-viz">
-    <ErrorRetry v-if="vizState.error" :error="vizState.error" @retry="reload" />
-    <LoadingSkeleton v-else-if="vizState.loading && !vizState.ready" />
-    <component
-      :is="vizState.is"
-      v-else-if="vizState.ready"
-      v-bind="vizState.props"
-      :loading="vizState.loading"
-    />
+    <!-- Once a chart exists, keep it mounted through refetches (animates in place); a veil covers it
+         and blocks interaction while new data loads. The skeleton is only for the first-ever load. -->
+    <template v-if="displayed">
+      <component
+        :is="displayed.is"
+        v-bind="displayed.props"
+        :class="{ 'widget-viz__chart--busy': refetching }"
+      />
+      <div v-if="refetching" class="widget-viz__veil" aria-hidden="true" />
+      <div v-if="vizState.error" class="widget-viz__error-overlay">
+        <ErrorRetry :error="vizState.error" @retry="reload" />
+      </div>
+    </template>
+    <ErrorRetry v-else-if="vizState.error" :error="vizState.error" @retry="reload" />
+    <LoadingSkeleton v-else-if="vizState.loading" />
     <EmptyState v-else />
   </div>
 </template>
@@ -244,10 +277,46 @@ const vizState = computed<VizState | null>(() => {
   margin-left: auto;
 }
 .widget-viz {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
   height: 100%;
+}
+/* On mobile the grid rows are `auto`, so give the first-load skeleton a floor to fill (matches the
+   chart's intrinsic min-height); on desktop the viz cell already has a definite height. */
+@include mobile {
+  .widget-viz {
+    min-height: 240px;
+  }
+}
+/* Refetch (e.g. horizon switch): the live chart stays mounted but is frozen out of interaction while
+   the veil is up, so hovers/tooltips don't act on data that is about to change. */
+.widget-viz__chart--busy {
+  pointer-events: none;
+}
+/* Loading veil over a live chart during a refetch — a light blur + darken, purely visual (it never
+   swallows pointer events; the chart underneath is already inert via --busy). */
+.widget-viz__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(13, 17, 23, 0.4);
+  backdrop-filter: blur(2px);
+  border-radius: 10px;
+  transition: opacity 120ms ease;
+}
+/* A failed refetch keeps the stale chart but surfaces the retry over it. */
+.widget-viz__error-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 17, 23, 0.72);
+  border-radius: 10px;
 }
 /* The viz-shrink contract (the generic half of the fixed-height fit — SlideLayout owns the geometry).
    On desktop a slide is bound to one screen and its viz rows are `minmax(0, 1fr)`, so the chart must be

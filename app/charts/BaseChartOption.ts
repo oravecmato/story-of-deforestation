@@ -220,9 +220,23 @@ export abstract class BaseChartOption<TData> {
     return p.axisValueLabel ?? (typeof p.axisValue === 'string' ? p.axisValue : p.name ?? '')
   }
 
-  /** Axis-tooltip formatter shared by every cartesian chart: filters helper series (so projected twins
-   *  and band scaffolding never appear), dedupes by name, and formats each value through the injected
-   *  `Formatter` + unit — the same numbers the axis labels use (§11.5, ADR-018). */
+  /** Map a hovered series name to the PUBLIC metric row it belongs to, or `null` if it is helper-only.
+   *  A metric that is split at the projection join renders as a solid measured line (`series.stock`)
+   *  plus a dashed projected TWIN (`series.stock` + suffix); in projected years only the twin carries
+   *  a value while the measured line is null there. Folding the twin back onto its measured row (strip
+   *  the trailing suffix) is what stops the tooltip reading `n/a` past the join (§11.1). Band
+   *  scaffolding (`__`-prefixed) and edge-line helpers (suffix-PREFIXED) have no public row → `null`. */
+  protected tooltipRowName(name: unknown): string | null {
+    if (typeof name !== 'string' || name.length === 0 || name.startsWith('__')) return null
+    const canonical = name.endsWith(PROJECTED_SUFFIX) ? name.slice(0, -PROJECTED_SUFFIX.length) : name
+    if (canonical.length === 0 || canonical.includes(PROJECTED_SUFFIX) || canonical.startsWith('__')) return null
+    return canonical
+  }
+
+  /** Axis-tooltip formatter shared by every cartesian chart: folds each metric's measured line and its
+   *  projected twin into ONE row (so projected years read the twin's value instead of `n/a`), filters
+   *  band/edge scaffolding, and formats each value through the injected `Formatter` + unit — the same
+   *  numbers the axis labels use (§11.5, ADR-018). */
   protected axisTooltipFormatter(): (params: unknown) => string {
     const { formatter } = this.ctx
     const unit = this.yUnit()
@@ -235,17 +249,29 @@ export abstract class BaseChartOption<TData> {
         axisValueLabel?: string
         name?: string
       }>
-      const seen = new Set<string>()
-      const rows: string[] = []
+      // Rows keyed by public metric name; the measured line (seen first in series order) sets the
+      // marker, and a later twin backfills the value in projected years where the measured line is null.
+      const byName = new Map<string, { marker: string; value: number | null }>()
+      const order: string[] = []
       let header = ''
       for (const p of items) {
         if (!header) header = this.tooltipHeader(p)
-        if (this.isHelperSeries(p.seriesName) || seen.has(p.seriesName as string)) continue
-        seen.add(p.seriesName as string)
+        const key = this.tooltipRowName(p.seriesName)
+        if (key == null) continue
         const raw = Array.isArray(p.value) ? p.value[p.value.length - 1] : p.value
         const num = typeof raw === 'number' ? raw : null
-        rows.push(`${p.marker ?? ''}${p.seriesName}: ${formatter.format(num)} ${unit}`)
+        const row = byName.get(key)
+        if (!row) {
+          byName.set(key, { marker: p.marker ?? '', value: num })
+          order.push(key)
+        } else if (row.value == null && num != null) {
+          row.value = num
+        }
       }
+      const rows = order.map((k) => {
+        const row = byName.get(k)!
+        return `${row.marker}${k}: ${formatter.format(row.value)} ${unit}`
+      })
       return rows.length > 0 ? `${header}<br/>${rows.join('<br/>')}` : ''
     }
   }

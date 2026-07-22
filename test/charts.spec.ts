@@ -155,6 +155,31 @@ describe('CrossingOption', () => {
     const stock = s.find((x) => x.name === 'series.stock')!
     expect(stock.markLine).toBeUndefined()
   })
+
+  // Past the projection join the measured stock line is null (its value lives in the dashed projected
+  // twin) — the tooltip must fold the twin back onto the stock row instead of reading `n/a`.
+  it('tooltip reads the projected value past the join (not n/a)', () => {
+    const input: CrossingInput = {
+      stock: series('stock', [[2000, 10], [2001, 12], [2002, 14]], 2001),
+      forgoneSink: band('fs', [[2000, 5, 8, 11], [2001, 6, 10, 14], [2002, 7, 12, 16]], 2001),
+      crossingYear: 2002,
+    }
+    const o = new CrossingOption(input, ctx()).build()
+    const fmt = (o.tooltip as { formatter: (p: unknown) => string }).formatter
+    // A hovered 2002 (projected) axis point: measured lines null, the suffixed twins carry the value.
+    const out = fmt([
+      { seriesName: 'series.stock', marker: '#', value: [Date.UTC(2002, 0, 1), null], axisValue: Date.UTC(2002, 0, 1) },
+      { seriesName: 'series.forgoneSink', marker: '#', value: [Date.UTC(2002, 0, 1), null], axisValue: Date.UTC(2002, 0, 1) },
+      { seriesName: 'series.stock' + PROJECTED_SUFFIX, marker: '#', value: [Date.UTC(2002, 0, 1), 14], axisValue: Date.UTC(2002, 0, 1) },
+      { seriesName: 'series.forgoneSink' + PROJECTED_SUFFIX, marker: '#', value: [Date.UTC(2002, 0, 1), 12], axisValue: Date.UTC(2002, 0, 1) },
+    ])
+    expect(out).toContain('2002')
+    expect(out).toContain('series.stock: 14')
+    expect(out).toContain('series.forgoneSink: 12')
+    expect(out).not.toContain('n/a')
+    // one row per metric (twins folded in), not four
+    expect(out.split('<br/>')).toHaveLength(3) // header + 2 rows
+  })
 })
 
 // --- FootprintDonutOption ---------------------------------------------------
