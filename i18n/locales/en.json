@@ -57,11 +57,6 @@
       "countryLong": "annual emissions of {country}"
     }
   },
-  "methodology": {
-    "link": "Methodology",
-    "title": "Methodology",
-    "body": "Reported (official) emissions are the World Bank deforestation figures. Full accounting adds the forgone carbon sink — the future sequestration lost when forest is cleared — estimated as an R factor times cumulative area loss. R combines an aboveground rate with a locked allometric factor of 1.24; the conservative / mid / high band reflects its uncertainty. Estimates are dashed; measured values are solid. Composite figures start in 2000 (stock coverage) while the sink integral runs from 1990."
-  },
   "state": {
     "loading": "Loading…",
     "empty": "No data for this selection.",
@@ -155,6 +150,11 @@
     },
     "amplified": {
       "caption": "For these very reasons, some climate models suggest the forgone sink could be up to six times larger. What would that mean in practice? Slide the R multiplier and watch."
+    },
+    "sources": {
+      "heading": "Sources",
+      "p1": "World Bank (2025). World Development Indicators. Washington, DC: The World Bank. Retrieved from the World Bank Open Data API (https://data.worldbank.org). Deforestation-related CO₂ emissions (indicator EN.GHG.CO2.LU.DF.MT.CE.AR5, EDGAR) and forest area (indicator AG.LND.FRST.K2, FAOSTAT).",
+      "p2": "Klein Goldewijk, K., Beusen, A., Doelman, J., & Stehfest, E. (2017). Anthropogenic land use estimates for the Holocene – HYDE 3.2. Earth System Science Data, 9(2), 927–953. https://doi.org/10.5194/essd-9-927-2017. Used as the basis for reconstructing historical forest loss before 2000 back to 1800."
     }
   }
 }

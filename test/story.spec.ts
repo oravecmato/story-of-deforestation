@@ -37,6 +37,7 @@ const SCENES: ReadonlySet<SceneId> = new Set([
   'baseline',
   'method',
   'amplified',
+  'sources',
 ])
 const WIDGET_TYPES: ReadonlySet<WidgetType> = new Set([
   'text',
@@ -82,8 +83,8 @@ const renderedViz = (slug: string, params: DerivationParams) =>
 // --- slides.ts (authored config) -------------------------------------------
 
 describe('slides.ts — authored deck config', () => {
-  it('is a ten-slide deck across the seven scenes', () => {
-    expect(SLIDES).toHaveLength(10)
+  it('is an eleven-slide deck across the eight scenes', () => {
+    expect(SLIDES).toHaveLength(11)
     expect(new Set(SLIDES.map((s) => s.scene))).toEqual(SCENES)
   })
 
@@ -99,6 +100,7 @@ describe('slides.ts — authored deck config', () => {
       'method',
       'method-more',
       'amplified',
+      'sources',
     ])
     expect(new Set(SLUGS).size).toBe(SLUGS.length)
     expect(FIRST_SLUG).toBe('intro')
@@ -239,6 +241,7 @@ describe('slides.ts — authored deck config', () => {
       'method',
       'method-more',
       'amplified',
+      'sources',
     ]) {
       expect(widgetsOfType(slug, 'multiplier')).toHaveLength(0)
     }
@@ -268,11 +271,13 @@ describe('slides.ts — navigation helpers', () => {
     expect(nextSlug('deforestation-insight')).toBe('baseline')
     expect(nextSlug('baseline')).toBe('method')
     expect(nextSlug('method-more')).toBe('amplified')
-    expect(nextSlug('amplified')).toBeNull()
+    expect(nextSlug('amplified')).toBe('sources')
+    expect(nextSlug('sources')).toBeNull()
     expect(prevSlug('intro')).toBeNull()
     expect(prevSlug('main')).toBe('intro')
     expect(prevSlug('baseline')).toBe('deforestation-insight')
     expect(prevSlug('amplified')).toBe('method-more')
+    expect(prevSlug('sources')).toBe('amplified')
     expect(nextSlug('nope')).toBeNull()
     expect(prevSlug('nope')).toBeNull()
   })

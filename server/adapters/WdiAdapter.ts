@@ -10,6 +10,14 @@ import type { FetchOpts, SourceAdapter } from './SourceAdapter'
 
 const SOURCE = 'WDI'
 
+/** The atomic per-country WB fetch. */
+type FetchOne = (iso3: string, indicatorCode: string, opts?: FetchOpts) => Promise<Series>
+
+/** Wraps the atomic per-country fetch so the DI container can memoise WB calls in production (a
+ *  `defineCachedFunction` wrapper); the identity default leaves tests hitting their Axios stub
+ *  directly. `fetchIndicatorMulti` fans out over the SAME wrapped unit, so both entry points cache. */
+export type WdiFetchCache = (fetch: FetchOne) => FetchOne
+
 /** One raw WDI observation row (response[1] element). */
 interface WdiRow {
   countryiso3code: string
@@ -19,9 +27,20 @@ interface WdiRow {
 }
 
 export class WdiAdapter implements SourceAdapter {
-  constructor(private readonly http: AxiosInstance) {}
+  private readonly fetchOne: FetchOne
 
-  async fetchIndicator(iso3: string, indicatorCode: string, opts?: FetchOpts): Promise<Series> {
+  constructor(
+    private readonly http: AxiosInstance,
+    cache: WdiFetchCache = (fetch) => fetch,
+  ) {
+    this.fetchOne = cache((iso3, indicatorCode, opts) => this.fetchOneRaw(iso3, indicatorCode, opts))
+  }
+
+  fetchIndicator(iso3: string, indicatorCode: string, opts?: FetchOpts): Promise<Series> {
+    return this.fetchOne(iso3, indicatorCode, opts)
+  }
+
+  private async fetchOneRaw(iso3: string, indicatorCode: string, opts?: FetchOpts): Promise<Series> {
     const params: Record<string, string | number> = {
       format: 'json',
       per_page: opts?.perPage ?? 1000,

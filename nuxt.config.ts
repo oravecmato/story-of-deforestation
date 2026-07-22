@@ -39,6 +39,13 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { class: 'app-dark' },
       link: [
+        // Favicon: the tree mark (public/*), served static. .ico for the legacy /favicon.ico probe,
+        // sized PNGs for modern browsers, and an apple-touch-icon for iOS home-screen.
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/favicon-512x512.png' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
+        { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {
@@ -108,7 +115,9 @@ export default defineNuxtConfig({
   // in production. Setting an explicit `cache-control` header instead keeps the response a normal
   // function; Vercel's standard edge cache then keys by the FULL URL (query included) and honours
   // s-maxage + stale-while-revalidate — 6h fresh window, per-query cache. A second in-function
-  // (defineCachedFunction) layer for warm instances is deferred to a follow-up.
+  // (defineCachedFunction) layer now sits under this for warm instances: each /api handler memoises
+  // its DTO by the params signature, and the WB/WDI fetches are memoised per country in the DI
+  // container (server/di/container.ts) — both 6h + swr.
   routeRules: {
     '/api/**': {
       headers: {

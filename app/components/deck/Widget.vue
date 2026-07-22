@@ -231,8 +231,12 @@ const refetching = computed(
 </script>
 
 <template>
+  <!-- Re-key by the block's copy identity so the per-element reveal replays on every slide switch: the
+       widget's `id` is reused across a scene's slides (this component persists), so without a content
+       key the text would swap silently. Same copy re-viewed → same key → no replay (acceptable). -->
   <TextWidget
     v-if="widget.type === 'text'"
+    :key="`${widget.headingKey ?? ''}|${widget.captionKey ?? ''}|${(widget.textKeys ?? []).join(',')}`"
     :heading-key="widget.headingKey"
     :caption-key="widget.captionKey"
     :text-keys="widget.textKeys"

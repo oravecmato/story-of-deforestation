@@ -20,6 +20,7 @@ export type SceneId =
   | 'baseline'
   | 'method'
   | 'amplified'
+  | 'sources'
 
 /** The named grid templates a slide arranges its widgets on (ADR-027). Replaces the old closed
  *  `LayoutPreset` union: geometry is now a `GridTemplate` (columns/rows/areas), and a slide places each

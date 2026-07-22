@@ -17,6 +17,7 @@ defineProps<{ slide: RenderableSlide }>()
       v-for="w in slide.widgets"
       :key="w.id"
       class="slide__widget"
+      :class="{ 'slide__widget--controls': w.type === 'controls' }"
       :style="{ gridArea: w.area }"
     >
       <Widget :widget="w" />
@@ -24,11 +25,21 @@ defineProps<{ slide: RenderableSlide }>()
   </SlideLayout>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .slide__widget {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+// Tablet + mobile (< desktop): the controls read as a toolbar set apart from the content below by a
+// full-width hairline — 20px above the line (this padding), the semi-transparent line itself, then the
+// 20px grid row-gap below it before the next widget. Desktop keeps the controls inline with the plain
+// grid spacing (no divider).
+@include mobile {
+  .slide__widget--controls {
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--c-border-hairline);
+  }
 }
 </style>

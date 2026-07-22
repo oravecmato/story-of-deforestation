@@ -57,11 +57,6 @@
       "countryLong": "ročné emisie {country}"
     }
   },
-  "methodology": {
-    "link": "Metodika",
-    "title": "Metodika",
-    "body": "Vykázané (oficiálne) emisie sú údaje Svetovej banky o odlesňovaní. Úplné účtovanie pridáva stratený uhlíkový záchyt — budúce ukladanie uhlíka stratené vyrúbaním lesa — odhadnutý ako faktor R krát kumulatívna strata plochy. R kombinuje nadzemnú mieru s uzamknutým alometrickým faktorom 1,24; pásmo konzervatívny / stredný / vysoký odráža jeho neistotu. Odhady sú prerušované; namerané hodnoty plné. Kompozitné hodnoty začínajú v roku 2000 (pokrytie stavu), zatiaľ čo integrál záchytu beží od roku 1990."
-  },
   "state": {
     "loading": "Načítava sa…",
     "empty": "Pre tento výber nie sú údaje.",
@@ -155,6 +150,11 @@
     },
     "amplified": {
       "caption": "Aj z týchto dôvodov niektoré klimatické vedecké modely navrhujú, že stratený uhlíkový záchyt by mohol byť až šesťnásobne vyšší. Čo by to znamenalo v praxi? Posuňte násobič R a sledujte."
+    },
+    "sources": {
+      "heading": "Zdroje",
+      "p1": "World Bank (2025). World Development Indicators. Washington, DC: The World Bank. Získané z rozhrania World Bank Open Data API (https://data.worldbank.org). Emisie CO₂ z odlesňovania (indikátor EN.GHG.CO2.LU.DF.MT.CE.AR5, EDGAR) a plocha lesov (indikátor AG.LND.FRST.K2, FAOSTAT).",
+      "p2": "Klein Goldewijk, K., Beusen, A., Doelman, J., & Stehfest, E. (2017). Anthropogenic land use estimates for the Holocene – HYDE 3.2. Earth System Science Data, 9(2), 927–953. https://doi.org/10.5194/essd-9-927-2017. Použité ako podklad pre rekonštrukciu historickej straty lesov pred rokom 2000 až do roku 1800."
     }
   }
 }

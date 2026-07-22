@@ -5,7 +5,6 @@ import { renderSlide, type RenderableSlide, type ChartComponentName } from '../.
 import GenericSlide from '../../components/deck/GenericSlide.vue'
 import DeckNav from '../../components/deck/DeckNav.vue'
 import LanguageSwitcher from '../../components/controls/LanguageSwitcher.vue'
-import MethodologyDisclosure from '../../components/shell/MethodologyDisclosure.vue'
 import { useApi } from '../../composables/useApi'
 import { useBreakpoint } from '../../composables/useBreakpoint'
 import { useSwipeNav } from '../../composables/useSwipeNav'
@@ -158,7 +157,6 @@ const onNavigate = (target: string) => {
         </div>
         <div class="deck__actions">
           <LanguageSwitcher />
-          <MethodologyDisclosure />
         </div>
       </header>
 

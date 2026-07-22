@@ -1,6 +1,6 @@
 import type { SlideDef } from '#shared/types'
 
-// The authored story deck (tech-spec §17.1, business §4.7, ADR-027). Ten slides across seven scenes.
+// The authored story deck (tech-spec §17.1, business §4.7, ADR-027). Eleven slides across eight scenes.
 // A slide is a grid template + the widgets placed on it (copy is i18n keys only). Sibling slides in a
 // scene share widget `id`s so the reveal (2→3) and the fossil-removal (5→6) animate in place. `params`
 // seeds a scene's authored defaults on first entry; `forced` overrides are immutable (crossing forces a
@@ -197,6 +197,24 @@ export const SLIDES: readonly SlideDef[] = [
     ],
     params: { horizon: '100y' },
     baseline: 1990,
+  },
+
+  // 11 — sources: closing bibliographic slide. A single centred text block crediting the World Bank
+  // data source and the historical (pre-2000) deforestation reconstruction. Editorial only, fetches
+  // nothing.
+  {
+    slug: 'sources',
+    scene: 'sources',
+    grid: 'text',
+    widgets: [
+      {
+        id: 'text',
+        type: 'text',
+        area: 'text',
+        headingKey: 'story.sources.heading',
+        textKeys: ['story.sources.p1', 'story.sources.p2'],
+      },
+    ],
   },
 ]
 

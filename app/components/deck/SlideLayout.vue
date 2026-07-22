@@ -35,7 +35,10 @@ const style = computed(() => ({
   grid-template-columns: var(--grid-cols);
   grid-template-rows: var(--grid-rows);
   grid-template-areas: var(--grid-areas);
-  gap: 16px 24px;
+  // Uniform 20px breathing room BETWEEN widgets on every breakpoint (survives the responsive breakdown
+  // to the mobile templates since the same grid drives all sizes). `gap` is edge-free and never
+  // accumulates — the space lives once, in the track gutters, not as per-widget padding.
+  gap: 20px;
   align-items: stretch;
   min-height: 100%;
 }
