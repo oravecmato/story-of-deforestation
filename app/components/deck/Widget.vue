@@ -121,6 +121,31 @@ const equivalenceState = computed(() => {
   return { title, cells, loading, error }
 })
 
+// Keep the last non-empty strip cells on screen through a refetch (switching horizon clears
+// `currentMainResult` until the new DTO lands, so `equivalenceState.cells` momentarily empties). Same
+// contract as the viz `lastReady` snapshot: no cold skeleton on horizon switch — a veil covers the
+// stale cells instead (§9). The store cache keeps prior DTOs valid, so the snapshot stays coherent.
+const lastEquivalenceCells = ref<StripCell[]>([])
+watch(
+  () => equivalenceState.value.cells,
+  (cells) => {
+    if (cells.length) lastEquivalenceCells.value = cells
+  },
+  { immediate: true },
+)
+/** Cells the strip renders: the live ones once present, else the last non-empty snapshot. */
+const displayedEquivalenceCells = computed(() =>
+  equivalenceState.value.cells.length ? equivalenceState.value.cells : lastEquivalenceCells.value,
+)
+/** A refetch is in flight while cells are already on screen → the strip shows a veil over the four
+ *  cells (not a skeleton) for its duration. */
+const equivalenceBusy = computed(
+  () =>
+    displayedEquivalenceCells.value.length > 0 &&
+    equivalenceState.value.loading &&
+    equivalenceState.value.cells.length === 0,
+)
+
 /** A resolved visualisation ready to mount: its component, load state and bound props. */
 interface VizState {
   is: Component
@@ -232,8 +257,9 @@ const refetching = computed(
     v-else-if="widget.type === 'equivalence'"
     :layout="widget.orientation"
     :title="equivalenceState.title"
-    :cells="equivalenceState.cells"
+    :cells="displayedEquivalenceCells"
     :loading="equivalenceState.loading"
+    :busy="equivalenceBusy"
     :error="equivalenceState.error"
     @retry="reload"
   />

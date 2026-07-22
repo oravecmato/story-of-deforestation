@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { getSlide, nextSlug, FIRST_SLUG, slideIndex, SLUGS } from '../../story/slides'
+import { getSlide, nextSlug, prevSlug, FIRST_SLUG, slideIndex, SLUGS } from '../../story/slides'
 import { renderSlide, type RenderableSlide, type ChartComponentName } from '../../story/SlideFactory'
 import GenericSlide from '../../components/deck/GenericSlide.vue'
 import DeckNav from '../../components/deck/DeckNav.vue'
@@ -8,6 +8,7 @@ import LanguageSwitcher from '../../components/controls/LanguageSwitcher.vue'
 import MethodologyDisclosure from '../../components/shell/MethodologyDisclosure.vue'
 import { useApi } from '../../composables/useApi'
 import { useBreakpoint } from '../../composables/useBreakpoint'
+import { useSwipeNav } from '../../composables/useSwipeNav'
 import { useDataStore, type EndpointKey } from '../../stores/data'
 import { useViewStore } from '../../stores/view'
 import { useUiStore, type Locale } from '../../stores/ui'
@@ -107,10 +108,24 @@ const prefetchNext = () => {
 // Enter the initial scene BEFORE the first load so the params are in place for SSR.
 applyScene(true)
 
-// Scene entry on slug change — registered before the load watcher so params update first.
+// Swipe navigation on mobile/tablet (design §5.1): the active slide follows the finger and a >50%
+// drag commits to the adjacent slug. Desktop keeps the edge-arrow lanes (`enabled` gates by breakpoint).
+const swipe = useSwipeNav({
+  enabled: () => ui.breakpoint !== 'lg',
+  canPrev: () => prevSlug(slug.value) != null,
+  canNext: () => nextSlug(slug.value) != null,
+  onCommit: (dir) => {
+    const target = dir === 'next' ? nextSlug(slug.value) : prevSlug(slug.value)
+    if (target) onNavigate(target)
+  },
+})
+
+// Scene entry on slug change — registered before the load watcher so params update first. Also snaps
+// the swipe panel back to centre now the new slide's content is mounted (no flash of the outgoing one).
 watch(slug, () => {
   applyScene(false)
   prefetchNext()
+  swipe.reset()
 })
 
 const loadKey = computed(() => `${slug.value}|${JSON.stringify(view.query)}|${ui.locale}`)
@@ -148,9 +163,25 @@ const onNavigate = (target: string) => {
       </header>
 
       <!-- Not keyed by slug: the persistent GenericSlide instance lets sibling slides in a scene
-           animate in place (charts remount only when their viz.id changes across a scene boundary). -->
-      <main class="deck__stage">
-        <GenericSlide :slide="slide" />
+           animate in place (charts remount only when their viz.id changes across a scene boundary).
+           On mobile/tablet the stage owns the swipe gesture; the panel translates with the finger and
+           the dark stage revealed behind it is the empty next/prev screen (desktop: transform is a
+           no-op via `display: contents`, the edge-arrow lanes navigate instead). -->
+      <main
+        class="deck__stage"
+        @pointerdown="swipe.onPointerDown"
+        @pointermove="swipe.onPointerMove"
+        @pointerup="swipe.onPointerUp"
+        @pointercancel="swipe.onPointerUp"
+      >
+        <div
+          class="deck__panel"
+          :class="{ 'deck__panel--dragging': swipe.dragging.value }"
+          :style="swipe.panelStyle.value"
+          @transitionend="swipe.onTransitionEnd"
+        >
+          <GenericSlide :slide="slide" />
+        </div>
       </main>
 
       <DeckNav :slug="slug" @navigate="onNavigate" />
@@ -217,5 +248,29 @@ const onNavigate = (target: string) => {
 .deck__stage {
   flex: 1 1 auto;
   padding: 24px 0;
+}
+// The swipe panel: on mobile/tablet it is the box that translates under the finger. On desktop it is
+// laid out as if it were not there (`display: contents`), so GenericSlide stays a direct child of the
+// stage and the fixed-height desktop layout is unchanged; the transform (always translateX(0) there,
+// the gesture is disabled) has no box to act on.
+.deck__panel {
+  will-change: transform;
+}
+.deck__panel--dragging {
+  user-select: none;
+}
+@include desktop {
+  .deck__panel {
+    display: contents;
+  }
+}
+// Mobile/tablet: clip the panel horizontally when it is dragged/settled off-stage (`clip` does NOT
+// create a scroll container, so the page still scrolls vertically), and `pan-y` lets the browser keep
+// vertical scroll while the swipe owns the horizontal axis.
+@include mobile {
+  .deck__stage {
+    overflow-x: clip;
+    touch-action: pan-y;
+  }
 }
 </style>
